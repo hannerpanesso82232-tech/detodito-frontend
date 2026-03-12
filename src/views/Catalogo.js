@@ -7,9 +7,27 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// URL de la API desde variables de entorno
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+// 🔥 CORRECCIÓN AGRESIVA: Limpieza de Localhost para imágenes del Catálogo y Carrito 🔥
+const formatearImagen = (url) => {
+    if (!url) return 'https://placehold.co/400x500?text=Sin+Imagen';
+    
+    let urlLimpia = url;
+    // Si la BD guardó la ruta local antigua, se la quitamos a la fuerza
+    if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
+        urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
+    }
 
+    // Si es un enlace de internet seguro real, lo dejamos pasar
+    if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
+        return urlLimpia;
+    }
+    
+    // Usamos la URL de la API de las variables de entorno
+    const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
+    return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
+};
+
+// Componente para el efecto de carga (Skeleton)
 const SkeletonCard = () => (
     <div className="group relative animate-pulse">
         <div className="aspect-[4/5] rounded-[2.5rem] bg-gray-200 mb-4" />
@@ -23,6 +41,7 @@ const SkeletonCard = () => (
 );
 
 const Catalogo = () => {
+    // Estados
     const [productos, setProductos] = useState([]);
     const [categorias, setCategorias] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -59,7 +78,7 @@ const Catalogo = () => {
         try {
             const res = await API.get('/favoritos');
             setMisFavoritos(res.data.map(f => f.id));
-        } catch (e) { }
+        } catch (e) { /* Error silencioso */ }
     };
 
     const manejarFavorito = async (productoId) => {
@@ -84,7 +103,7 @@ const Catalogo = () => {
     }, [productos, busqueda, categoriaSel]);
 
     const handleCheckoutWhatsApp = () => {
-        const numero = "573202832661";
+        const numero = "573202832661"; // <-- CONFIGURA TU NÚMERO
         if (!direccion.trim()) {
             toast.error("Por favor, ingresa tu dirección");
             return;
@@ -92,11 +111,11 @@ const Catalogo = () => {
 
         let mensaje = "¡Hola! 👋 Quisiera realizar este pedido:\n\n";
         cart.forEach(item => {
-            mensaje += `📦 *${item.nombre}*\n   Cant: ${item.cantidad} x $${item.precio}\n`;
+            mensaje += `📦 *${item.nombre}*\n   Cant: ${item.cantidad} x $${parseFloat(item.precio).toLocaleString('es-CO')}\n`;
         });
         
         mensaje += `\n📍 *ENTREGAR EN:* ${direccion}`;
-        mensaje += `\n💰 *TOTAL: $${total.toFixed(2)}*`;
+        mensaje += `\n💰 *TOTAL: $${total.toLocaleString('es-CO')}*`;
         
         window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`, '_blank');
     };
@@ -158,14 +177,16 @@ const Catalogo = () => {
                     ) : (
                         productosFiltrados.map(p => (
                             <div key={p.id} className="group relative bg-white p-4 rounded-[2.5rem] border border-transparent hover:border-gray-100 transition-all hover:shadow-2xl flex flex-col h-full">
+                                {/* Contenedor Imagen */}
                                 <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-gray-50 mb-6">
                                     <img 
-                                        src={p.imagen_url ? `${BASE_URL}${p.imagen_url}` : 'https://placehold.co/400x500?text=Sin+Imagen'} 
-                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                                        src={formatearImagen(p.imagen_url)} 
+                                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 bg-white"
                                         alt={p.nombre}
                                         onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/400x500?text=Error'; }}
                                     />
                                     
+                                    {/* Botón Favorito */}
                                     <button 
                                         onClick={() => manejarFavorito(p.id)}
                                         className="absolute top-4 right-4 z-10 p-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm hover:scale-110 transition active:scale-90"
@@ -173,12 +194,14 @@ const Catalogo = () => {
                                         <Heart size={18} className={misFavoritos.includes(p.id) ? "fill-red-500 text-red-500" : "text-gray-300"} />
                                     </button>
 
+                                    {/* Badge Stock Flotante */}
                                     <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm">
                                         <span className={`text-[9px] font-black uppercase tracking-widest ${p.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
                                             {p.stock > 0 ? `${p.stock} Disp.` : 'Agotado'}
                                         </span>
                                     </div>
 
+                                    {/* Overlay si no hay stock */}
                                     {p.stock <= 0 && (
                                         <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex items-center justify-center pointer-events-none">
                                             <span className="text-[14px] font-black uppercase tracking-widest text-gray-900 bg-white px-4 py-2 rounded-xl">
@@ -188,6 +211,7 @@ const Catalogo = () => {
                                     )}
                                 </div>
 
+                                {/* Info Producto */}
                                 <div className="px-2 flex flex-col flex-1">
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex-1 pr-2">
@@ -199,7 +223,7 @@ const Catalogo = () => {
                                             </p>
                                         </div>
                                         <p className="font-black text-lg italic text-black tracking-tighter">
-                                            ${Number(p.precio).toLocaleString()}
+                                            ${Number(p.precio).toLocaleString('es-CO')}
                                         </p>
                                     </div>
                                     
@@ -207,6 +231,7 @@ const Catalogo = () => {
                                         {p.descripcion || 'Sin descripción disponible para este producto.'}
                                     </p>
                                     
+                                    {/* Botón Acción - Aparece en Hover */}
                                     <button 
                                         onClick={() => addToCart(p)}
                                         disabled={p.stock <= 0}
@@ -240,7 +265,7 @@ const Catalogo = () => {
                                 cart.map(item => (
                                     <div key={item.id} className="flex gap-4 animate-in fade-in">
                                         <div className="w-20 h-24 bg-gray-50 rounded-2xl overflow-hidden flex-shrink-0">
-                                            <img src={item.imagen_url ? `${BASE_URL}${item.imagen_url}` : 'https://placehold.co/100'} className="w-full h-full object-cover" alt={item.nombre} />
+                                            <img src={formatearImagen(item.imagen_url)} className="w-full h-full object-cover bg-white" alt={item.nombre} />
                                         </div>
                                         <div className="flex-1 flex flex-col justify-between py-1">
                                             <div className="flex justify-between">
@@ -280,7 +305,7 @@ const Catalogo = () => {
 
                                 <div className="flex justify-between items-end mb-8">
                                     <span className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Total</span>
-                                    <span className="text-4xl font-black italic tracking-tighter text-gray-900">${total.toLocaleString()}</span>
+                                    <span className="text-4xl font-black italic tracking-tighter text-gray-900">${total.toLocaleString('es-CO')}</span>
                                 </div>
                                 <button 
                                     onClick={handleCheckoutWhatsApp}

@@ -32,17 +32,25 @@ const RUTAS_BASE = [
     "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"
 ];
 
-// 🔥 CORRECCIÓN 1: FORMATEO DE IMÁGENES PARA LA NUBE 🔥
+// 🔥 CORRECCIÓN AGRESIVA: Limpieza de Localhost en Base de Datos 🔥
 const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/150';
-    if (url.startsWith('http')) return url;
     
-    // Usamos la URL de la API de las variables de entorno para las imágenes
+    let urlLimpia = url;
+    // Si la BD guardó la ruta local antigua, se la quitamos a la fuerza
+    if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
+        urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
+    }
+
+    // Si es un enlace de internet seguro real (ej: Cloudinary, Imgur), lo dejamos pasar
+    if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
+        return urlLimpia;
+    }
+    
     const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
-    return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
+    return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
 };
 
-// ... (Función calcularFechaReal e imprimirFacturaCliente se mantienen igual) ...
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
     const fechaMaxima = new Date(8640000000000000); 
@@ -114,39 +122,31 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
 const imprimirFacturaCliente = (pedido, rutasDinamicas = [], horaLimiteGlobal) => {
     toast.success("Generando PDF de la factura...");
     const doc = new jsPDF();
-    
     doc.setFillColor(0, 0, 0); doc.rect(0, 0, 210, 35, 'F'); 
     doc.setFontSize(24); doc.setFont("helvetica", "bold"); doc.setTextColor(255, 255, 255); doc.text("MODERN SHOP S.A.C.", 14, 18);
     doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text("ORDEN DE ENTREGA Y FACTURA DE VENTA", 14, 26);
     doc.setTextColor(0, 0, 0); doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("DATOS DEL CLIENTE", 14, 45);
-    
     const nombreCliente = pedido.Usuario?.nombre || pedido.cliente || 'Consumidor Final';
     doc.setFontSize(10); doc.setFont("helvetica", "normal");
     doc.text(`Nombre: ${nombreCliente}`, 14, 52);
     doc.text(`Dirección: ${pedido.direccion || pedido.Usuario?.direccion || 'A Convenir'}`, 14, 58);
     doc.text(`Ciudad/Zona: ${pedido.Usuario?.ciudad || pedido.ruta || 'Urabá Antioquia'}`, 14, 64);
-    
     const infoRuta = calcularFechaReal(pedido.ruta, pedido.Usuario?.ciudad, pedido.direccion, rutasDinamicas, pedido.fecha, horaLimiteGlobal);
-    
     doc.setFont("helvetica", "bold"); doc.text(`N° DE ORDEN: #${pedido.id}`, 130, 45);
     doc.setFont("helvetica", "normal"); doc.text(`Fecha Pedido: ${new Date(pedido.fecha || new Date()).toLocaleDateString('es-ES')}`, 130, 52);
     doc.text(`Estado: ${(pedido.estado || 'Pendiente').toUpperCase()}`, 130, 58);
     doc.setFont("helvetica", "bold"); doc.text(`Entrega: ${infoRuta.fechaFormateada}`, 130, 64); 
-
     const tableRows = (pedido.Detalles || pedido.items || []).map(item => {
         const nombreItem = item.Producto?.nombre || item.nombre || 'Item';
         const precioUnitario = parseFloat(item.precioUnitario || item.precio || 0);
         const subtotal = item.cantidad * precioUnitario;
         return [item.cantidad, nombreItem.toUpperCase(), `$${formatCurrency(precioUnitario)}`, `$${formatCurrency(subtotal)}`];
     });
-
     autoTable(doc, { startY: 75, head: [['CANT', 'PRODUCTO / REFERENCIA', 'PRECIO UNITARIO', 'SUBTOTAL']], body: tableRows, theme: 'striped', headStyles: { fillColor: [0, 0, 0], textColor: [255,255,255], fontStyle: 'bold' }, styles: { fontSize: 9, cellPadding: 5 } });
-
     const finalY = doc.lastAutoTable.finalY || 75;
     doc.setFillColor(248, 250, 252); doc.rect(120, finalY + 5, 75, 12, 'F'); doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.text(`TOTAL: $${formatCurrency(pedido.total)}`, 125, finalY + 13);
     doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.line(14, finalY + 50, 80, finalY + 50); doc.text("Firma de Recibido a Conformidad", 14, finalY + 55); doc.text(`C.C: _______________________`, 14, finalY + 62); doc.line(110, finalY + 50, 180, finalY + 50); doc.text("Entregado por (Firma del Conductor)", 110, finalY + 55);
     doc.setFontSize(8); doc.setTextColor(150, 150, 150); doc.text("Gracias por elegirnos Dios te bendiga. Este documento avala la entrega de los productos.", 14, 280);
-
     const nombreArchivoSeguro = nombreCliente.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''); doc.save(`Factura_${nombreArchivoSeguro}_ModernShop_Orden${pedido.id}.pdf`); 
 };
 
@@ -172,12 +172,8 @@ const AdminDashboard = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
-
-    // ESTADOS DE CONFIGURACIÓN
     const [whatsappTienda, setWhatsappTienda] = useState('');
     const [horaLimite, setHoraLimite] = useState('20:00'); 
-
-    // ESTADOS DE MODALES
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [pedidoDetalle, setPedidoDetalle] = useState(null);
@@ -186,16 +182,13 @@ const AdminDashboard = () => {
     const [showEditUsuarioModal, setShowEditUsuarioModal] = useState(false);
     const [showConfigModal, setShowConfigModal] = useState(false);
     const [showGastoModal, setShowGastoModal] = useState(false);
-
     const [showEditTransaccionModal, setShowEditTransaccionModal] = useState(false);
     const [showDeleteTransaccionModal, setShowDeleteTransaccionModal] = useState(false);
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
-
     const [nuevaRutaPersonalizada, setNuevaRutaPersonalizada] = useState('');
     const [rutasDisponibles, setRutasDisponibles] = useState(RUTAS_BASE);
     const [nuevaRutaCiudad, setNuevaRutaCiudad] = useState('');
     const [nuevaRutaDia, setNuevaRutaDia] = useState('');
-
     const [productoEditando, setProductoEditando] = useState(null);
     const [productoAEliminar, setProductoAEliminar] = useState(null);
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
@@ -203,13 +196,11 @@ const AdminDashboard = () => {
     const [imagenArchivo, setImagenArchivo] = useState(null);
     const [preview, setPreview] = useState(null);
     const [precioCalculado, setPrecioCalculado] = useState(0);
-
     const [formulario, setFormulario] = useState({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 });
     const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
     const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
     const [formGasto, setFormGasto] = useState({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' });
     const [nuevaPassword, setNuevaPassword] = useState('');
-
     const [finanzas, setFinanzas] = useState({ ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 });
     const [transacciones, setTransacciones] = useState([]);
     const [mesFiltroContable, setMesFiltroContable] = useState('Todos');
@@ -227,35 +218,26 @@ const AdminDashboard = () => {
             setUsuarios(resUsers.data || []); setWhatsappTienda(resWa.data.whatsapp || ''); 
             setFinanzas(resFinanzas.data); setTransacciones(resTransacciones.data); setRutasDinamicas(resRutas.data || []);
             setHoraLimite(resHora.data.hora || '20:00');
-
             const rutasExtraPed = (resPed.data || []).map(p => p.ruta).filter(r => r && !RUTAS_BASE.includes(r));
             const rutasExtraBD = (resRutas.data || []).map(r => r.dia_ruta);
             setRutasDisponibles([...new Set([...RUTAS_BASE, ...rutasExtraPed, ...rutasExtraBD])]);
-            
         } catch (err) { toast.error("Error de sincronización"); } finally { setLoading(false); }
     }, []);
 
-    // 🔥 CORRECCIÓN 2: INICIALIZACIÓN DE SOCKETS 🔥
     useEffect(() => {
         fetchDatos();
-        
-        // Usamos la URL configurada arriba para evitar localhost
         const socket = io(SOCKET_URL);
-        
         socket.on("nuevo_pedido_admin", (data) => {
             const audio = new Audio('/alert-notification.mp3'); audio.play().catch(() => {});
             toast(`📦 Nuevo Pedido de ${data.cliente || 'Cliente'}`, { icon: '🚀', style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } });
             fetchDatos();
         });
-
         socket.on('stockActualizado', (data) => { 
             setProductos(prev => prev.map(p => p.id === parseInt(data.id) ? { ...p, stock: data.nuevoStock } : p)); 
         });
-
         return () => { if(socket) socket.disconnect(); };
     }, [fetchDatos]);
 
-    // ... (Logica de KPIs y UseMemos se mantienen igual) ...
     useEffect(() => {
         const costoBase = parseFloat(formulario.costo_compra) || 0; const margen = parseFloat(formulario.margen_ganancia) || 0;
         if (!productoEditando) { setPrecioCalculado(costoBase + (costoBase * (margen / 100)) || 0); } else {
@@ -341,56 +323,38 @@ const AdminDashboard = () => {
     const exportarManifiestoCarga = async () => {
         const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
         if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
-
         const pedidosConInfoFecha = pedidosPendientes.map(p => ({
             ...p,
             infoCalculada: calcularFechaReal(p.ruta, p.Usuario?.ciudad, p.direccion, rutasDinamicas, p.fecha, horaLimite)
         }));
-
         const pedidosConRutaProgramada = pedidosConInfoFecha.filter(p => p.infoCalculada.diaNombre !== "A CONVENIR");
-
-        if (pedidosConRutaProgramada.length === 0) {
-            return toast.error("Solo hay pedidos 'A CONVENIR'. Asígnales un día primero.");
-        }
-
+        if (pedidosConRutaProgramada.length === 0) return toast.error("Solo hay pedidos 'A CONVENIR'. Asígnales un día primero.");
         pedidosConRutaProgramada.sort((a, b) => a.infoCalculada.fechaRaw - b.infoCalculada.fechaRaw);
         const fechaProximaStr = pedidosConRutaProgramada[0].infoCalculada.fechaFormateada;
         const pedidosParaExportar = pedidosConRutaProgramada.filter(p => p.infoCalculada.fechaFormateada === fechaProximaStr);
-
         const loadId = toast.loading(`Empaquetando ruta de ${fechaProximaStr}...`);
         const datosExcel = [];
-        
         try {
             for (const ped of pedidosParaExportar) {
                 const info = ped.infoCalculada;
                 const items = ped.Detalles || [];
-                
                 for (const item of items) {
                     const nombreProd = item.Producto?.nombre || 'Producto sin nombre';
                     const descripcionProd = item.Producto?.descripcion || 'Sin descripción';
-                    
                     datosExcel.push({
-                        "DÍA ASIGNADO": info.diaNombre.toUpperCase(),
-                        "FECHA EXACTA": info.fechaFormateada,
-                        "CLIENTE": ped.Usuario?.nombre || 'Consumidor Final',
-                        "CIUDAD DESTINO": ped.Usuario?.ciudad || 'N/A',
-                        "DIRECCIÓN EXACTA": ped.direccion || ped.Usuario?.direccion || 'N/A',
-                        "TELÉFONO": ped.Usuario?.telefono || 'N/A',
-                        "PEDIDO ID": `#${ped.id}`,
-                        "PRODUCTO": nombreProd.toUpperCase(),
-                        "DESCRIPCIÓN": descripcionProd,
-                        "CANTIDAD": item.cantidad
+                        "DÍA ASIGNADO": info.diaNombre.toUpperCase(), "FECHA EXACTA": info.fechaFormateada, "CLIENTE": ped.Usuario?.nombre || 'Consumidor Final',
+                        "CIUDAD DESTINO": ped.Usuario?.ciudad || 'N/A', "DIRECCIÓN EXACTA": ped.direccion || ped.Usuario?.direccion || 'N/A',
+                        "TELÉFONO": ped.Usuario?.telefono || 'N/A', "PEDIDO ID": `#${ped.id}`, "PRODUCTO": nombreProd.toUpperCase(),
+                        "DESCRIPCIÓN": descripcionProd, "CANTIDAD": item.cantidad
                     });
                 }
                 await API.put(`/pedidos/${ped.id}/estado`, { estado: 'Enviado' });
             }
-
             const ws = XLSX.utils.json_to_sheet(datosExcel); 
             const wb = XLSX.utils.book_new(); 
             XLSX.utils.book_append_sheet(wb, ws, "Manifiesto_Ruta"); 
             const nombreLimpio = fechaProximaStr.replace(/[, ]+/g, '_').toUpperCase();
             XLSX.writeFile(wb, `RUTA_TRABAJO_${nombreLimpio}.xlsx`);
-            
             fetchDatos(); 
             toast.success(`Ruta generada para el ${fechaProximaStr}`, { id: loadId });
         } catch (err) { toast.error("Error procesando ruta", { id: loadId }); }
@@ -443,62 +407,17 @@ const AdminDashboard = () => {
         } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la devolución."); } finally { setEnviando(false); }
     };
 
-    const handleCrearRutaManual = (e) => {
-        if (e.key === 'Enter' || e.type === 'click') {
-            if (nuevaRutaPersonalizada.trim() !== '') {
-                const rutaUpper = nuevaRutaPersonalizada.trim().toUpperCase();
-                if (!rutasDisponibles.includes(rutaUpper)) { setRutasDisponibles([...rutasDisponibles, rutaUpper]); toast.success(`Ruta ${rutaUpper} añadida temporalmente a la lista`); }
-                setNuevaRutaPersonalizada('');
-            }
-        }
-    };
-
     const handleCrearUsuario = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/auth/registro', formUsuario); setShowUsuarioModal(false); fetchDatos(); toast.success("Cliente registrado en el sistema"); setFormUsuario({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' }); } catch (err) { toast.error(err.response?.data?.error || "Error al crear cliente"); } finally { setEnviando(false); } };
     const abrirModalEditarUsuario = (u) => { setFormEditUsuario({ id: u.id, nombre: u.nombre || '', cedula: u.cedula || '', email: u.email || '', telefono: u.telefono || '', ciudad: u.ciudad || '', direccion: u.direccion || '', rol: u.rol || 'CLIENTE' }); setShowEditUsuarioModal(true); };
     const handleEditarUsuario = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${formEditUsuario.id}`, formEditUsuario); setShowEditUsuarioModal(false); fetchDatos(); toast.success("Datos del cliente actualizados"); } catch (err) { toast.error(err.response?.data?.error || "Error al actualizar cliente"); } finally { setEnviando(false); } };
     const handleRestablecerPassword = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${usuarioSeleccionado.id}/password`, { password: nuevaPassword }); setShowPasswordModal(false); setNuevaPassword(''); toast.success("Contraseña restablecida con éxito"); } catch (err) { toast.error(err.response?.data?.error || "Error al cambiar contraseña"); } finally { setEnviando(false); } };
     const handleEliminarUsuario = async () => { try { await API.delete(`/auth/admin/usuarios/${usuarioAEliminar.id}`); setUsuarioAEliminar(null); fetchDatos(); toast.success("Usuario eliminado para siempre"); } catch (err) { toast.error(err.response?.data?.error || "Error al eliminar usuario"); } };
-    
     const handleCrearRutaConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/pedidos/config/rutas', { ciudad: nuevaRutaCiudad, dia_ruta: nuevaRutaDia }); toast.success(`Reglas guardadas exitosamente`); setNuevaRutaCiudad(''); setNuevaRutaDia(''); fetchDatos(); } catch (err) { toast.error("Error al crear la regla"); } finally { setEnviando(false); } };
     const handleEliminarRutaConfig = async (id) => { try { await API.delete(`/pedidos/config/rutas/${id}`); fetchDatos(); toast.success("Regla eliminada"); } catch (err) { toast.error("Error al borrar regla"); } };
-    
-    const handleGuardarConfig = async (e) => { 
-        e.preventDefault(); setEnviando(true); 
-        try { 
-            await API.put('/auth/config/whatsapp', { whatsapp: whatsappTienda }); 
-            await API.put('/pedidos/config/horalimite', { hora: horaLimite });
-            toast.success("Ajustes guardados exitosamente"); setShowConfigModal(false); 
-        } catch (err) { toast.error("Error al guardar la configuración"); } finally { setEnviando(false); } 
-    };
-    
-    const abrirModalEditarTransaccion = (tx) => {
-        setTransaccionSeleccionada(tx);
-        setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: new Date(tx.fecha).toISOString().split('T')[0] });
-        setShowEditTransaccionModal(true);
-    };
-
-    const handleGuardarTransaccion = async (e) => {
-        e.preventDefault(); setEnviando(true);
-        try {
-            if (transaccionSeleccionada) {
-                await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto);
-                toast.success("Transacción actualizada correctamente");
-            } else {
-                await API.post('/contabilidad/gasto', formGasto);
-                toast.success("Transacción registrada en el libro mayor");
-            }
-            setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null);
-            setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' });
-            fetchDatos(); 
-        } catch (err) { toast.error("Error al guardar la transacción"); } finally { setEnviando(false); }
-    };
-
-    const handleEliminarTransaccion = async () => {
-        try {
-            await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`);
-            setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada");
-        } catch (err) { toast.error("Error al eliminar la transacción"); }
-    };
+    const handleGuardarConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put('/auth/config/whatsapp', { whatsapp: whatsappTienda }); await API.put('/pedidos/config/horalimite', { hora: horaLimite }); toast.success("Ajustes guardados exitosamente"); setShowConfigModal(false); } catch (err) { toast.error("Error al guardar la configuración"); } finally { setEnviando(false); } };
+    const abrirModalEditarTransaccion = (tx) => { setTransaccionSeleccionada(tx); setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: new Date(tx.fecha).toISOString().split('T')[0] }); setShowEditTransaccionModal(true); };
+    const handleGuardarTransaccion = async (e) => { e.preventDefault(); setEnviando(true); try { if (transaccionSeleccionada) { await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto); toast.success("Transacción actualizada correctamente"); } else { await API.post('/contabilidad/gasto', formGasto); toast.success("Transacción registrada en el libro mayor"); } setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); fetchDatos(); } catch (err) { toast.error("Error al guardar la transacción"); } finally { setEnviando(false); } };
+    const handleEliminarTransaccion = async () => { try { await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`); setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada"); } catch (err) { toast.error("Error al eliminar la transacción"); } };
 
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
     const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...rutasDinamicas.map(r => r.dia_ruta)])];
@@ -588,12 +507,13 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                         </div>
-                        {/* 🔥 CORRECCIÓN 3: GRÁFICOS CON ALTO FIJO 🔥 */}
+
+                        {/* 🔥 CORRECCIÓN PARA GRÁFICAS: ALTURA EXPLÍCITA 🔥 */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
                             <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
                                 <div className="mb-6 md:mb-8"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Crecimiento Mensual</h3></div>
-                                <div className="w-full" style={{ height: 300 }}>
-                                    <ResponsiveContainer width="100%" height="100%">
+                                <div style={{ width: '100%', height: 300 }}>
+                                    <ResponsiveContainer width="100%" height={300}>
                                         <AreaChart data={dataVentasMensuales}>
                                             <defs>
                                                 <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
@@ -611,8 +531,8 @@ const AdminDashboard = () => {
                             </div>
                             <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
                                 <div className="mb-6 md:mb-8"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Pedidos por Zona</h3></div>
-                                <div className="w-full" style={{ height: 300 }}>
-                                    <ResponsiveContainer width="100%" height="100%">
+                                <div style={{ width: '100%', height: 300 }}>
+                                    <ResponsiveContainer width="100%" height={300}>
                                         <BarChart data={dataGraficoRutas}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} dy={10} />
@@ -769,8 +689,7 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* 🔥 MODALES (Se mantienen igual) 🔥 */}
-            {/* ... */}
+            {/* MODALES */}
             {(showGastoModal || showEditTransaccionModal) && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center animate-in zoom-in-95 duration-200">

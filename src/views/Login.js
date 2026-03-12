@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, Lock, ArrowRight, Loader2, Mail, ShieldAlert } from 'lucide-react';
+import { Link } from 'react-router-dom'; // 🔥 Importación clave para la navegación
 import toast from 'react-hot-toast';
 import API from '../services/api';
 
@@ -29,7 +30,7 @@ const Login = () => {
             }
         } catch (error) {
             toast.dismiss(loadingToast);
-            // Si el error es de red (net::ERR_CONNECTION_REFUSED o similar)
+            // Manejo de servidores dormidos (Render)
             toast.error('El servidor está despertando, intenta de nuevo en unos segundos');
         } finally {
             setLoading(false);
@@ -79,7 +80,7 @@ const Login = () => {
                 </div>
                 
                 {modoRecuperacion ? (
-                    <form onSubmit={handleRecuperar} className="space-y-4 md:space-y-5">
+                    <form onSubmit={handleRecuperar} className="space-y-4 md:space-y-5 animate-in fade-in slide-in-from-right-4">
                         <div className="bg-orange-50 p-4 rounded-xl md:rounded-2xl mb-4 flex items-start gap-3 border border-orange-100">
                             <ShieldAlert className="text-orange-500 flex-shrink-0" size={20} />
                             <p className="text-[9px] md:text-[10px] font-bold text-orange-800 uppercase tracking-widest leading-relaxed">
@@ -101,12 +102,12 @@ const Login = () => {
                             {loading ? <Loader2 className="animate-spin" size={18} /> : 'Generar Nueva Clave'}
                         </button>
                         
-                        <button type="button" onClick={() => setModoRecuperacion(false)} className="w-full text-gray-400 font-bold text-[9px] md:text-[10px] uppercase hover:text-black transition-colors pt-4 tracking-widest">
+                        <button type="button" onClick={() => setModoRecuperacion(false)} className="w-full text-gray-400 font-bold text-[9px] md:text-[10px] uppercase hover:text-black transition-colors pt-4 tracking-widest p-2">
                             Volver al Login
                         </button>
                     </form>
                 ) : (
-                    <form onSubmit={handleLogin} className="space-y-4 md:space-y-5">
+                    <form onSubmit={handleLogin} className="space-y-4 md:space-y-5 animate-in fade-in slide-in-from-left-4">
                         <div className="relative group">
                             <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors" size={18} />
                             <input type="text" placeholder="NÚMERO DE CÉDULA" className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-2xl focus:bg-white focus:border-black outline-none transition-all font-bold text-xs md:text-sm" value={cedula} onChange={e => setCedula(e.target.value)} required />
@@ -123,14 +124,15 @@ const Login = () => {
                     </form>
                 )}
 
+                {/* 🔥 SECCIÓN DE ENLACES INFERIOR CORREGIDA 🔥 */}
                 {!modoRecuperacion && (
-                    <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-gray-100 text-center flex flex-col gap-2">
+                    <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-gray-100 text-center flex flex-col gap-3">
                         <button onClick={() => setModoRecuperacion(true)} className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest hover:text-orange-500 transition-colors p-2">
                             ¿Olvidaste tu clave?
                         </button>
-                        <Link to="/registro" className="text-blue-600 text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:underline">
-                            ¿No tienes cuenta? Regístrate aquí
-                        </Link>
+                        <p className="text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                            ¿No tienes cuenta? <Link to="/registro" className="text-black border-b-2 border-black pb-0.5 ml-1 hover:text-blue-600 hover:border-blue-600 transition-all">Regístrate aquí</Link>
+                        </p>
                     </div>
                 )}
             </div>
