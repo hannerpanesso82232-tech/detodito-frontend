@@ -1,0 +1,13 @@
+# Dependencias
+node_modules/
+
+# Archivos de entorno
+.env
+.env.local
+
+# Archivos de construcción de React
+build/
+dist/
+
+# Basura del sistema
+.DS_Store
