@@ -18,8 +18,8 @@ import {
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 
-const SOCKET_URL = "http://localhost:3000";
-let socket; 
+const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
+let socket;
 
 const formatCurrency = (valor) => {
     return Number(valor || 0).toLocaleString('es-CO', {

@@ -11,8 +11,8 @@ const Registro = () => {
     password: '',
     telefono: '',
     fecha_nacimiento: '',
-    direccion: '', // 🔥 Campo añadido
-    ciudad: '',    // 🔥 Campo añadido para facilitar el cálculo de rutas en Urabá
+    direccion: '', 
+    ciudad: '',    
     rol: 'CLIENTE'
   });
   
