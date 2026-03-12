@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, Lock, ArrowRight, Loader2, Mail, ShieldAlert } from 'lucide-react';
-import { Link } from 'react-router-dom'; // 🔥 Importación clave para la navegación
+// import { Link } from 'react-router-dom'; // Ya no lo necesitamos aquí
 import toast from 'react-hot-toast';
 import API from '../services/api';
 
@@ -30,7 +30,6 @@ const Login = () => {
             }
         } catch (error) {
             toast.dismiss(loadingToast);
-            // Manejo de servidores dormidos (Render)
             toast.error('El servidor está despertando, intenta de nuevo en unos segundos');
         } finally {
             setLoading(false);
@@ -124,15 +123,12 @@ const Login = () => {
                     </form>
                 )}
 
-                {/* 🔥 SECCIÓN DE ENLACES INFERIOR CORREGIDA 🔥 */}
+                {/* 🔥 BOTÓN DE REGISTRO ELIMINADO 🔥 */}
                 {!modoRecuperacion && (
                     <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-gray-100 text-center flex flex-col gap-3">
                         <button onClick={() => setModoRecuperacion(true)} className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest hover:text-orange-500 transition-colors p-2">
                             ¿Olvidaste tu clave?
                         </button>
-                        <p className="text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                            ¿No tienes cuenta? <Link to="/registro" className="text-black border-b-2 border-black pb-0.5 ml-1 hover:text-blue-600 hover:border-blue-600 transition-all">Regístrate aquí</Link>
-                        </p>
                     </div>
                 )}
             </div>
