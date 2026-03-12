@@ -37,12 +37,10 @@ const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/150';
     
     let urlLimpia = url;
-    // Si la BD guardó la ruta local antigua, se la quitamos a la fuerza
     if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
         urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
     }
 
-    // Si es un enlace de internet seguro real (ej: Cloudinary, Imgur), lo dejamos pasar
     if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
         return urlLimpia;
     }
@@ -260,6 +258,13 @@ const AdminDashboard = () => {
         return { ventasHoy, ventasMes, pendientes };
     }, [pedidos]);
 
+    // 🔥 NUEVO: CÁLCULO DE MÉTRICAS DE PRODUCTOS 🔥
+    const statsProductos = useMemo(() => {
+        const total = productos.length;
+        const stockBajo = productos.filter(p => parseInt(p.stock) <= (parseInt(p.tope_stock) || 10)).length;
+        return { total, stockBajo };
+    }, [productos]);
+
     const dataVentasMensuales = useMemo(() => {
         const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]; const data = meses.map(m => ({ name: m, Ventas: 0 }));
         pedidos.filter(p => p.estado !== 'Cancelado').forEach(ped => { const fecha = new Date(ped.fecha); const mesIndex = fecha.getMonth(); if(!isNaN(mesIndex)) data[mesIndex].Ventas += parseFloat(ped.total || 0); });
@@ -438,11 +443,16 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
+            {/* 🔥 TARJETAS ACTUALIZADAS CON GRID DE 3 COLUMNAS (6 CARDS TOTALES) 🔥 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-12">
                 <StatCard title="Ventas Mes Actual" value={`$${formatCurrency(kpis.ventasMes)}`} subtitle={`Hoy: $${formatCurrency(kpis.ventasHoy)}`} icon={<DollarSign />} color="bg-green-100 text-green-600" />
                 <StatCard title="Pedidos Pendientes" value={kpis.pendientes} subtitle="Listos para ruta" icon={<Clock />} color="bg-amber-100 text-amber-600" />
                 <StatCard title="Total Pedidos" value={pedidos.length} subtitle="Histórico completo" icon={<ShoppingCart />} color="bg-blue-100 text-blue-600" />
                 <StatCard title="Clientes Registrados" value={usuarios.length} subtitle="En base de datos" icon={<Users />} color="bg-purple-100 text-purple-600" />
+                
+                {/* NUEVAS TARJETAS */}
+                <StatCard title="Total Productos" value={statsProductos.total} subtitle="En inventario" icon={<Package />} color="bg-indigo-100 text-indigo-600" />
+                <StatCard title="Stock Bajo" value={statsProductos.stockBajo} subtitle="Requieren atención" icon={<AlertTriangle />} color="bg-red-100 text-red-600" />
             </div>
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
@@ -507,8 +517,6 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                         </div>
-
-                        {/* 🔥 CORRECCIÓN PARA GRÁFICAS: ALTURA EXPLÍCITA 🔥 */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
                             <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
                                 <div className="mb-6 md:mb-8"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Crecimiento Mensual</h3></div>
