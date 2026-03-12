@@ -7,7 +7,10 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// 🔥 MOTOR MATEMÁTICO DE FECHAS DINÁMICAS (Con Hora Límite) 🔥
+// 🔥 UNIFICACIÓN DE URL PARA LA NUBE 🔥
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+
+// Motor de fechas dinámicas
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
     
@@ -51,7 +54,6 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
 
     if (diasFaltantes < 0) diasFaltantes += 7;
 
-    // 🔥 LÓGICA DE HORA LÍMITE 🔥
     if (diasFaltantes === 0) {
         diasFaltantes += 7;
     } else if (diasFaltantes === 1) {
@@ -98,7 +100,7 @@ const Perfil = () => {
                             onClick={() => setSeccion(item.id)}
                             className={`shrink-0 md:w-full flex items-center justify-between p-3 md:p-4 rounded-xl md:rounded-2xl transition-all duration-300 ${
                                 seccion === item.id 
-                                ? 'bg-gray-900 text-white shadow-lg md:shadow-xl md:translate-x-2' 
+                                ? 'bg-gray-900 text-white shadow-lg md:shadow-xl' 
                                 : 'bg-white text-gray-500 hover:bg-gray-100 border border-gray-100 md:border-transparent'
                             }`}
                         >
@@ -113,7 +115,7 @@ const Perfil = () => {
             </div>
 
             {/* Contenido Dinámico */}
-            <div className="flex-1 bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl shadow-gray-100 border border-gray-100 min-h-[400px] md:min-h-[600px] relative overflow-hidden">
+            <div className="flex-1 bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl shadow-gray-100 border border-gray-100 min-h-[400px] md:min-h-[600px] relative">
                 {seccion === 'pedidos' && <HistorialPedidos />}
                 {seccion === 'datos' && <InformacionPersonal />}
                 {seccion === 'favoritos' && <Favoritos />}
@@ -148,124 +150,57 @@ const HistorialPedidos = () => {
         }
     };
 
-    useEffect(() => {
-        fetchPedidosConfig();
-    }, []);
+    useEffect(() => { fetchPedidosConfig(); }, []);
 
     const handleCancelarPedido = async (pedidoId) => {
-        if(!window.confirm("¿Estás seguro de que deseas cancelar este pedido? Esta acción no se puede deshacer y los productos regresarán a la tienda.")) return;
-        
+        if(!window.confirm("¿Seguro que deseas cancelar?")) return;
         try {
             await API.put(`/pedidos/${pedidoId}/cancelar`);
-            toast.success("Pedido cancelado exitosamente");
+            toast.success("Pedido cancelado");
             fetchPedidosConfig(); 
         } catch (error) {
-            toast.error(error.response?.data?.error || "Error al cancelar el pedido");
+            toast.error("No se pudo cancelar el pedido");
         }
     };
 
-    const getStatusIcon = (estado) => {
-        switch (estado) {
-            case 'Pendiente': return <Clock className="text-amber-500" size={24} />;
-            case 'Enviado': return <Truck className="text-blue-500" size={24} />;
-            case 'Entregado': return <CheckCircle className="text-green-500" size={24} />;
-            case 'Cancelado': return <X className="text-red-500" size={24} />;
-            default: return <Package className="text-gray-500" size={24} />;
-        }
-    };
-
-    if (loading) return <div className="p-10 md:p-20 text-center font-black animate-pulse uppercase tracking-[0.2em] text-gray-300 text-xs md:text-sm">Sincronizando tus compras...</div>;
+    if (loading) return <div className="p-10 text-center font-black animate-pulse text-gray-300">SINCRONIZANDO COMPRAS...</div>;
 
     return (
-        <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-            <div className="border-l-4 md:border-l-8 border-blue-600 pl-4 md:pl-6 mb-6 md:mb-8">
-                <h1 className="text-3xl md:text-5xl font-black tracking-tighter uppercase italic text-gray-900">Mis Pedidos</h1>
-                <p className="text-gray-400 text-[9px] md:text-xs font-bold tracking-[0.2em] uppercase mt-1">Rastreo de envíos y facturación</p>
-            </div>
-
+        <div className="space-y-6">
+            <h1 className="text-3xl font-black uppercase italic text-gray-900 border-l-4 border-blue-600 pl-4">Mis Pedidos</h1>
             {pedidos.length === 0 ? (
-                <div className="bg-gray-50 rounded-[2rem] md:rounded-[3rem] p-12 md:p-24 text-center border-2 md:border-4 border-dashed border-gray-100">
-                    <ShoppingBag size={60} className="mx-auto text-gray-200 mb-4 md:mb-6" />
-                    <p className="text-gray-400 font-black uppercase tracking-widest text-[10px] md:text-xs">Aún no tienes pedidos registrados</p>
+                <div className="bg-gray-50 rounded-[2rem] p-12 text-center border-2 border-dashed border-gray-100">
+                    <ShoppingBag size={40} className="mx-auto text-gray-200 mb-4" />
+                    <p className="text-gray-400 font-bold uppercase text-[10px]">Aún no has comprado nada</p>
                 </div>
             ) : (
-                <div className="space-y-6 md:space-y-8">
-                    {pedidos.map((pedido) => {
-                        const fechaEstimadaLlegada = calcularFechaReal(pedido.ruta, pedido.Usuario?.ciudad, pedido.direccion, rutasDinamicas, pedido.fecha || pedido.createdAt, horaLimite);
-
-                        return (
-                            <div key={pedido.id} className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] shadow-lg md:shadow-xl shadow-gray-100 border border-gray-100 overflow-hidden group hover:border-blue-400 transition-all duration-500">
-                                
-                                {pedido.estado !== 'Cancelado' && (
-                                    <div className={`p-3 md:p-4 flex flex-col sm:flex-row items-center justify-center gap-2 md:gap-3 ${pedido.estado === 'Entregado' ? 'bg-green-600 text-white' : 'bg-blue-600 text-white'}`}>
-                                        {pedido.estado === 'Entregado' ? (
-                                            <span className="text-[10px] md:text-xs font-black uppercase tracking-widest flex items-center gap-2"><CheckCircle size={14}/> PEDIDO ENTREGADO</span>
-                                        ) : (
-                                            <>
-                                                <CalendarClock size={16} className="animate-pulse hidden sm:block" />
-                                                <div className="text-center sm:text-left">
-                                                    <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest opacity-80 block sm:inline">Llegada Estimada: </span>
-                                                    <span className="text-xs md:text-sm font-black capitalize ml-0 sm:ml-2">{fechaEstimadaLlegada}</span>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                )}
-                                {pedido.estado === 'Cancelado' && (
-                                    <div className="p-3 md:p-4 flex items-center justify-center gap-2 bg-red-600 text-white">
-                                        <span className="text-[10px] md:text-xs font-black uppercase tracking-widest flex items-center gap-2"><X size={14}/> PEDIDO CANCELADO</span>
-                                    </div>
-                                )}
-
-                                <div className="p-5 md:p-8 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 md:gap-6 border-b border-gray-100">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 md:w-16 md:h-16 bg-white rounded-xl md:rounded-3xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:rotate-6 transition-transform">
-                                            {getStatusIcon(pedido.estado)}
-                                        </div>
-                                        <div>
-                                            <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] md:tracking-[0.3em]">Orden #{pedido.id}</span>
-                                            <h3 className="text-base md:text-xl font-black text-gray-900 uppercase italic leading-tight">Estado: {pedido.estado}</h3>
-                                        </div>
-                                    </div>
-                                    <div className="text-left sm:text-right w-full sm:w-auto border-t sm:border-0 border-gray-200 pt-3 sm:pt-0">
-                                        <div className="flex items-center sm:justify-end gap-1.5 md:gap-2 text-gray-400 text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-1">
-                                            <Calendar size={10} /> {new Date(pedido.fecha || pedido.createdAt).toLocaleDateString()}
-                                        </div>
-                                        <span className="text-2xl md:text-3xl font-black text-gray-900 italic">${parseFloat(pedido.total).toLocaleString()}</span>
-                                    </div>
-                                </div>
-
-                                <div className="p-5 md:p-8 space-y-3 md:space-y-4">
-                                    {(pedido.Detalles || []).map((detalle) => (
-                                        <div key={detalle.id} className="flex items-center justify-between group/item border-b border-gray-50 pb-3 last:border-0 last:pb-0">
-                                            <div className="flex items-center gap-3 md:gap-4 pr-4">
-                                                <div className="w-8 h-8 md:w-12 md:h-12 bg-gray-100 rounded-lg md:rounded-xl flex items-center justify-center text-gray-900 font-black text-[10px] md:text-xs shrink-0">
-                                                    {detalle.cantidad}x
-                                                </div>
-                                                <div>
-                                                    <p className="font-black text-xs md:text-sm text-gray-800 uppercase italic tracking-tight line-clamp-2">{detalle.Producto?.nombre || 'Item'}</p>
-                                                    <p className="text-[8px] md:text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">C/U: ${parseFloat(detalle.precioUnitario).toLocaleString()}</p>
-                                                </div>
-                                            </div>
-                                            <span className="font-black text-gray-400 text-xs md:text-sm italic shrink-0">${(detalle.cantidad * detalle.precioUnitario).toLocaleString()}</span>
-                                        </div>
-                                    ))}
-
-                                    {pedido.estado === 'Pendiente' && (
-                                        <div className="pt-4 md:pt-6 mt-4 md:mt-6 border-t border-gray-100 flex justify-end">
-                                            <button 
-                                                onClick={() => handleCancelarPedido(pedido.id)}
-                                                className="w-full sm:w-auto bg-red-50 text-red-600 hover:bg-red-600 hover:text-white font-black text-[9px] md:text-[10px] uppercase tracking-widest px-4 md:px-6 py-3 rounded-xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-2"
-                                            >
-                                                <X size={14} /> Cancelar Mi Pedido
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
+                pedidos.map((pedido) => (
+                    <div key={pedido.id} className="bg-white rounded-[1.5rem] shadow-xl border border-gray-100 overflow-hidden mb-6">
+                        <div className="p-3 bg-black text-white text-center">
+                            <span className="text-[10px] font-black uppercase tracking-widest">
+                                Est. Entrega: {calcularFechaReal(pedido.ruta, pedido.Usuario?.ciudad, pedido.direccion, rutasDinamicas, pedido.fecha, horaLimite)}
+                            </span>
+                        </div>
+                        <div className="p-5 flex justify-between items-center bg-gray-50/50">
+                            <div>
+                                <span className="text-[9px] font-black text-gray-400 uppercase">Orden #{pedido.id}</span>
+                                <h3 className="font-black text-gray-900 uppercase italic">Estado: {pedido.estado}</h3>
                             </div>
-                        );
-                    })}
-                </div>
+                            <span className="text-xl font-black text-blue-600">${parseFloat(pedido.total).toLocaleString()}</span>
+                        </div>
+                        <div className="p-5">
+                            {(pedido.Detalles || []).map(d => (
+                                <div key={d.id} className="flex justify-between text-xs font-bold uppercase border-b border-gray-50 py-2 last:border-0">
+                                    <span>{d.cantidad}x {d.Producto?.nombre}</span>
+                                    <span className="text-gray-400">${(d.cantidad * d.precioUnitario).toLocaleString()}</span>
+                                </div>
+                            ))}
+                            {pedido.estado === 'Pendiente' && (
+                                <button onClick={() => handleCancelarPedido(pedido.id)} className="mt-4 text-red-500 text-[9px] font-black uppercase w-full text-right hover:underline">Cancelar Pedido</button>
+                            )}
+                        </div>
+                    </div>
+                ))
             )}
         </div>
     );
@@ -276,97 +211,52 @@ const InformacionPersonal = () => {
     const [editando, setEditando] = useState(false);
     const [loading, setLoading] = useState(false);
     const [whatsappAdmin, setWhatsappAdmin] = useState('573000000000');
-    const [formData, setFormData] = useState({ telefono: '' });
+    const [telefono, setTelefono] = useState('');
 
     useEffect(() => {
-        if (user) setFormData({ telefono: user.telefono || '' });
-        API.get('/auth/config/whatsapp')
-           .then(res => setWhatsappAdmin(res.data.whatsapp))
-           .catch(err => console.error("Error al cargar whatsapp"));
+        if (user) setTelefono(user.telefono || '');
+        API.get('/auth/config/whatsapp').then(res => setWhatsappAdmin(res.data.whatsapp)).catch(() => {});
     }, [user]);
 
     const handleActualizar = async () => {
         setLoading(true);
         try {
-            const res = await API.put('/auth/perfil', { telefono: formData.telefono });
-            const datosParaSesion = res.data?.usuario ? res.data.usuario : { ...user, telefono: formData.telefono };
-            if (typeof setUser === 'function') {
-                setUser(datosParaSesion);
-                toast.success("¡Teléfono actualizado con éxito!");
-            } else {
-                toast.success("¡Teléfono actualizado con éxito!");
-                setTimeout(() => window.location.reload(), 1500);
-            }
+            await API.put('/auth/perfil', { telefono });
+            setUser({ ...user, telefono });
+            toast.success("Teléfono actualizado");
             setEditando(false);
-        } catch (err) { toast.error("Error al actualizar perfil"); } finally { setLoading(false); }
+        } catch (err) { toast.error("Error al actualizar"); } finally { setLoading(false); }
     };
 
     return (
-        <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-            <div className="border-b pb-4 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
-                <div>
-                    <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter">Mis Datos</h3>
-                    <p className="text-gray-400 text-[10px] md:text-xs font-bold uppercase tracking-widest mt-1">Información de tu cuenta</p>
-                </div>
-                {!editando ? (
-                    <button onClick={() => setEditando(true)} className="w-full sm:w-auto bg-gray-900 text-white px-6 py-3 md:py-2 rounded-xl font-black text-[10px] md:text-xs uppercase hover:bg-blue-600 transition-all shadow-lg active:scale-95">Modificar Teléfono</button>
-                ) : (
-                    <div className="flex gap-2 w-full sm:w-auto">
-                        <button onClick={() => {setEditando(false); setFormData({telefono: user?.telefono || ''})}} className="flex-1 sm:flex-none flex justify-center bg-gray-100 text-gray-500 px-4 py-3 md:py-2 rounded-xl font-black text-xs uppercase hover:bg-gray-200"><X size={16} /></button>
-                        <button onClick={handleActualizar} disabled={loading} className="flex-[3] sm:flex-none justify-center bg-green-500 text-white px-6 py-3 md:py-2 rounded-xl font-black text-[10px] md:text-xs uppercase flex items-center gap-2 shadow-lg hover:bg-green-600"><Save size={14} /> Guardar</button>
-                    </div>
-                )}
+        <div className="space-y-6">
+            <div className="flex justify-between items-center border-b pb-4">
+                <h3 className="text-2xl font-black uppercase italic">Mis Datos</h3>
+                <button onClick={() => setEditando(!editando)} className="bg-gray-100 text-black px-4 py-2 rounded-xl text-[10px] font-black uppercase">{editando ? 'Cerrar' : 'Editar'}</button>
             </div>
-
-            <div className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 mb-6 md:mb-8 flex flex-wrap items-center justify-between gap-4">
-                <div>
-                    <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 tracking-widest mb-1 block">Documento de Identidad (CC)</label>
-                    <p className="font-black text-gray-900 text-base md:text-lg">{user?.cedula || 'No registrada'}</p>
+            <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-2xl">
+                    <label className="text-[9px] font-black text-gray-400 uppercase block mb-1">Cédula de Ciudadanía</label>
+                    <p className="font-black text-lg">{user?.cedula || 'N/A'}</p>
                 </div>
-                <div className="bg-green-100 text-green-600 p-2 md:p-3 rounded-xl md:rounded-2xl"><ShieldCheck size={20} className="md:w-6 md:h-6"/></div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                <div className="space-y-1.5 md:space-y-2 col-span-1 md:col-span-2 bg-blue-50/30 p-4 md:p-5 rounded-2xl md:rounded-3xl border border-blue-100">
-                    <label className="text-[9px] md:text-[10px] font-black text-blue-600 uppercase tracking-widest ml-1 md:ml-2 flex items-center gap-2">Teléfono de Contacto</label>
+                <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
+                    <label className="text-[9px] font-black text-blue-600 uppercase block mb-1">Teléfono Móvil</label>
                     <input 
-                        type="text" 
                         disabled={!editando} 
-                        className={`w-full p-3 md:p-4 rounded-xl md:rounded-2xl border outline-none font-bold text-sm md:text-lg transition-all ${editando ? 'border-blue-500 bg-white focus:ring-4 focus:ring-blue-100 text-black' : 'border-transparent bg-transparent text-gray-700'}`} 
-                        value={formData.telefono} 
-                        onChange={e => setFormData({...formData, telefono: e.target.value})} 
-                        placeholder="Tu número celular"
+                        className={`w-full bg-transparent font-black text-lg outline-none ${editando ? 'text-blue-600' : 'text-gray-900'}`} 
+                        value={telefono} 
+                        onChange={e => setTelefono(e.target.value)} 
                     />
                 </div>
-
-                <div className="space-y-2 col-span-1 md:col-span-2 mt-2 md:mt-4 border-t border-gray-100 pt-4 md:pt-6">
-                    <p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2 md:mb-4 flex items-center gap-1.5"><Lock size={10} /> Datos asignados por Administración</p>
-                </div>
-
-                <div className="space-y-1.5 md:space-y-2 col-span-1 md:col-span-2">
-                    <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Nombre Completo</label>
-                    <div className="w-full p-3 md:p-4 rounded-xl md:rounded-2xl border border-transparent bg-gray-50 font-bold text-gray-500 cursor-not-allowed text-xs md:text-base">{user?.nombre || 'N/A'}</div>
-                </div>
-                
-                <div className="space-y-1.5 md:space-y-2">
-                    <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Ciudad / Zona</label>
-                    <div className="w-full p-3 md:p-4 rounded-xl md:rounded-2xl border border-transparent bg-gray-50 font-bold text-gray-500 cursor-not-allowed text-xs md:text-base">{user?.ciudad || 'No especificada'}</div>
-                </div>
-
-                <div className="space-y-1.5 md:space-y-2">
-                    <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Dirección Principal</label>
-                    <div className="w-full p-3 md:p-4 rounded-xl md:rounded-2xl border border-transparent bg-gray-50 font-bold text-gray-500 cursor-not-allowed truncate text-xs md:text-base">{user?.direccion || 'Sin dirección registrada'}</div>
-                </div>
-                
-                <div className="col-span-1 md:col-span-2 mt-4 md:mt-6 p-5 md:p-6 bg-green-50 rounded-2xl md:rounded-3xl border border-green-100 text-center flex flex-col items-center justify-center">
-                    <p className="text-[10px] md:text-xs text-green-800 font-bold mb-3 md:mb-4">¿Necesitas modificar tu nombre, ciudad o dirección?</p>
-                    <a 
-                        href={`https://wa.me/${whatsappAdmin}?text=Hola,%20soy%20${user?.nombre}%20(CC:%20${user?.cedula})%20y%20necesito%20actualizar%20mis%20datos%20en%20el%20sistema.`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="w-full sm:w-auto inline-flex justify-center items-center gap-2 bg-[#25D366] text-white px-4 md:px-6 py-3 md:py-4 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[10px] uppercase tracking-widest hover:bg-green-600 transition-colors shadow-lg active:scale-95"
-                    >
-                        <MessageCircle size={16} /> Soporte (WhatsApp)
+                {editando && (
+                    <button onClick={handleActualizar} disabled={loading} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] shadow-lg">
+                        {loading ? 'Guardando...' : 'Confirmar Cambio'}
+                    </button>
+                )}
+                <div className="mt-8 p-6 bg-green-50 rounded-[2rem] text-center">
+                    <p className="text-xs font-bold text-green-800 mb-4">¿Deseas cambiar tu dirección o nombre?</p>
+                    <a href={`https://wa.me/${whatsappAdmin}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 bg-[#25D366] text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase shadow-md">
+                        <MessageCircle size={16}/> Contactar Soporte
                     </a>
                 </div>
             </div>
@@ -377,29 +267,32 @@ const InformacionPersonal = () => {
 const Favoritos = () => {
     const [favoritos, setFavoritos] = useState([]);
     const [loading, setLoading] = useState(true);
-    const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000'; 
 
     useEffect(() => {
-        const cargarFavoritos = async () => {
-            try { const res = await API.get('/favoritos'); setFavoritos(res.data); } 
-            catch (err) { console.error(err); } finally { setLoading(false); }
-        };
-        cargarFavoritos();
+        API.get('/favoritos')
+            .then(res => setFavoritos(res.data))
+            .catch(() => {})
+            .finally(() => setLoading(false));
     }, []);
 
-    if (loading) return <div className="p-10 md:p-20 text-center font-black text-gray-300 animate-pulse uppercase text-xs md:text-sm">Cargando...</div>;
+    if (loading) return <div className="p-10 text-center font-black text-gray-300">CARGANDO FAVORITOS...</div>;
 
     return (
-        <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-            <div className="border-b pb-4"><h3 className="text-xl md:text-2xl font-black uppercase tracking-tighter">Mis Favoritos</h3></div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                {favoritos.length === 0 && <p className="col-span-1 sm:col-span-2 text-gray-400 text-[10px] md:text-xs font-bold py-10 text-center">No tienes favoritos guardados.</p>}
+        <div className="space-y-6">
+            <h3 className="text-2xl font-black uppercase italic border-b pb-4">Favoritos</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {favoritos.length === 0 && <p className="text-gray-400 font-bold uppercase text-[10px] text-center col-span-2 py-10">No tienes productos guardados</p>}
                 {favoritos.map(f => (
-                    <div key={f.id} className="flex items-center gap-3 md:gap-4 p-3 md:p-4 bg-gray-50 rounded-2xl md:rounded-3xl border border-gray-100 hover:border-black transition-colors">
-                        <img src={f.imagen_url ? `${BASE_URL}${f.imagen_url}` : 'https://placehold.co/100'} alt={f.nombre} className="w-12 h-12 md:w-16 md:h-16 rounded-lg md:rounded-xl object-cover shrink-0" />
+                    <div key={f.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:border-black transition-all">
+                        {/* 🔥 CORRECCIÓN: IMAGEN CON BASE_URL DINÁMICO 🔥 */}
+                        <img 
+                            src={f.imagen_url ? `${BASE_URL}${f.imagen_url}` : 'https://placehold.co/100'} 
+                            alt={f.nombre} 
+                            className="w-16 h-16 rounded-xl object-cover bg-white" 
+                        />
                         <div className="overflow-hidden">
-                            <h4 className="font-black text-[10px] md:text-xs uppercase truncate">{f.nombre}</h4>
-                            <p className="text-blue-600 font-black text-xs md:text-sm mt-0.5">${parseFloat(f.precio || 0).toLocaleString()}</p>
+                            <h4 className="font-black text-[10px] uppercase truncate">{f.nombre}</h4>
+                            <p className="text-blue-600 font-black text-sm">${parseFloat(f.precio || 0).toLocaleString()}</p>
                         </div>
                     </div>
                 ))}
@@ -409,92 +302,65 @@ const Favoritos = () => {
 };
 
 const DireccionesPagos = () => {
-    const [mostrarForm, setMostrarForm] = useState(false);
     const [direcciones, setDirecciones] = useState([]);
+    const [mostrarForm, setMostrarForm] = useState(false);
     const [nuevaDir, setNuevaDir] = useState({ etiqueta: '', direccion: '', ciudad: '' });
-    const [loading, setLoading] = useState(false);
 
-    const fetchDirecciones = async () => {
-        try { const res = await API.get('/auth/direcciones'); setDirecciones(res.data); } 
-        catch (err) { console.log("Error cargando direcciones"); }
+    const fetchDirs = async () => {
+        try { const res = await API.get('/auth/direcciones'); setDirecciones(res.data); } catch (e) {}
     };
 
-    useEffect(() => { fetchDirecciones(); }, []);
+    useEffect(() => { fetchDirs(); }, []);
 
     const handleGuardar = async (e) => {
-        e.preventDefault(); setLoading(true);
+        e.preventDefault();
         try {
-            await API.post('/auth/direcciones', nuevaDir); toast.success("Dirección agregada");
-            setMostrarForm(false); setNuevaDir({ etiqueta: '', direccion: '', ciudad: '' }); fetchDirecciones();
-        } catch (err) { toast.error("Error al guardar"); } finally { setLoading(false); }
+            await API.post('/auth/direcciones', nuevaDir);
+            toast.success("Dirección guardada");
+            setMostrarForm(false);
+            setNuevaDir({ etiqueta: '', direccion: '', ciudad: '' });
+            fetchDirs();
+        } catch (e) { toast.error("Error al guardar"); }
     };
 
-    const eliminarDireccion = async (id) => {
-        try { await API.delete(`/auth/direcciones/${id}`); toast.success("Eliminada"); fetchDirecciones(); } 
-        catch (err) { toast.error("Error al eliminar"); }
+    const eliminar = async (id) => {
+        try {
+            await API.delete(`/auth/direcciones/${id}`);
+            toast.success("Dirección eliminada");
+            fetchDirs();
+        } catch (e) {}
     };
 
     return (
-        <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-            <div className="border-b pb-4 flex justify-between items-end">
-                <div>
-                    <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter text-blue-600">Direcciones</h3>
-                    <p className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1">Tus puntos de entrega</p>
-                </div>
-                {!mostrarForm && (<button onClick={() => setMostrarForm(true)} className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded-xl font-black text-[9px] md:text-xs uppercase hover:bg-black transition-all shadow-lg active:scale-95">+ Nueva</button>)}
+        <div className="space-y-6">
+            <div className="flex justify-between items-center border-b pb-4">
+                <h3 className="text-2xl font-black uppercase italic">Direcciones</h3>
+                <button onClick={() => setMostrarForm(!mostrarForm)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase">+ Nueva</button>
             </div>
-
-            {mostrarForm ? (
-                <form onSubmit={handleGuardar} className="bg-gray-50 p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-blue-100 space-y-3 md:space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                        <input required className="w-full p-3 rounded-xl font-bold text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-600 shadow-sm" placeholder="Etiqueta (Ej: Trabajo)" value={nuevaDir.etiqueta} onChange={e => setNuevaDir({...nuevaDir, etiqueta: e.target.value})} />
-                        <input required className="w-full p-3 rounded-xl font-bold text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-600 shadow-sm" placeholder="Ciudad (Ej: Apartadó)" value={nuevaDir.ciudad} onChange={e => setNuevaDir({...nuevaDir, ciudad: e.target.value})} />
-                        <input required className="w-full sm:col-span-2 p-3 rounded-xl font-bold text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-600 shadow-sm" placeholder="Dirección completa" value={nuevaDir.direccion} onChange={e => setNuevaDir({...nuevaDir, direccion: e.target.value})} />
-                    </div>
-                    <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                        <button type="submit" disabled={loading} className="w-full sm:flex-1 bg-black text-white py-3 md:py-4 rounded-xl font-black text-[10px] md:text-xs uppercase hover:bg-blue-600 transition-colors shadow-lg active:scale-95">{loading ? 'Guardando...' : 'Guardar Dirección'}</button>
-                        <button type="button" onClick={() => setMostrarForm(false)} className="w-full sm:w-auto px-6 py-3 md:py-4 bg-gray-200 text-gray-600 rounded-xl font-black text-[10px] md:text-xs uppercase hover:bg-gray-300 transition-colors active:scale-95">Cancelar</button>
-                    </div>
+            {mostrarForm && (
+                <form onSubmit={handleGuardar} className="bg-gray-50 p-6 rounded-[2rem] space-y-4 animate-in zoom-in-95">
+                    <input required className="w-full p-4 rounded-2xl text-xs font-bold outline-none border-none shadow-sm" placeholder="Nombre (Ej: Casa, Oficina)" value={nuevaDir.etiqueta} onChange={e => setNuevaDir({...nuevaDir, etiqueta: e.target.value})} />
+                    <input required className="w-full p-4 rounded-2xl text-xs font-bold outline-none border-none shadow-sm" placeholder="Ciudad" value={nuevaDir.ciudad} onChange={e => setNuevaDir({...nuevaDir, ciudad: e.target.value})} />
+                    <input required className="w-full p-4 rounded-2xl text-xs font-bold outline-none border-none shadow-sm" placeholder="Dirección completa" value={nuevaDir.direccion} onChange={e => setNuevaDir({...nuevaDir, direccion: e.target.value})} />
+                    <button type="submit" className="w-full bg-black text-white py-4 rounded-2xl font-black uppercase text-[10px]">Guardar Dirección</button>
                 </form>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                    {direcciones.length === 0 ? (
-                        <div className="col-span-1 md:col-span-2 p-10 md:p-12 border-2 md:border-4 border-dashed border-gray-100 rounded-[2rem] md:rounded-[3rem] text-center">
-                            <MapPin size={32} className="mx-auto text-gray-200 mb-3 md:mb-4 md:w-10 md:h-10" />
-                            <p className="text-gray-400 font-bold uppercase text-[9px] md:text-[10px] tracking-widest">No tienes direcciones adicionales</p>
-                        </div>
-                    ) : (
-                        direcciones.map(dir => (
-                            <div key={dir.id} className="flex items-center justify-between p-4 md:p-5 bg-white border border-gray-100 rounded-2xl md:rounded-3xl shadow-sm hover:border-black transition-colors group">
-                                <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
-                                    <div className="w-10 h-10 shrink-0 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:bg-black group-hover:text-white transition-colors"><MapPin size={18} /></div>
-                                    <div className="overflow-hidden">
-                                        <h4 className="font-black text-xs md:text-sm uppercase italic truncate">{dir.etiqueta}</h4>
-                                        <p className="text-[10px] md:text-xs text-gray-500 font-medium truncate mt-0.5">{dir.direccion}, {dir.ciudad}</p>
-                                    </div>
-                                </div>
-                                <button onClick={() => eliminarDireccion(dir.id)} className="text-gray-300 hover:text-red-500 transition-colors p-2 shrink-0"><X size={16} /></button>
-                            </div>
-                        ))
-                    )}
-                </div>
             )}
+            <div className="grid gap-4">
+                {direcciones.map(dir => (
+                    <div key={dir.id} className="p-5 bg-white border border-gray-100 rounded-[1.5rem] flex justify-between items-center shadow-sm hover:border-blue-500 transition-all">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><MapPin size={20}/></div>
+                            <div>
+                                <h4 className="font-black text-xs uppercase">{dir.etiqueta}</h4>
+                                <p className="text-[10px] text-gray-500 font-bold">{dir.direccion}, {dir.ciudad}</p>
+                            </div>
+                        </div>
+                        <button onClick={() => eliminar(dir.id)} className="text-gray-300 hover:text-red-500 p-2"><X size={20}/></button>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 };
-
-const StatusStep = ({ icon, label, active, completed }) => (
-    <div className="relative z-10 flex flex-col items-center gap-2 md:gap-3 bg-white px-2">
-      <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center transition-all duration-700 ${
-        completed ? 'bg-green-500 text-white' : 
-        active ? 'bg-blue-600 text-white scale-110 md:scale-125 shadow-lg shadow-blue-200' : 'bg-white text-gray-300 border-2 border-gray-100'
-      }`}>
-        {icon}
-      </div>
-      <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-widest text-center mt-1 ${active ? 'text-gray-900' : 'text-gray-300'}`}>
-        {label}
-      </span>
-    </div>
-  );
 
 export default Perfil;

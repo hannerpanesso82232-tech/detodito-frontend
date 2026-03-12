@@ -29,7 +29,8 @@ const Login = () => {
             }
         } catch (error) {
             toast.dismiss(loadingToast);
-            toast.error('Error de conexión con el servidor');
+            // Si el error es de red (net::ERR_CONNECTION_REFUSED o similar)
+            toast.error('El servidor está despertando, intenta de nuevo en unos segundos');
         } finally {
             setLoading(false);
         }
@@ -56,7 +57,7 @@ const Login = () => {
             setPassword(res.data.passwordTemporal); 
         } catch (error) {
             toast.dismiss(loadId);
-            toast.error(error.response?.data?.error || 'Datos no coinciden');
+            toast.error(error.response?.data?.error || 'Datos no coinciden en nuestro sistema');
         } finally {
             setLoading(false);
         }
@@ -73,16 +74,16 @@ const Login = () => {
                         {modoRecuperacion ? 'Recuperar Acceso' : 'Iniciar Sesión'}
                     </h2>
                     <p className="text-gray-400 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] mt-3 md:mt-4">
-                        {modoRecuperacion ? 'Verificación de seguridad en 2 pasos' : 'Acceso exclusivo a la plataforma'}
+                        {modoRecuperacion ? 'Verificación de seguridad' : 'Acceso exclusivo a la plataforma'}
                     </p>
                 </div>
                 
                 {modoRecuperacion ? (
-                    <form onSubmit={handleRecuperar} className="space-y-4 md:space-y-5 animate-in fade-in slide-in-from-right-4">
+                    <form onSubmit={handleRecuperar} className="space-y-4 md:space-y-5">
                         <div className="bg-orange-50 p-4 rounded-xl md:rounded-2xl mb-4 flex items-start gap-3 border border-orange-100">
                             <ShieldAlert className="text-orange-500 flex-shrink-0" size={20} />
                             <p className="text-[9px] md:text-[10px] font-bold text-orange-800 uppercase tracking-widest leading-relaxed">
-                                Para proteger tu cuenta, necesitamos verificar tu cédula y el correo registrado.
+                                Ingresa tu cédula y el correo para enviarte una clave temporal.
                             </p>
                         </div>
 
@@ -100,12 +101,12 @@ const Login = () => {
                             {loading ? <Loader2 className="animate-spin" size={18} /> : 'Generar Nueva Clave'}
                         </button>
                         
-                        <button type="button" onClick={() => setModoRecuperacion(false)} className="w-full text-gray-400 font-bold text-[9px] md:text-[10px] uppercase hover:text-black transition-colors pt-4 tracking-widest p-2">
+                        <button type="button" onClick={() => setModoRecuperacion(false)} className="w-full text-gray-400 font-bold text-[9px] md:text-[10px] uppercase hover:text-black transition-colors pt-4 tracking-widest">
                             Volver al Login
                         </button>
                     </form>
                 ) : (
-                    <form onSubmit={handleLogin} className="space-y-4 md:space-y-5 animate-in fade-in slide-in-from-left-4">
+                    <form onSubmit={handleLogin} className="space-y-4 md:space-y-5">
                         <div className="relative group">
                             <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors" size={18} />
                             <input type="text" placeholder="NÚMERO DE CÉDULA" className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-2xl focus:bg-white focus:border-black outline-none transition-all font-bold text-xs md:text-sm" value={cedula} onChange={e => setCedula(e.target.value)} required />
@@ -123,10 +124,13 @@ const Login = () => {
                 )}
 
                 {!modoRecuperacion && (
-                    <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-gray-100 text-center">
+                    <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-gray-100 text-center flex flex-col gap-2">
                         <button onClick={() => setModoRecuperacion(true)} className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest hover:text-orange-500 transition-colors p-2">
-                            ¿Olvidaste tu clave? Recupérala aquí.
+                            ¿Olvidaste tu clave?
                         </button>
+                        <Link to="/registro" className="text-blue-600 text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:underline">
+                            ¿No tienes cuenta? Regístrate aquí
+                        </Link>
                     </div>
                 )}
             </div>

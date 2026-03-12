@@ -7,7 +7,9 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Componente para el efecto de carga (Skeleton)
+// URL de la API desde variables de entorno
+const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+
 const SkeletonCard = () => (
     <div className="group relative animate-pulse">
         <div className="aspect-[4/5] rounded-[2.5rem] bg-gray-200 mb-4" />
@@ -21,7 +23,6 @@ const SkeletonCard = () => (
 );
 
 const Catalogo = () => {
-    // Estados
     const [productos, setProductos] = useState([]);
     const [categorias, setCategorias] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -32,7 +33,6 @@ const Catalogo = () => {
     const [direccion, setDireccion] = useState('');
 
     const { cart, addToCart, removeFromCart, updateQuantity, total } = useCart();
-    const BASE_URL = 'http://localhost:3000'; 
 
     useEffect(() => {
         const cargarTodo = async () => {
@@ -59,7 +59,7 @@ const Catalogo = () => {
         try {
             const res = await API.get('/favoritos');
             setMisFavoritos(res.data.map(f => f.id));
-        } catch (e) { /* Error silencioso */ }
+        } catch (e) { }
     };
 
     const manejarFavorito = async (productoId) => {
@@ -84,7 +84,7 @@ const Catalogo = () => {
     }, [productos, busqueda, categoriaSel]);
 
     const handleCheckoutWhatsApp = () => {
-        const numero = "573202832661"; // <-- CONFIGURA TU NÚMERO
+        const numero = "573202832661";
         if (!direccion.trim()) {
             toast.error("Por favor, ingresa tu dirección");
             return;
@@ -103,7 +103,6 @@ const Catalogo = () => {
 
     return (
         <div className="min-h-screen bg-white font-sans text-gray-900">
-            {/* NAV BAR: Movida a Navbar.js, asegúrate de no duplicarla si ya llamas al componente <Navbar /> fuera de Catalogo */}
             <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-gray-100 px-6 py-4 flex justify-between items-center">
                 <div className="flex items-center gap-8">
                     <h1 className="text-2xl font-black tracking-tighter italic uppercase">Brand.Store</h1>
@@ -159,7 +158,6 @@ const Catalogo = () => {
                     ) : (
                         productosFiltrados.map(p => (
                             <div key={p.id} className="group relative bg-white p-4 rounded-[2.5rem] border border-transparent hover:border-gray-100 transition-all hover:shadow-2xl flex flex-col h-full">
-                                {/* Contenedor Imagen */}
                                 <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-gray-50 mb-6">
                                     <img 
                                         src={p.imagen_url ? `${BASE_URL}${p.imagen_url}` : 'https://placehold.co/400x500?text=Sin+Imagen'} 
@@ -168,7 +166,6 @@ const Catalogo = () => {
                                         onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/400x500?text=Error'; }}
                                     />
                                     
-                                    {/* Botón Favorito */}
                                     <button 
                                         onClick={() => manejarFavorito(p.id)}
                                         className="absolute top-4 right-4 z-10 p-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm hover:scale-110 transition active:scale-90"
@@ -176,14 +173,12 @@ const Catalogo = () => {
                                         <Heart size={18} className={misFavoritos.includes(p.id) ? "fill-red-500 text-red-500" : "text-gray-300"} />
                                     </button>
 
-                                    {/* Badge Stock Flotante */}
                                     <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm">
                                         <span className={`text-[9px] font-black uppercase tracking-widest ${p.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
                                             {p.stock > 0 ? `${p.stock} Disp.` : 'Agotado'}
                                         </span>
                                     </div>
 
-                                    {/* Overlay si no hay stock */}
                                     {p.stock <= 0 && (
                                         <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex items-center justify-center pointer-events-none">
                                             <span className="text-[14px] font-black uppercase tracking-widest text-gray-900 bg-white px-4 py-2 rounded-xl">
@@ -193,7 +188,6 @@ const Catalogo = () => {
                                     )}
                                 </div>
 
-                                {/* Info Producto */}
                                 <div className="px-2 flex flex-col flex-1">
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex-1 pr-2">
@@ -205,16 +199,14 @@ const Catalogo = () => {
                                             </p>
                                         </div>
                                         <p className="font-black text-lg italic text-black tracking-tighter">
-                                            ${Number(p.precio).toFixed(2)}
+                                            ${Number(p.precio).toLocaleString()}
                                         </p>
                                     </div>
                                     
-                                    {/* DESCRIPCIÓN AÑADIDA AQUÍ */}
                                     <p className="text-xs text-gray-500 font-medium line-clamp-2 mt-1 mb-4 flex-1">
                                         {p.descripcion || 'Sin descripción disponible para este producto.'}
                                     </p>
                                     
-                                    {/* Botón Acción - Aparece en Hover */}
                                     <button 
                                         onClick={() => addToCart(p)}
                                         disabled={p.stock <= 0}
@@ -260,7 +252,6 @@ const Catalogo = () => {
                                                 <span className="font-black text-xs">{item.cantidad}</span>
                                                 <button 
                                                     onClick={() => updateQuantity(item.id, item.cantidad + 1)} 
-                                                    // Opcional: Evitar que agregue más cantidad que el stock disponible
                                                     disabled={item.cantidad >= item.stock}
                                                     className="hover:text-blue-600 disabled:text-gray-300"
                                                 ><Plus size={12}/></button>
@@ -289,7 +280,7 @@ const Catalogo = () => {
 
                                 <div className="flex justify-between items-end mb-8">
                                     <span className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Total</span>
-                                    <span className="text-4xl font-black italic tracking-tighter text-gray-900">${total.toFixed(2)}</span>
+                                    <span className="text-4xl font-black italic tracking-tighter text-gray-900">${total.toLocaleString()}</span>
                                 </div>
                                 <button 
                                     onClick={handleCheckoutWhatsApp}
