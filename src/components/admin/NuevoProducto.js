@@ -50,7 +50,7 @@ const NuevoProducto = () => {
         <div className="max-w-2xl mx-auto py-10">
             <form onSubmit={handleSubmit} className="p-10 bg-white rounded-[3rem] shadow-2xl border border-gray-100 space-y-6">
                 <div className="text-center mb-8">
-                    <h2 className="text-4xl font-black uppercase italic tracking-tighter italic">Push Stock</h2>
+                    <h2 className="text-4xl font-black uppercase italic tracking-tighter italic">Empujar cantidad</h2>
                     <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.3em]">Agregar nuevo item al catálogo</p>
                 </div>
                 

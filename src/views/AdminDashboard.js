@@ -18,8 +18,8 @@ import {
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 
+// --- CONFIGURACIÓN DE URLS ---
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
-let socket;
 
 const formatCurrency = (valor) => {
     return Number(valor || 0).toLocaleString('es-CO', {
@@ -32,14 +32,17 @@ const RUTAS_BASE = [
     "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"
 ];
 
+// 🔥 CORRECCIÓN 1: FORMATEO DE IMÁGENES PARA LA NUBE 🔥
 const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/150';
-    if (url.includes('localhost:5000')) return url.replace('5000', '3000');
     if (url.startsWith('http')) return url;
-    return `http://localhost:3000${url.startsWith('/') ? '' : '/'}${url}`;
+    
+    // Usamos la URL de la API de las variables de entorno para las imágenes
+    const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
+    return `${base}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
-// 🔥 SÚPER MOTOR MATEMÁTICO: AHORA INCLUYE HORA LÍMITE 🔥
+// ... (Función calcularFechaReal e imprimirFacturaCliente se mantienen igual) ...
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
     const fechaMaxima = new Date(8640000000000000); 
@@ -82,22 +85,18 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
     const diaActual = fechaBase.getDay(); 
     let diasFaltantes = diaDestino - diaActual;
 
-    // 🔥 LÓGICA DE HORA LÍMITE 🔥
-    if (diasFaltantes < 0) diasFaltantes += 7; // Si el día ya pasó esta semana
+    if (diasFaltantes < 0) diasFaltantes += 7; 
 
-    // Si el día de la ruta es HOY, el camión ya salió, se va para la otra semana (+7)
     if (diasFaltantes === 0) {
         diasFaltantes += 7;
     } 
-    // Si la ruta es MAÑANA (faltan 1 día), evaluamos si ya pasó la hora límite
     else if (diasFaltantes === 1) {
         const [limiteHora, limiteMinuto] = horaLimite.split(':').map(Number);
         const horaPedido = fechaBase.getHours();
         const minutoPedido = fechaBase.getMinutes();
 
-        // Si la hora actual es mayor o igual a la hora límite (Ej: 21:00 > 20:00)
         if (horaPedido > limiteHora || (horaPedido === limiteHora && minutoPedido >= limiteMinuto)) {
-            diasFaltantes += 7; // Lo pasamos a la siguiente semana
+            diasFaltantes += 7; 
         }
     }
 
@@ -127,7 +126,6 @@ const imprimirFacturaCliente = (pedido, rutasDinamicas = [], horaLimiteGlobal) =
     doc.text(`Dirección: ${pedido.direccion || pedido.Usuario?.direccion || 'A Convenir'}`, 14, 58);
     doc.text(`Ciudad/Zona: ${pedido.Usuario?.ciudad || pedido.ruta || 'Urabá Antioquia'}`, 14, 64);
     
-    // Le pasamos la hora límite también al generador de PDF
     const infoRuta = calcularFechaReal(pedido.ruta, pedido.Usuario?.ciudad, pedido.direccion, rutasDinamicas, pedido.fecha, horaLimiteGlobal);
     
     doc.setFont("helvetica", "bold"); doc.text(`N° DE ORDEN: #${pedido.id}`, 130, 45);
@@ -177,7 +175,7 @@ const AdminDashboard = () => {
 
     // ESTADOS DE CONFIGURACIÓN
     const [whatsappTienda, setWhatsappTienda] = useState('');
-    const [horaLimite, setHoraLimite] = useState('20:00'); // 🔥 Nuevo estado para la hora
+    const [horaLimite, setHoraLimite] = useState('20:00'); 
 
     // ESTADOS DE MODALES
     const [showModal, setShowModal] = useState(false);
@@ -223,7 +221,7 @@ const AdminDashboard = () => {
                 API.get('/auth/admin/usuarios'), API.get('/auth/config/whatsapp'),
                 API.get('/contabilidad/resumen'), API.get('/contabilidad/transacciones'),
                 API.get('/pedidos/config/rutas').catch(() => ({ data: [] })),
-                API.get('/pedidos/config/horalimite').catch(() => ({ data: { hora: '20:00' } })) // 🔥 Obtenemos la hora
+                API.get('/pedidos/config/horalimite').catch(() => ({ data: { hora: '20:00' } })) 
             ]);
             setProductos(resProd.data || []); setPedidos(resPed.data || []); setCategorias(resCat.data || []);
             setUsuarios(resUsers.data || []); setWhatsappTienda(resWa.data.whatsapp || ''); 
@@ -237,18 +235,27 @@ const AdminDashboard = () => {
         } catch (err) { toast.error("Error de sincronización"); } finally { setLoading(false); }
     }, []);
 
+    // 🔥 CORRECCIÓN 2: INICIALIZACIÓN DE SOCKETS 🔥
     useEffect(() => {
         fetchDatos();
-        socket = io(SOCKET_URL);
+        
+        // Usamos la URL configurada arriba para evitar localhost
+        const socket = io(SOCKET_URL);
+        
         socket.on("nuevo_pedido_admin", (data) => {
             const audio = new Audio('/alert-notification.mp3'); audio.play().catch(() => {});
             toast(`📦 Nuevo Pedido de ${data.cliente || 'Cliente'}`, { icon: '🚀', style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } });
             fetchDatos();
         });
-        socket.on('stockActualizado', (data) => { setProductos(prev => prev.map(p => p.id === parseInt(data.id) ? { ...p, stock: data.nuevoStock } : p)); });
+
+        socket.on('stockActualizado', (data) => { 
+            setProductos(prev => prev.map(p => p.id === parseInt(data.id) ? { ...p, stock: data.nuevoStock } : p)); 
+        });
+
         return () => { if(socket) socket.disconnect(); };
     }, [fetchDatos]);
 
+    // ... (Logica de KPIs y UseMemos se mantienen igual) ...
     useEffect(() => {
         const costoBase = parseFloat(formulario.costo_compra) || 0; const margen = parseFloat(formulario.margen_ganancia) || 0;
         if (!productoEditando) { setPrecioCalculado(costoBase + (costoBase * (margen / 100)) || 0); } else {
@@ -452,11 +459,9 @@ const AdminDashboard = () => {
     const handleRestablecerPassword = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${usuarioSeleccionado.id}/password`, { password: nuevaPassword }); setShowPasswordModal(false); setNuevaPassword(''); toast.success("Contraseña restablecida con éxito"); } catch (err) { toast.error(err.response?.data?.error || "Error al cambiar contraseña"); } finally { setEnviando(false); } };
     const handleEliminarUsuario = async () => { try { await API.delete(`/auth/admin/usuarios/${usuarioAEliminar.id}`); setUsuarioAEliminar(null); fetchDatos(); toast.success("Usuario eliminado para siempre"); } catch (err) { toast.error(err.response?.data?.error || "Error al eliminar usuario"); } };
     
-    // 🔥 FUNCIÓN CREAR RUTA GLOBALES EN CONFIGURACIÓN 🔥
     const handleCrearRutaConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/pedidos/config/rutas', { ciudad: nuevaRutaCiudad, dia_ruta: nuevaRutaDia }); toast.success(`Reglas guardadas exitosamente`); setNuevaRutaCiudad(''); setNuevaRutaDia(''); fetchDatos(); } catch (err) { toast.error("Error al crear la regla"); } finally { setEnviando(false); } };
     const handleEliminarRutaConfig = async (id) => { try { await API.delete(`/pedidos/config/rutas/${id}`); fetchDatos(); toast.success("Regla eliminada"); } catch (err) { toast.error("Error al borrar regla"); } };
     
-    // 🔥 FUNCION GUARDAR CONFIGURACION WA + HORA LIMITE 🔥
     const handleGuardarConfig = async (e) => { 
         e.preventDefault(); setEnviando(true); 
         try { 
@@ -583,14 +588,39 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                         </div>
+                        {/* 🔥 CORRECCIÓN 3: GRÁFICOS CON ALTO FIJO 🔥 */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
                             <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
                                 <div className="mb-6 md:mb-8"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Crecimiento Mensual</h3></div>
-                                <div style={{ height: '200px', minHeight: '200px', width: '100%' }}><ResponsiveContainer width="100%" height="100%"><AreaChart data={dataVentasMensuales}><defs><linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} dy={10} /><Tooltip formatter={(value) => `$${formatCurrency(value)}`} contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} /><Area type="monotone" dataKey="Ventas" stroke="#2563eb" strokeWidth={4} fillOpacity={1} fill="url(#colorVentas)" /></AreaChart></ResponsiveContainer></div>
+                                <div className="w-full" style={{ height: 300 }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={dataVentasMensuales}>
+                                            <defs>
+                                                <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
+                                                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} dy={10} />
+                                            <Tooltip formatter={(value) => `$${formatCurrency(value)}`} contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                                            <Area type="monotone" dataKey="Ventas" stroke="#2563eb" strokeWidth={4} fillOpacity={1} fill="url(#colorVentas)" />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
                             <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
                                 <div className="mb-6 md:mb-8"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Pedidos por Zona</h3></div>
-                                <div style={{ height: '200px', minHeight: '200px', width: '100%' }}><ResponsiveContainer width="100%" height="100%"><BarChart data={dataGraficoRutas}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} dy={10} /><Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} /><Bar dataKey="pedidos" fill="#000" radius={[10, 10, 10, 10]} barSize={40} /></BarChart></ResponsiveContainer></div>
+                                <div className="w-full" style={{ height: 300 }}>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart data={dataGraficoRutas}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} dy={10} />
+                                            <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                                            <Bar dataKey="pedidos" fill="#000" radius={[10, 10, 10, 10]} barSize={40} />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -739,9 +769,8 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* 🔥 MODALES 🔥 */}
-
-            {/* MODAL CREAR / EDITAR GASTO */}
+            {/* 🔥 MODALES (Se mantienen igual) 🔥 */}
+            {/* ... */}
             {(showGastoModal || showEditTransaccionModal) && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center animate-in zoom-in-95 duration-200">
@@ -766,7 +795,7 @@ const AdminDashboard = () => {
                                 </div>
                                 <div className="flex-1">
                                     <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Fecha</label>
-                                    <input type="date" required className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formGasto.fecha || new Date().toISOString().split('T')[0]} onChange={e => setFormGasto({...formGasto, fecha: e.target.value})} />
+                                    <input type="date" required className="w-full bg-white p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formGasto.fecha || new Date().toISOString().split('T')[0]} onChange={e => setFormGasto({...formGasto, fecha: e.target.value})} />
                                 </div>
                             </div>
                             <button disabled={enviando} className={`w-full text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all flex items-center justify-center mt-2 shadow-lg active:scale-95 ${formGasto.tipo === 'INGRESO' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>{enviando ? <Loader2 className="animate-spin" /> : 'Guardar Movimiento'}</button>
@@ -775,7 +804,6 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* MODAL ELIMINAR TRANSACCION */}
             {showDeleteTransaccionModal && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
                     <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
@@ -956,7 +984,6 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* 🔥 MODAL EDITAR USUARIO 🔥 */}
             {showEditUsuarioModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-2xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative animate-in zoom-in-95 duration-200">
@@ -983,7 +1010,6 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* MODAL CREAR NUEVO CLIENTE */}
             {showUsuarioModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-lg rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative">
@@ -1004,7 +1030,6 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* MODAL CAMBIAR CONTRASEÑA */}
             {showPasswordModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center">
@@ -1022,13 +1047,11 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* 🔥 MODAL CONFIGURACIÓN RUTAS, HORA Y WHATSAPP 🔥 */}
             {showConfigModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-4xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative flex flex-col md:flex-row gap-6 md:gap-8 animate-in zoom-in-95 duration-200">
                         <button onClick={() => setShowConfigModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={18}/></button>
                         
-                        {/* Mitad Izquierda: Configuración General */}
                         <div className="flex-1 border-b md:border-b-0 md:border-r border-gray-100 pb-6 md:pb-0 md:pr-8 text-center">
                             <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-500 rounded-xl md:rounded-[2rem] flex items-center justify-center mx-auto mb-4 md:mb-6"><Settings size={24} className="md:w-8 md:h-8"/></div>
                             <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 md:mb-2">Ajustes Generales</h2>
@@ -1051,7 +1074,6 @@ const AdminDashboard = () => {
                             </form>
                         </div>
 
-                        {/* Mitad Derecha: Rutas Dinámicas TABLA DE RUTAS */}
                         <div className="flex-1 md:pl-4 mt-2 md:mt-0">
                             <div className="flex items-center gap-3 md:gap-4 mb-4 md:mb-6">
                                 <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 text-blue-500 rounded-xl md:rounded-2xl flex items-center justify-center"><Map size={20} className="md:w-6 md:h-6"/></div>
