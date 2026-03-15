@@ -30,7 +30,7 @@ const formatearImagen = (url) => {
 // Componente para el efecto de carga (Skeleton)
 const SkeletonCard = () => (
     <div className="group relative animate-pulse">
-        <div className="aspect-[4/5] rounded-[2.5rem] bg-gray-200 mb-4" />
+        <div className="aspect-[4/5] rounded-2xl md:rounded-[2.5rem] bg-gray-200 mb-4" />
         <div className="h-4 bg-gray-200 rounded w-2/3 mb-2" />
         <div className="h-3 bg-gray-100 rounded w-1/2 mb-4" />
         <div className="flex justify-between items-center">
@@ -103,7 +103,7 @@ const Catalogo = () => {
     }, [productos, busqueda, categoriaSel]);
 
     const handleCheckoutWhatsApp = () => {
-        const numero = "573202832661"; // <-- CONFIGURA TU NÚMERO
+        const numero = "573202832661"; 
         if (!direccion.trim()) {
             toast.error("Por favor, ingresa tu dirección");
             return;
@@ -122,40 +122,36 @@ const Catalogo = () => {
 
     return (
         <div className="min-h-screen bg-white font-sans text-gray-900">
-            <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-gray-100 px-6 py-4 flex justify-between items-center">
-                <div className="flex items-center gap-8">
-                    <h1 className="text-2xl font-black tracking-tighter italic uppercase">Brand.Store</h1>
-                    <div className="hidden md:flex relative items-center">
-                        <Search className="absolute left-3 text-gray-400" size={16} />
+            {/* Header del Catálogo (Sticky junto con las categorías) */}
+            <div className="sticky top-20 z-40 bg-white/95 backdrop-blur-xl border-b border-gray-100 pt-4 pb-2 px-4 md:px-6">
+                
+                {/* Barra superior con Título y Buscador (Desktop y Mobile unificados) */}
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-4">
+                    <h1 className="text-2xl md:text-3xl font-black tracking-tighter italic uppercase hidden md:block">Brand.Store</h1>
+                    
+                    {/* Buscador - Visible en todos los dispositivos */}
+                    <div className="relative w-full md:w-auto flex items-center">
+                        <Search className="absolute left-4 text-gray-400" size={18} />
                         <input 
                             type="text" 
                             placeholder="Buscar productos..." 
-                            className="pl-10 pr-4 py-2 bg-gray-100 rounded-2xl text-xs outline-none focus:ring-2 focus:ring-blue-500 transition-all w-64"
+                            className="w-full md:w-80 pl-12 pr-4 py-3 md:py-2 bg-gray-100/80 rounded-2xl md:rounded-xl text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold"
                             value={busqueda}
                             onChange={(e) => setBusqueda(e.target.value)}
                         />
+                        {busqueda && (
+                            <button onClick={() => setBusqueda('')} className="absolute right-4 text-gray-400 hover:text-black">
+                                <X size={16} />
+                            </button>
+                        )}
                     </div>
                 </div>
-                
-                <button 
-                    onClick={() => setShowCart(true)} 
-                    className="relative p-3 bg-gray-900 text-white rounded-2xl hover:bg-blue-600 transition-all shadow-xl flex items-center gap-2"
-                >
-                    <ShoppingBag size={20} />
-                    {cart.length > 0 && (
-                        <span className="bg-white text-gray-900 text-[10px] font-black px-2 py-0.5 rounded-lg">
-                            {cart.reduce((acc, i) => acc + i.cantidad, 0)}
-                        </span>
-                    )}
-                </button>
-            </nav>
 
-            <main className="px-6 py-8 max-w-[1600px] mx-auto">
-                {/* CATEGORÍAS */}
-                <div className="flex items-center gap-2 mb-10 overflow-x-auto pb-4 no-scrollbar">
+                {/* CATEGORÍAS (Sticky) */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
                     <button 
                         onClick={() => setCategoriaSel('all')}
-                        className={`whitespace-nowrap px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${categoriaSel === 'all' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                        className={`whitespace-nowrap px-6 md:px-8 py-2.5 md:py-3 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${categoriaSel === 'all' ? 'bg-black text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                     >
                         Todos
                     </button>
@@ -163,22 +159,28 @@ const Catalogo = () => {
                         <button 
                             key={c.id}
                             onClick={() => setCategoriaSel(c.id.toString())}
-                            className={`whitespace-nowrap px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${categoriaSel === c.id.toString() ? 'bg-black text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                            className={`whitespace-nowrap px-6 md:px-8 py-2.5 md:py-3 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition-all ${categoriaSel === c.id.toString() ? 'bg-black text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                         >
                             {c.nombre}
                         </button>
                     ))}
                 </div>
+            </div>
 
-                {/* GRID DE PRODUCTOS */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
+            <main className="px-4 md:px-6 py-6 md:py-8 max-w-[1600px] mx-auto">
+                {/* GRID DE PRODUCTOS - 🔥 AQUÍ ESTÁ EL CAMBIO PRINCIPAL A 2 COLUMNAS EN MOBILE 🔥 */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 md:gap-x-8 gap-y-8 md:gap-y-12">
                     {loading ? (
                         [1, 2, 3, 4, 5, 6, 7, 8].map(n => <SkeletonCard key={n} />)
+                    ) : productosFiltrados.length === 0 ? (
+                        <div className="col-span-2 lg:col-span-4 text-center py-20">
+                            <p className="text-gray-400 font-black uppercase tracking-widest text-xs">No se encontraron productos.</p>
+                        </div>
                     ) : (
                         productosFiltrados.map(p => (
-                            <div key={p.id} className="group relative bg-white p-4 rounded-[2.5rem] border border-transparent hover:border-gray-100 transition-all hover:shadow-2xl flex flex-col h-full">
+                            <div key={p.id} className="group relative bg-white p-2 md:p-4 rounded-2xl md:rounded-[2.5rem] border border-transparent hover:border-gray-100 transition-all hover:shadow-2xl flex flex-col h-full">
                                 {/* Contenedor Imagen */}
-                                <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] bg-gray-50 mb-6">
+                                <div className="relative aspect-[4/5] overflow-hidden rounded-xl md:rounded-[2rem] bg-gray-50 mb-3 md:mb-6">
                                     <img 
                                         src={formatearImagen(p.imagen_url)} 
                                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 bg-white"
@@ -186,17 +188,17 @@ const Catalogo = () => {
                                         onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/400x500?text=Error'; }}
                                     />
                                     
-                                    {/* Botón Favorito */}
+                                    {/* Botón Favorito - Ajustado en Mobile */}
                                     <button 
                                         onClick={() => manejarFavorito(p.id)}
-                                        className="absolute top-4 right-4 z-10 p-3 bg-white/90 backdrop-blur-md rounded-2xl shadow-sm hover:scale-110 transition active:scale-90"
+                                        className="absolute top-2 right-2 md:top-4 md:right-4 z-10 p-2 md:p-3 bg-white/90 backdrop-blur-md rounded-xl md:rounded-2xl shadow-sm hover:scale-110 transition active:scale-90"
                                     >
-                                        <Heart size={18} className={misFavoritos.includes(p.id) ? "fill-red-500 text-red-500" : "text-gray-300"} />
+                                        <Heart size={14} className={`md:w-4 md:h-4 ${misFavoritos.includes(p.id) ? "fill-red-500 text-red-500" : "text-gray-300"}`} />
                                     </button>
 
-                                    {/* Badge Stock Flotante */}
-                                    <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl shadow-sm">
-                                        <span className={`text-[9px] font-black uppercase tracking-widest ${p.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                                    {/* Badge Stock Flotante - Ajustado en Mobile */}
+                                    <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-white/90 backdrop-blur-sm px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl shadow-sm">
+                                        <span className={`text-[7px] md:text-[9px] font-black uppercase tracking-widest ${p.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
                                             {p.stock > 0 ? `${p.stock} Disp.` : 'Agotado'}
                                         </span>
                                     </div>
@@ -204,7 +206,7 @@ const Catalogo = () => {
                                     {/* Overlay si no hay stock */}
                                     {p.stock <= 0 && (
                                         <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex items-center justify-center pointer-events-none">
-                                            <span className="text-[14px] font-black uppercase tracking-widest text-gray-900 bg-white px-4 py-2 rounded-xl">
+                                            <span className="text-[10px] md:text-[14px] font-black uppercase tracking-widest text-gray-900 bg-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl">
                                                 Agotado
                                             </span>
                                         </div>
@@ -212,32 +214,32 @@ const Catalogo = () => {
                                 </div>
 
                                 {/* Info Producto */}
-                                <div className="px-2 flex flex-col flex-1">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex-1 pr-2">
-                                            <h3 className="font-black text-gray-900 uppercase text-sm tracking-tighter leading-tight line-clamp-2">
+                                <div className="px-1 md:px-2 flex flex-col flex-1">
+                                    <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-1 md:mb-2 gap-1">
+                                        <div className="flex-1 pr-0 md:pr-2">
+                                            <h3 className="font-black text-gray-900 uppercase text-[10px] md:text-sm tracking-tighter leading-tight line-clamp-2">
                                                 {p.nombre}
                                             </h3>
-                                            <p className="text-[9px] text-blue-600 font-bold uppercase mt-1 tracking-widest">
+                                            <p className="text-[7px] md:text-[9px] text-blue-600 font-bold uppercase mt-0.5 md:mt-1 tracking-widest truncate">
                                                 {p.Categoria?.nombre || 'General'}
                                             </p>
                                         </div>
-                                        <p className="font-black text-lg italic text-black tracking-tighter">
+                                        <p className="font-black text-xs md:text-lg italic text-black tracking-tighter mt-1 md:mt-0">
                                             ${Number(p.precio).toLocaleString('es-CO')}
                                         </p>
                                     </div>
                                     
-                                    <p className="text-xs text-gray-500 font-medium line-clamp-2 mt-1 mb-4 flex-1">
+                                    <p className="text-[9px] md:text-xs text-gray-500 font-medium line-clamp-2 mt-1 mb-3 md:mb-4 flex-1">
                                         {p.descripcion || 'Sin descripción disponible para este producto.'}
                                     </p>
                                     
-                                    {/* Botón Acción - Aparece en Hover */}
+                                    {/* Botón Acción - Visible en Mobile, Hover en Desktop */}
                                     <button 
                                         onClick={() => addToCart(p)}
                                         disabled={p.stock <= 0}
-                                        className="w-full mt-auto bg-black text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 disabled:bg-gray-200 disabled:text-gray-400 disabled:opacity-100 disabled:translate-y-0"
+                                        className="w-full mt-auto bg-black text-white py-3 md:py-4 rounded-xl md:rounded-2xl font-black uppercase text-[8px] md:text-[10px] tracking-widest md:translate-y-2 md:opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 disabled:bg-gray-200 disabled:text-gray-400 disabled:opacity-100 md:disabled:translate-y-0 active:scale-95"
                                     >
-                                        {p.stock > 0 ? 'Agregar a Bolsa' : 'Sin Stock'}
+                                        {p.stock > 0 ? 'A la Bolsa' : 'Sin Stock'}
                                     </button>
                                 </div>
                             </div>
@@ -246,7 +248,7 @@ const Catalogo = () => {
                 </div>
             </main>
 
-            {/* CARRITO SIDEBAR */}
+            {/* CARRITO SIDEBAR (Mantenido igual) */}
             {showCart && (
                 <>
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60]" onClick={() => setShowCart(false)} />
