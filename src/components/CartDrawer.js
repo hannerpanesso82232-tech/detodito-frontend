@@ -4,10 +4,26 @@ import { useAuth } from '../context/AuthContext';
 import { useCart as useCartHook } from '../context/CartContext';
 import { useNavigate } from 'react-router-dom';
 
+// 🔥 CORRECCIÓN AGRESIVA: Limpieza de Localhost para imágenes 🔥
+const formatearImagen = (url) => {
+    if (!url) return 'https://placehold.co/400x500?text=Sin+Imagen';
+    
+    let urlLimpia = url;
+    if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
+        urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
+    }
+
+    if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
+        return urlLimpia;
+    }
+    
+    const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
+    return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
+};
+
 const CartDrawer = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const { cart, updateQuantity, removeFromCart, total } = useCartHook();
-  const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
   const navigate = useNavigate();
 
   const handleProcederAlPago = () => {
@@ -47,9 +63,10 @@ const CartDrawer = ({ isOpen, onClose }) => {
             cart.map((item) => (
               <div key={item.id} className="flex gap-4 md:gap-6 group animate-in slide-in-from-right-10 duration-500">
                 <div className="relative flex-shrink-0">
+                  {/* 🔥 AQUÍ APLICAMOS LA MAGIA DE LA IMAGEN 🔥 */}
                   <img 
-                    src={item.imagen_url ? `${BASE_URL}${item.imagen_url}` : 'https://placehold.co/200'} 
-                    className="w-20 h-24 md:w-24 md:h-28 rounded-xl md:rounded-[2rem] object-cover bg-gray-50 shadow-sm border border-gray-100" 
+                    src={formatearImagen(item.imagen_url)} 
+                    className="w-20 h-24 md:w-24 md:h-28 rounded-xl md:rounded-[2rem] object-cover bg-gray-50 shadow-sm border border-gray-100 bg-white" 
                     alt={item.nombre} 
                   />
                   <span className="absolute -top-2 -left-2 bg-black text-white text-[9px] md:text-[10px] font-bold h-5 w-5 md:h-6 md:w-6 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
@@ -57,7 +74,7 @@ const CartDrawer = ({ isOpen, onClose }) => {
                   </span>
                 </div>
                 
-                <div className="flex-1 flex flex-col justify-center min-w-0"> {/* min-w-0 evita que el texto rompa el flexbox */}
+                <div className="flex-1 flex flex-col justify-center min-w-0">
                   <div className="mb-2 md:mb-3">
                     <h4 className="font-black text-gray-900 text-xs md:text-sm uppercase italic tracking-tighter leading-tight line-clamp-2">
                       {item.nombre}

@@ -9,6 +9,23 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+// 🔥 CORRECCIÓN AGRESIVA: Limpieza de Localhost para imágenes 🔥
+const formatearImagen = (url) => {
+    if (!url) return 'https://placehold.co/400x500?text=Sin+Imagen';
+    
+    let urlLimpia = url;
+    if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
+        urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
+    }
+
+    if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
+        return urlLimpia;
+    }
+    
+    const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
+    return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
+};
+
 // 🔥 MOTOR MATEMÁTICO DE FECHAS DINÁMICAS (Con Hora Límite) 🔥
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
@@ -91,8 +108,6 @@ const Carrito = () => {
   // Estados de configuración descargados del servidor
   const [rutasDinamicas, setRutasDinamicas] = useState([]);
   const [horaLimite, setHoraLimite] = useState('20:00');
-
-  const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
 
   useEffect(() => {
       if (user) {
@@ -193,7 +208,8 @@ const Carrito = () => {
               cart.map((item) => (
                 <div key={item.id} className="bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center gap-4 md:gap-6 group hover:shadow-md transition-shadow">
                   <div className="w-full sm:w-32 h-40 sm:h-32 bg-gray-50 rounded-xl md:rounded-[2rem] overflow-hidden flex-shrink-0">
-                    <img src={item.imagen_url ? `${BASE_URL}${item.imagen_url}` : 'https://via.placeholder.com/150'} className="w-full h-full object-cover sm:group-hover:scale-110 transition-transform duration-500" alt={item.nombre} />
+                    {/* 🔥 AQUÍ APLICAMOS LA MAGIA DE LA IMAGEN 🔥 */}
+                    <img src={formatearImagen(item.imagen_url)} className="w-full h-full object-cover sm:group-hover:scale-110 transition-transform duration-500 bg-white" alt={item.nombre} />
                   </div>
                   <div className="flex-1 text-center sm:text-left w-full">
                     <h3 className="font-black text-gray-900 uppercase tracking-tight text-base md:text-lg leading-tight mb-1 md:mb-2">{item.nombre}</h3>
