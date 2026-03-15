@@ -9,12 +9,13 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     AreaChart, Area
 } from 'recharts';
+// 🔥 AQUÍ CAMBIAMOS HandCoins por Banknote y ReceiptText por FileText 🔥
 import { 
     Plus, Edit, Trash2, Package, ShoppingCart, Search, 
     TrendingUp, AlertTriangle, X, Loader2, CheckCircle2,
     Image as ImageIcon, FileSpreadsheet, Eye, Truck, Printer,
     CalendarDays, Activity, DollarSign, Clock, Users, User, Key, Briefcase, Award, Calculator, Settings,
-    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, ArrowLeftRight, PackageMinus, HandCoins, ReceiptText
+    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, ArrowLeftRight, PackageMinus, Banknote, FileText
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 
@@ -34,13 +35,16 @@ const RUTAS_BASE = [
 
 const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/150';
+    
     let urlLimpia = url;
     if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
         urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
     }
+
     if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
         return urlLimpia;
     }
+    
     const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
     return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
 };
@@ -189,7 +193,6 @@ const AdminDashboard = () => {
     const [showEditTransaccionModal, setShowEditTransaccionModal] = useState(false);
     const [showDeleteTransaccionModal, setShowDeleteTransaccionModal] = useState(false);
     
-    // 🔥 MODALES CARTERA 🔥
     const [showCreditoModal, setShowCreditoModal] = useState(false);
     const [showAbonoModal, setShowAbonoModal] = useState(false);
     const [creditoSeleccionado, setCreditoSeleccionado] = useState(null);
@@ -545,7 +548,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-3 w-full md:w-auto">
                     {tab === 'finanzas' && (<button onClick={() => { setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); setShowGastoModal(true); }} className="col-span-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-500/30 uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><ArrowDownRight size={16} /> Movimiento Manual</button>)}
-                    {tab === 'cartera' && (<button onClick={() => setShowCreditoModal(true)} className="col-span-2 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><HandCoins size={16} /> Nuevo Crédito (Fiar)</button>)}
+                    {tab === 'cartera' && (<button onClick={() => setShowCreditoModal(true)} className="col-span-2 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Banknote size={16} /> Nuevo Crédito (Fiar)</button>)}
                     <button onClick={exportarManifiestoCarga} className={`${(tab === 'finanzas' || tab === 'cartera') ? 'col-span-1' : 'col-span-2'} bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/30 uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95`}><Truck size={16} /> Extraer Ruta</button>
                     {tab === 'productos' && (<button onClick={() => { setProductoEditando(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 }); setPrecioCalculado(0); setShowModal(true); }} className="col-span-1 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Plus size={16} /> Producto</button>)}
                     {tab === 'clientes' && (<button onClick={() => setShowUsuarioModal(true)} className="col-span-1 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Users size={16} /> Cliente</button>)}
@@ -561,8 +564,8 @@ const AdminDashboard = () => {
                 
                 {tab === 'cartera' ? (
                     <>
-                        <StatCard title="Cuentas por Cobrar" value={`$${formatCurrency(statsCartera.porCobrar)}`} subtitle="Deuda pendiente total" icon={<HandCoins />} color="bg-red-100 text-red-600" />
-                        <StatCard title="Total Histórico Fiado" value={`$${formatCurrency(statsCartera.fiadoTotal)}`} subtitle="Lo que has fiado" icon={<ReceiptText />} color="bg-orange-100 text-orange-600" />
+                        <StatCard title="Cuentas por Cobrar" value={`$${formatCurrency(statsCartera.porCobrar)}`} subtitle="Deuda pendiente total" icon={<Banknote />} color="bg-red-100 text-red-600" />
+                        <StatCard title="Total Histórico Fiado" value={`$${formatCurrency(statsCartera.fiadoTotal)}`} subtitle="Lo que has fiado" icon={<FileText />} color="bg-orange-100 text-orange-600" />
                     </>
                 ) : (
                     <>
@@ -599,6 +602,7 @@ const AdminDashboard = () => {
             </div>
 
             <div className="animate-in fade-in duration-500">
+                {/* VISTA DE CARTERA */}
                 {tab === 'cartera' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
@@ -627,7 +631,7 @@ const AdminDashboard = () => {
                                             <td className="px-4 py-4 md:px-8 md:py-5 text-right">
                                                 {c.estado === 'VIGENTE' && (
                                                     <button onClick={() => { setCreditoSeleccionado(c); setShowAbonoModal(true); }} className="bg-green-100 text-green-700 hover:bg-green-600 hover:text-white px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 flex items-center gap-1.5 ml-auto">
-                                                        <HandCoins size={14} /> Abonar
+                                                        <Banknote size={14} /> Abonar
                                                     </button>
                                                 )}
                                             </td>
@@ -639,6 +643,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {/* VISTAS NORMALES */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -908,7 +913,7 @@ const AdminDashboard = () => {
                         <button onClick={() => setShowCreditoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
                         
                         <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <HandCoins size={24} className="md:w-8 md:h-8"/>
+                            <Banknote size={24} className="md:w-8 md:h-8"/>
                         </div>
                         <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Fiar a Cliente</h3>
                         <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Registrar nueva deuda</p>
