@@ -32,19 +32,15 @@ const RUTAS_BASE = [
     "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"
 ];
 
-// 🔥 CORRECCIÓN AGRESIVA: Limpieza de Localhost en Base de Datos 🔥
 const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/150';
-    
     let urlLimpia = url;
     if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
         urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
     }
-
     if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
         return urlLimpia;
     }
-    
     const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
     return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
 };
@@ -164,7 +160,7 @@ const AdminDashboard = () => {
     const [categorias, setCategorias] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
     const [rutasDinamicas, setRutasDinamicas] = useState([]); 
-    const [creditos, setCreditos] = useState([]); // 🔥 ESTADO DE CARTERA
+    const [creditos, setCreditos] = useState([]); 
     const [tab, setTab] = useState('reportes'); 
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
@@ -174,8 +170,8 @@ const AdminDashboard = () => {
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
     const [filtroFechaPedidos, setFiltroFechaPedidos] = useState(''); 
-    const [searchTermCartera, setSearchTermCartera] = useState(''); // Filtro para buscar en Cartera
-    const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('VIGENTE'); // Filtro de estado de cartera
+    const [searchTermCartera, setSearchTermCartera] = useState(''); 
+    const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('VIGENTE'); 
 
     const [whatsappTienda, setWhatsappTienda] = useState('');
     const [horaLimite, setHoraLimite] = useState('20:00'); 
@@ -218,11 +214,8 @@ const AdminDashboard = () => {
     const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
     const [formGasto, setFormGasto] = useState({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' });
     const [formBaja, setFormBaja] = useState({ cantidad: 1, motivo: 'Dañado/Roto' });
-    
-    // 🔥 FORMS CARTERA 🔥
     const [formCredito, setFormCredito] = useState({ usuarioId: '', monto_total: '', descripcion: '' });
     const [formAbono, setFormAbono] = useState({ monto: '', nota: '' });
-
     const [nuevaPassword, setNuevaPassword] = useState('');
     const [finanzas, setFinanzas] = useState({ ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 });
     const [transacciones, setTransacciones] = useState([]);
@@ -236,13 +229,13 @@ const AdminDashboard = () => {
                 API.get('/contabilidad/resumen'), API.get('/contabilidad/transacciones'),
                 API.get('/pedidos/config/rutas').catch(() => ({ data: [] })),
                 API.get('/pedidos/config/horalimite').catch(() => ({ data: { hora: '20:00' } })),
-                API.get('/creditos').catch(() => ({ data: [] })) // 🔥 Traemos la cartera
+                API.get('/creditos').catch(() => ({ data: [] })) 
             ]);
             setProductos(resProd.data || []); setPedidos(resPed.data || []); setCategorias(resCat.data || []);
             setUsuarios(resUsers.data || []); setWhatsappTienda(resWa.data.whatsapp || ''); 
             setFinanzas(resFinanzas.data); setTransacciones(resTransacciones.data); setRutasDinamicas(resRutas.data || []);
             setHoraLimite(resHora.data.hora || '20:00');
-            setCreditos(resCreditos.data || []); // 🔥 Seteamos cartera
+            setCreditos(resCreditos.data || []); 
             const rutasExtraPed = (resPed.data || []).map(p => p.ruta).filter(r => r && !RUTAS_BASE.includes(r));
             const rutasExtraBD = (resRutas.data || []).map(r => r.dia_ruta);
             setRutasDisponibles([...new Set([...RUTAS_BASE, ...rutasExtraPed, ...rutasExtraBD])]);
@@ -353,18 +346,15 @@ const AdminDashboard = () => {
 
     const pedidosFiltradosVisual = useMemo(() => {
         if (!filtroFechaPedidos) return pedidos;
-        
         const [year, month, day] = filtroFechaPedidos.split('-').map(Number);
         const targetDate = new Date(year, month - 1, day);
         targetDate.setHours(0, 0, 0, 0); 
-
         return pedidos.filter(ped => {
             const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
             return infoRuta.fechaRaw && infoRuta.fechaRaw.getTime() === targetDate.getTime();
         });
     }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos]);
 
-    // 🔥 LÓGICA DE CARTERA (FILTROS Y KPIS) 🔥
     const creditosFiltrados = useMemo(() => {
         return creditos.filter(c => {
             const coincideNombre = c.Usuario?.nombre.toLowerCase().includes(searchTermCartera.toLowerCase()) || 
@@ -384,7 +374,6 @@ const AdminDashboard = () => {
         return { porCobrar, fiadoTotal };
     }, [creditos]);
 
-    // Lógicas de Exportar y Acciones Normales (Ocultas por espacio, mismas de antes)
     const exportarManifiestoCarga = async () => {
         const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
         if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
@@ -511,7 +500,6 @@ const AdminDashboard = () => {
     const handleGuardarTransaccion = async (e) => { e.preventDefault(); setEnviando(true); try { if (transaccionSeleccionada) { await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto); toast.success("Transacción actualizada correctamente"); } else { await API.post('/contabilidad/gasto', formGasto); toast.success("Transacción registrada en el libro mayor"); } setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); fetchDatos(); } catch (err) { toast.error("Error al guardar la transacción"); } finally { setEnviando(false); } };
     const handleEliminarTransaccion = async () => { try { await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`); setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada"); } catch (err) { toast.error("Error al eliminar la transacción"); } };
 
-    // 🔥 FUNCIONES DE CARTERA 🔥
     const handleCrearCredito = async (e) => {
         e.preventDefault();
         setEnviando(true);
@@ -545,7 +533,6 @@ const AdminDashboard = () => {
         }
     };
 
-
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
     const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...rutasDinamicas.map(r => r.dia_ruta)])];
 
@@ -572,7 +559,6 @@ const AdminDashboard = () => {
                 <StatCard title="Total Pedidos" value={pedidos.length} subtitle="Histórico completo" icon={<ShoppingCart />} color="bg-blue-100 text-blue-600" />
                 <StatCard title="Clientes Registrados" value={usuarios.length} subtitle="En base de datos" icon={<Users />} color="bg-purple-100 text-purple-600" />
                 
-                {/* SI ESTAMOS EN CARTERA MOSTRAMOS STATS DE CARTERA, SI NO DE PRODUCTOS */}
                 {tab === 'cartera' ? (
                     <>
                         <StatCard title="Cuentas por Cobrar" value={`$${formatCurrency(statsCartera.porCobrar)}`} subtitle="Deuda pendiente total" icon={<HandCoins />} color="bg-red-100 text-red-600" />
@@ -588,7 +574,8 @@ const AdminDashboard = () => {
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
-                    {['reportes', 'finanzas', 'cartera', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => (
+                    {/* 🔥 AQUÍ ESTÁ EL MENÚ DE PESTAÑAS, PUSE 'CARTERA' DE SEGUNDO 🔥 */}
+                    {['reportes', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => (
                         <button key={t} onClick={() => setTab(t)} className={`px-4 md:px-8 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${tab === t ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>{t === 'reportes' ? 'Analíticas' : t}</button>
                     ))}
                 </div>
@@ -612,7 +599,6 @@ const AdminDashboard = () => {
             </div>
 
             <div className="animate-in fade-in duration-500">
-                {/* VISTA DE CARTERA */}
                 {tab === 'cartera' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
@@ -653,7 +639,6 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* VISTAS NORMALES */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
