@@ -14,7 +14,7 @@ import {
     TrendingUp, AlertTriangle, X, Loader2, CheckCircle2,
     Image as ImageIcon, FileSpreadsheet, Eye, Truck, Printer,
     CalendarDays, Activity, DollarSign, Clock, Users, User, Key, Briefcase, Award, Calculator, Settings,
-    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, ArrowLeftRight
+    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, ArrowLeftRight, PackageMinus
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 
@@ -167,13 +167,20 @@ const AdminDashboard = () => {
     const [tab, setTab] = useState('reportes'); 
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
+    
+    // Filtros
     const [searchTerm, setSearchTerm] = useState('');
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
+    const [filtroPedidosManana, setFiltroPedidosManana] = useState(false); // NUEVO FILTRO PEDIDOS
+
     const [whatsappTienda, setWhatsappTienda] = useState('');
     const [horaLimite, setHoraLimite] = useState('20:00'); 
+    
+    // Modales
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [showBajaModal, setShowBajaModal] = useState(false); // NUEVO MODAL BAJAS
     const [pedidoDetalle, setPedidoDetalle] = useState(null);
     const [showUsuarioModal, setShowUsuarioModal] = useState(false);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -182,6 +189,7 @@ const AdminDashboard = () => {
     const [showGastoModal, setShowGastoModal] = useState(false);
     const [showEditTransaccionModal, setShowEditTransaccionModal] = useState(false);
     const [showDeleteTransaccionModal, setShowDeleteTransaccionModal] = useState(false);
+    
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
     const [nuevaRutaPersonalizada, setNuevaRutaPersonalizada] = useState('');
     const [rutasDisponibles, setRutasDisponibles] = useState(RUTAS_BASE);
@@ -189,15 +197,19 @@ const AdminDashboard = () => {
     const [nuevaRutaDia, setNuevaRutaDia] = useState('');
     const [productoEditando, setProductoEditando] = useState(null);
     const [productoAEliminar, setProductoAEliminar] = useState(null);
+    const [productoBaja, setProductoBaja] = useState(null); // NUEVO ESTADO BAJAS
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
     const [usuarioAEliminar, setUsuarioAEliminar] = useState(null);
     const [imagenArchivo, setImagenArchivo] = useState(null);
     const [preview, setPreview] = useState(null);
     const [precioCalculado, setPrecioCalculado] = useState(0);
+    
+    // Formularios
     const [formulario, setFormulario] = useState({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 });
     const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
     const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
     const [formGasto, setFormGasto] = useState({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' });
+    const [formBaja, setFormBaja] = useState({ cantidad: 1, motivo: 'Dañado/Roto' }); // NUEVO FORMULARIO BAJAS
     const [nuevaPassword, setNuevaPassword] = useState('');
     const [finanzas, setFinanzas] = useState({ ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 });
     const [transacciones, setTransacciones] = useState([]);
@@ -258,7 +270,6 @@ const AdminDashboard = () => {
         return { ventasHoy, ventasMes, pendientes };
     }, [pedidos]);
 
-    // 🔥 NUEVO: CÁLCULO DE MÉTRICAS DE PRODUCTOS 🔥
     const statsProductos = useMemo(() => {
         const total = productos.length;
         const stockBajo = productos.filter(p => parseInt(p.stock) <= (parseInt(p.tope_stock) || 10)).length;
@@ -325,6 +336,21 @@ const AdminDashboard = () => {
         return Array.from(meses).sort((a,b) => b.localeCompare(a));
     }, [transacciones]);
 
+    // 🔥 NUEVO: LÓGICA FILTRO DE PEDIDOS (DÍA SIGUIENTE) 🔥
+    const pedidosFiltradosVisual = useMemo(() => {
+        if (!filtroPedidosManana) return pedidos;
+        
+        const hoy = new Date();
+        const manana = new Date(hoy);
+        manana.setDate(hoy.getDate() + 1);
+        manana.setHours(0, 0, 0, 0); // Normalizamos a medianoche para comparar
+
+        return pedidos.filter(ped => {
+            const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
+            return infoRuta.fechaRaw && infoRuta.fechaRaw.getTime() === manana.getTime();
+        });
+    }, [pedidos, rutasDinamicas, horaLimite, filtroPedidosManana]);
+
     const exportarManifiestoCarga = async () => {
         const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
         if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
@@ -383,7 +409,8 @@ const AdminDashboard = () => {
     const cerrarModal = () => { setShowModal(false); setProductoEditando(null); setImagenArchivo(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 }); setPrecioCalculado(0); };
     const handleImagenChange = (e) => { const file = e.target.files[0]; if (file) { setImagenArchivo(file); setPreview(URL.createObjectURL(file)); } };
     const abrirModalEditar = (p) => { setProductoEditando(p); setFormulario({ nombre: p.nombre || '', precio: p.precio || '', stock: p.stock || 0, stock_adicional: '', precio_nuevo_lote: p.costo_compra || 0, categoriaId: p.categoriaId || p.categoria_id || '', descripcion: p.descripcion || '', proveedor: p.proveedor || '', costo_compra: p.costo_compra || 0, margen_ganancia: p.margen_ganancia || 0, tope_stock: p.tope_stock || 10 }); setPreview(formatearImagen(p.imagen_url)); setShowModal(true); };
-    
+    const abrirModalBaja = (p) => { setProductoBaja(p); setFormBaja({ cantidad: 1, motivo: 'Dañado/Roto' }); setShowBajaModal(true); };
+
     const handleGuardarProducto = async (e) => {
         e.preventDefault(); setEnviando(true); const data = new FormData();
         const stockExistente = parseInt(formulario.stock || 0); const stockNuevo = parseInt(formulario.stock_adicional || 0); const stockFinal = productoEditando ? (stockExistente + stockNuevo) : parseInt(formulario.stock || 0);
@@ -391,6 +418,37 @@ const AdminDashboard = () => {
         if (productoEditando && stockNuevo > 0) { const costoNuevoLote = parseFloat(formulario.costo_nuevo_lote || 0); costoFinalBD = ((stockExistente * costoFinalBD) + (stockNuevo * costoNuevoLote)) / stockFinal; }
         data.append('nombre', formulario.nombre); data.append('precio', precioCalculado.toFixed(2)); data.append('stock', stockFinal); data.append('categoriaId', formulario.categoriaId); data.append('descripcion', formulario.descripcion); data.append('proveedor', formulario.proveedor || 'No especificado'); data.append('costo_compra', costoFinalBD.toFixed(2)); data.append('margen_ganancia', parseFloat(formulario.margen_ganancia || 0)); data.append('tope_stock', parseInt(formulario.tope_stock || 10)); if (imagenArchivo) data.append('imagen', imagenArchivo);
         try { if (productoEditando) { await API.put(`/productos/${productoEditando.id}`, data); } else { await API.post('/productos', data); } cerrarModal(); fetchDatos(); toast.success("Producto Guardado en Inventario"); } catch (err) { toast.error("Error al guardar"); } finally { setEnviando(false); }
+    };
+
+    // 🔥 NUEVA FUNCIÓN: PROCESAR BAJA DE PRODUCTO DAÑADO 🔥
+    const handleGuardarBaja = async (e) => {
+        e.preventDefault();
+        setEnviando(true);
+        try {
+            // 1. Descontar stock
+            await API.put(`/productos/${productoBaja.id}/stock`, { cantidad: formBaja.cantidad, operacion: 'restar' });
+
+            // 2. Registrar la pérdida financiera como Egreso
+            const costoPerdida = parseFloat(productoBaja.costo_compra || 0) * parseInt(formBaja.cantidad);
+            if (costoPerdida > 0) {
+                await API.post('/contabilidad/gasto', {
+                    monto: costoPerdida,
+                    descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`,
+                    categoria: 'Mercancía',
+                    tipo: 'EGRESO',
+                    fecha: new Date().toISOString().split('T')[0]
+                });
+            }
+
+            toast.success("Producto dado de baja. Pérdida registrada en contabilidad.");
+            setShowBajaModal(false);
+            setProductoBaja(null);
+            fetchDatos();
+        } catch (err) {
+            toast.error(err.response?.data?.error || "Error al procesar la baja del producto.");
+        } finally {
+            setEnviando(false);
+        }
     };
 
     const handleEliminar = async () => { try { await API.delete(`/productos/${productoAEliminar.id}`); setShowDeleteModal(false); fetchDatos(); toast.success("Producto Eliminado"); } catch (err) { toast.error("Error"); } };
@@ -636,7 +694,12 @@ const AdminDashboard = () => {
                                             <td className="px-4 py-4 md:px-8 md:py-5"><span className="bg-gray-100 text-gray-600 px-2 py-1 md:px-3 rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 w-fit"><Briefcase size={10} /> {p.proveedor || 'N/A'}</span></td>
                                             <td className="px-4 py-4 md:px-8 md:py-5 bg-blue-50/20"><p className="text-[9px] md:text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-0.5">Costo: <span className="text-gray-900">${formatCurrency(p.costo_compra)}</span></p><p className="text-[9px] md:text-[10px] text-orange-500 font-bold uppercase tracking-widest mb-1">Margen: {p.margen_ganancia || 0}%</p><p className="font-black text-xs md:text-sm italic text-green-600">${formatCurrency(p.precio)}</p></td>
                                             <td className="px-4 py-4 md:px-8 md:py-5"><span className={`text-[9px] md:text-[10px] font-black uppercase px-2 py-1 md:px-3 rounded-lg ${stockBajo ? 'bg-red-50 text-red-500 animate-pulse border border-red-200' : 'bg-gray-50 text-gray-500 border border-transparent'}`}>{p.stock} Uds {stockBajo && '⚠️'}</span>{stockBajo && <p className="text-[7px] md:text-[8px] text-red-400 mt-1 font-bold uppercase">Tope: {tope}</p>}</td>
-                                            <td className="px-4 py-4 md:px-8 md:py-5 text-right flex justify-end gap-1"><button onClick={() => abrirModalEditar(p)} className="p-2 md:p-2.5 hover:bg-black hover:text-white rounded-xl transition-all text-gray-400"><Edit size={14}/></button><button onClick={() => { setProductoAEliminar(p); setShowDeleteModal(true); }} className="p-2 md:p-2.5 hover:bg-red-500 hover:text-white rounded-xl transition-all text-red-500"><Trash2 size={14}/></button></td>
+                                            <td className="px-4 py-4 md:px-8 md:py-5 text-right flex justify-end gap-1">
+                                                <button onClick={() => abrirModalEditar(p)} className="p-2 md:p-2.5 hover:bg-black hover:text-white rounded-xl transition-all text-gray-400" title="Editar"><Edit size={14}/></button>
+                                                {/* 🔥 NUEVO BOTÓN PARA DAR DE BAJA 🔥 */}
+                                                <button onClick={() => abrirModalBaja(p)} className="p-2 md:p-2.5 hover:bg-orange-500 hover:text-white rounded-xl transition-all text-orange-500" title="Reportar Dañado/Merma"><PackageMinus size={14}/></button>
+                                                <button onClick={() => { setProductoAEliminar(p); setShowDeleteModal(true); }} className="p-2 md:p-2.5 hover:bg-red-500 hover:text-white rounded-xl transition-all text-red-500" title="Eliminar Permanente"><Trash2 size={14}/></button>
+                                            </td>
                                         </tr>
                                     )})
                                 )}
@@ -646,32 +709,50 @@ const AdminDashboard = () => {
                 )}
 
                 {tab === 'pedidos' && (
-                    <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                        {pedidos.map(ped => {
-                            const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
-                            const items = ped.Detalles || ped.items || [];
-                            return (
-                                <div key={ped.id} className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden flex flex-col justify-between">
-                                    <div>
-                                        <div className="absolute top-0 left-0 w-full bg-black py-1.5 md:py-2 text-center border-b"><span className="text-[8px] md:text-[9px] font-black text-white uppercase tracking-widest flex items-center justify-center gap-2"><Truck size={10} /> RUTA: {infoRuta.diaNombre.toUpperCase()}</span></div>
-                                        <div className="flex justify-between items-start mb-4 mt-6"><span className="text-[8px] md:text-[9px] font-black bg-gray-100 text-black px-3 py-1.5 md:px-4 md:py-2 rounded-full uppercase italic border tracking-tighter">ID #{ped.id}</span><button onClick={() => setPedidoDetalle(ped)} className="p-2 md:p-3 bg-gray-50 group-hover:bg-black group-hover:text-white rounded-xl md:rounded-2xl transition-all"><Eye size={14} /></button></div>
-                                        <div className="mb-4 border-b border-gray-50 pb-4"><p className="text-[9px] md:text-[10px] font-black uppercase text-blue-600 mb-1 tracking-widest">{ped.Usuario?.nombre || 'CLIENTE DIRECTO'}</p><p className="text-[10px] md:text-[11px] font-bold text-gray-700 leading-tight">📍 {ped.direccion || ped.Usuario?.direccion || 'Sin dirección'}</p><p className="text-[8px] md:text-[9px] font-black text-gray-400 mt-1 uppercase">Ciudad: {ped.Usuario?.ciudad || 'No especificada'}</p><p className="text-[8px] md:text-[9px] font-bold text-orange-500 mt-2 bg-orange-50 p-1.5 md:p-2 rounded-lg inline-block">📆 Llegará el: {infoRuta.fechaFormateada}</p></div>
-                                        <div className="mb-6"><p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Contenido:</p><ul className="text-[9px] md:text-[10px] font-bold text-gray-600 space-y-1 mb-4">{items.slice(0, 3).map((item, idx) => (<li key={idx} className="truncate">• {item.cantidad}x {item.Producto?.nombre || item.nombre}</li>))}{items.length > 3 && <li className="text-blue-500">+ {items.length - 3} artículos más</li>}</ul><h4 className="text-2xl md:text-3xl font-black text-gray-900 italic tracking-tighter">${formatCurrency(ped.total)}</h4></div>
-                                    </div>
-                                    <div className="space-y-2 bg-gray-50 p-3 md:p-4 rounded-2xl md:rounded-3xl">
-                                        <div>
-                                            <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Forzar Ruta</label>
-                                            <select value={infoRuta.diaNombre || ''} onChange={(e) => actualizarRutaPedido(ped.id, e.target.value)} className="w-full border border-gray-200 rounded-xl text-[9px] md:text-[10px] font-bold uppercase p-2 md:p-3 outline-none bg-white cursor-pointer mt-1">
-                                                <option value="A CONVENIR">A CONVENIR</option>
-                                                {diasUnicosDropdown.map(r => <option key={r} value={r}>{r}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="pt-2 mt-2 border-t border-gray-200"><label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Estado Logístico</label><select value={ped.estado || ''} onChange={(e) => actualizarEstadoPedido(ped.id, e.target.value)} className="w-full border-none rounded-xl text-[9px] md:text-[10px] font-black uppercase p-2 md:p-3 outline-none bg-black text-white cursor-pointer mt-1"><option value="Pendiente">⏳ PENDIENTE (Bodega)</option><option value="Enviado">🚚 EN RUTA (Camión)</option><option value="Entregado">✅ ENTREGADO</option><option value="Cancelado">❌ CANCELADO</option></select></div>
-                                    </div>
+                    <>
+                        {/* 🔥 NUEVO FILTRO DE PEDIDOS 🔥 */}
+                        <div className="flex justify-end mb-4">
+                            <button 
+                                onClick={() => setFiltroPedidosManana(!filtroPedidosManana)} 
+                                className={`px-4 py-2.5 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 transition-all border ${filtroPedidosManana ? 'bg-blue-600 text-white border-blue-600 shadow-lg' : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'}`}
+                            >
+                                <Truck size={14} /> 
+                                {filtroPedidosManana ? 'Mostrando Entregas de Mañana' : 'Filtrar Entregas de Mañana'}
+                            </button>
+                        </div>
+
+                        <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                            {pedidosFiltradosVisual.length === 0 && (
+                                <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-10">
+                                    <p className="text-gray-400 font-bold text-xs uppercase tracking-widest">No hay pedidos para mostrar.</p>
                                 </div>
-                            );
-                        })}
-                    </div>
+                            )}
+                            {pedidosFiltradosVisual.map(ped => {
+                                const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
+                                const items = ped.Detalles || ped.items || [];
+                                return (
+                                    <div key={ped.id} className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden flex flex-col justify-between">
+                                        <div>
+                                            <div className="absolute top-0 left-0 w-full bg-black py-1.5 md:py-2 text-center border-b"><span className="text-[8px] md:text-[9px] font-black text-white uppercase tracking-widest flex items-center justify-center gap-2"><Truck size={10} /> RUTA: {infoRuta.diaNombre.toUpperCase()}</span></div>
+                                            <div className="flex justify-between items-start mb-4 mt-6"><span className="text-[8px] md:text-[9px] font-black bg-gray-100 text-black px-3 py-1.5 md:px-4 md:py-2 rounded-full uppercase italic border tracking-tighter">ID #{ped.id}</span><button onClick={() => setPedidoDetalle(ped)} className="p-2 md:p-3 bg-gray-50 group-hover:bg-black group-hover:text-white rounded-xl md:rounded-2xl transition-all"><Eye size={14} /></button></div>
+                                            <div className="mb-4 border-b border-gray-50 pb-4"><p className="text-[9px] md:text-[10px] font-black uppercase text-blue-600 mb-1 tracking-widest">{ped.Usuario?.nombre || 'CLIENTE DIRECTO'}</p><p className="text-[10px] md:text-[11px] font-bold text-gray-700 leading-tight">📍 {ped.direccion || ped.Usuario?.direccion || 'Sin dirección'}</p><p className="text-[8px] md:text-[9px] font-black text-gray-400 mt-1 uppercase">Ciudad: {ped.Usuario?.ciudad || 'No especificada'}</p><p className="text-[8px] md:text-[9px] font-bold text-orange-500 mt-2 bg-orange-50 p-1.5 md:p-2 rounded-lg inline-block">📆 Llegará el: {infoRuta.fechaFormateada}</p></div>
+                                            <div className="mb-6"><p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Contenido:</p><ul className="text-[9px] md:text-[10px] font-bold text-gray-600 space-y-1 mb-4">{items.slice(0, 3).map((item, idx) => (<li key={idx} className="truncate">• {item.cantidad}x {item.Producto?.nombre || item.nombre}</li>))}{items.length > 3 && <li className="text-blue-500">+ {items.length - 3} artículos más</li>}</ul><h4 className="text-2xl md:text-3xl font-black text-gray-900 italic tracking-tighter">${formatCurrency(ped.total)}</h4></div>
+                                        </div>
+                                        <div className="space-y-2 bg-gray-50 p-3 md:p-4 rounded-2xl md:rounded-3xl">
+                                            <div>
+                                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Forzar Ruta</label>
+                                                <select value={infoRuta.diaNombre || ''} onChange={(e) => actualizarRutaPedido(ped.id, e.target.value)} className="w-full border border-gray-200 rounded-xl text-[9px] md:text-[10px] font-bold uppercase p-2 md:p-3 outline-none bg-white cursor-pointer mt-1">
+                                                    <option value="A CONVENIR">A CONVENIR</option>
+                                                    {diasUnicosDropdown.map(r => <option key={r} value={r}>{r}</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="pt-2 mt-2 border-t border-gray-200"><label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Estado Logístico</label><select value={ped.estado || ''} onChange={(e) => actualizarEstadoPedido(ped.id, e.target.value)} className="w-full border-none rounded-xl text-[9px] md:text-[10px] font-black uppercase p-2 md:p-3 outline-none bg-black text-white cursor-pointer mt-1"><option value="Pendiente">⏳ PENDIENTE (Bodega)</option><option value="Enviado">🚚 EN RUTA (Camión)</option><option value="Entregado">✅ ENTREGADO</option><option value="Cancelado">❌ CANCELADO</option></select></div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
                 )}
 
                 {tab === 'clientes' && (
@@ -698,6 +779,56 @@ const AdminDashboard = () => {
             </div>
 
             {/* MODALES */}
+
+            {/* 🔥 NUEVO MODAL: DAR DE BAJA / MERMA 🔥 */}
+            {showBajaModal && productoBaja && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
+                        <button onClick={() => setShowBajaModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
+                        
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <PackageMinus size={24} className="md:w-8 md:h-8"/>
+                        </div>
+                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Dar de Baja</h3>
+                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center line-clamp-1">{productoBaja.nombre}</p>
+                        
+                        <form onSubmit={handleGuardarBaja} className="space-y-4 md:space-y-5">
+                            <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl">
+                                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">Stock Actual:</span>
+                                <span className="text-xs md:text-sm font-black text-gray-900">{productoBaja.stock} Uds</span>
+                            </div>
+                            
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">¿Cuántas unidades se dañaron?</label>
+                                <input required type="number" min="1" max={productoBaja.stock} className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-orange-500 text-sm" value={formBaja.cantidad} onChange={e => setFormBaja({...formBaja, cantidad: parseInt(e.target.value)})} />
+                            </div>
+                            
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Motivo de la pérdida</label>
+                                <select className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-gray-700 outline-none focus:ring-2 focus:ring-orange-500 text-xs md:text-sm cursor-pointer" value={formBaja.motivo} onChange={e => setFormBaja({...formBaja, motivo: e.target.value})}>
+                                    <option value="Dañado/Roto">Dañado / Roto</option>
+                                    <option value="Defectuoso de Fábrica">Defectuoso de Fábrica</option>
+                                    <option value="Vencido/Caducado">Vencido / Caducado</option>
+                                    <option value="Pérdida/Robo">Pérdida / Robo</option>
+                                </select>
+                            </div>
+                            
+                            <div className="bg-orange-50 p-4 rounded-xl md:rounded-2xl border border-orange-100 flex justify-between items-center">
+                                <div>
+                                    <p className="text-[8px] md:text-[9px] font-black text-orange-600 uppercase">Pérdida Financiera</p>
+                                    <p className="text-[7px] md:text-[8px] font-bold text-orange-500">Se restará del libro mayor</p>
+                                </div>
+                                <p className="text-lg md:text-xl font-black text-orange-600 italic">-${formatCurrency((productoBaja.costo_compra || 0) * formBaja.cantidad)}</p>
+                            </div>
+                            
+                            <button disabled={enviando || productoBaja.stock <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-orange-500 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50">
+                                {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Baja y Guardar'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {(showGastoModal || showEditTransaccionModal) && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center animate-in zoom-in-95 duration-200">

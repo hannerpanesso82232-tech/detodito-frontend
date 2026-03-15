@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, Lock, ArrowRight, Loader2, Mail, ShieldAlert } from 'lucide-react';
-// import { Link } from 'react-router-dom'; // Ya no lo necesitamos aquí
 import toast from 'react-hot-toast';
 import API from '../services/api';
 
@@ -123,7 +122,7 @@ const Login = () => {
                     </form>
                 )}
 
-                {/* 🔥 BOTÓN DE REGISTRO ELIMINADO 🔥 */}
+                {/*BOTÓN DE clave temporal por olvido  */}
                 {!modoRecuperacion && (
                     <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-gray-100 text-center flex flex-col gap-3">
                         <button onClick={() => setModoRecuperacion(true)} className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest hover:text-orange-500 transition-colors p-2">
