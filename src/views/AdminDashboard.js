@@ -172,7 +172,9 @@ const AdminDashboard = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
-    const [filtroPedidosManana, setFiltroPedidosManana] = useState(false); // NUEVO FILTRO PEDIDOS
+    
+    // 🔥 NUEVO ESTADO PARA EL FILTRO DE FECHA EXACTA 🔥
+    const [filtroFechaPedidos, setFiltroFechaPedidos] = useState(''); 
 
     const [whatsappTienda, setWhatsappTienda] = useState('');
     const [horaLimite, setHoraLimite] = useState('20:00'); 
@@ -180,7 +182,7 @@ const AdminDashboard = () => {
     // Modales
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [showBajaModal, setShowBajaModal] = useState(false); // NUEVO MODAL BAJAS
+    const [showBajaModal, setShowBajaModal] = useState(false);
     const [pedidoDetalle, setPedidoDetalle] = useState(null);
     const [showUsuarioModal, setShowUsuarioModal] = useState(false);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -197,7 +199,7 @@ const AdminDashboard = () => {
     const [nuevaRutaDia, setNuevaRutaDia] = useState('');
     const [productoEditando, setProductoEditando] = useState(null);
     const [productoAEliminar, setProductoAEliminar] = useState(null);
-    const [productoBaja, setProductoBaja] = useState(null); // NUEVO ESTADO BAJAS
+    const [productoBaja, setProductoBaja] = useState(null);
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
     const [usuarioAEliminar, setUsuarioAEliminar] = useState(null);
     const [imagenArchivo, setImagenArchivo] = useState(null);
@@ -209,7 +211,7 @@ const AdminDashboard = () => {
     const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
     const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
     const [formGasto, setFormGasto] = useState({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' });
-    const [formBaja, setFormBaja] = useState({ cantidad: 1, motivo: 'Dañado/Roto' }); // NUEVO FORMULARIO BAJAS
+    const [formBaja, setFormBaja] = useState({ cantidad: 1, motivo: 'Dañado/Roto' });
     const [nuevaPassword, setNuevaPassword] = useState('');
     const [finanzas, setFinanzas] = useState({ ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 });
     const [transacciones, setTransacciones] = useState([]);
@@ -336,20 +338,21 @@ const AdminDashboard = () => {
         return Array.from(meses).sort((a,b) => b.localeCompare(a));
     }, [transacciones]);
 
-    // 🔥 NUEVO: LÓGICA FILTRO DE PEDIDOS (DÍA SIGUIENTE) 🔥
+    // 🔥 NUEVA LÓGICA: FILTRAR PEDIDOS POR FECHA EXACTA 🔥
     const pedidosFiltradosVisual = useMemo(() => {
-        if (!filtroPedidosManana) return pedidos;
+        if (!filtroFechaPedidos) return pedidos;
         
-        const hoy = new Date();
-        const manana = new Date(hoy);
-        manana.setDate(hoy.getDate() + 1);
-        manana.setHours(0, 0, 0, 0); // Normalizamos a medianoche para comparar
+        // Parseamos la fecha del input (YYYY-MM-DD) y la ajustamos
+        const [year, month, day] = filtroFechaPedidos.split('-').map(Number);
+        const targetDate = new Date(year, month - 1, day);
+        targetDate.setHours(0, 0, 0, 0); // La ponemos a medianoche local
 
         return pedidos.filter(ped => {
             const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
-            return infoRuta.fechaRaw && infoRuta.fechaRaw.getTime() === manana.getTime();
+            // Comparamos los milisegundos de ambas fechas a medianoche
+            return infoRuta.fechaRaw && infoRuta.fechaRaw.getTime() === targetDate.getTime();
         });
-    }, [pedidos, rutasDinamicas, horaLimite, filtroPedidosManana]);
+    }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos]);
 
     const exportarManifiestoCarga = async () => {
         const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
@@ -420,15 +423,11 @@ const AdminDashboard = () => {
         try { if (productoEditando) { await API.put(`/productos/${productoEditando.id}`, data); } else { await API.post('/productos', data); } cerrarModal(); fetchDatos(); toast.success("Producto Guardado en Inventario"); } catch (err) { toast.error("Error al guardar"); } finally { setEnviando(false); }
     };
 
-    // 🔥 NUEVA FUNCIÓN: PROCESAR BAJA DE PRODUCTO DAÑADO 🔥
     const handleGuardarBaja = async (e) => {
         e.preventDefault();
         setEnviando(true);
         try {
-            // 1. Descontar stock
             await API.put(`/productos/${productoBaja.id}/stock`, { cantidad: formBaja.cantidad, operacion: 'restar' });
-
-            // 2. Registrar la pérdida financiera como Egreso
             const costoPerdida = parseFloat(productoBaja.costo_compra || 0) * parseInt(formBaja.cantidad);
             if (costoPerdida > 0) {
                 await API.post('/contabilidad/gasto', {
@@ -439,7 +438,6 @@ const AdminDashboard = () => {
                     fecha: new Date().toISOString().split('T')[0]
                 });
             }
-
             toast.success("Producto dado de baja. Pérdida registrada en contabilidad.");
             setShowBajaModal(false);
             setProductoBaja(null);
@@ -501,14 +499,11 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            {/* 🔥 TARJETAS ACTUALIZADAS CON GRID DE 3 COLUMNAS (6 CARDS TOTALES) 🔥 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-12">
                 <StatCard title="Ventas Mes Actual" value={`$${formatCurrency(kpis.ventasMes)}`} subtitle={`Hoy: $${formatCurrency(kpis.ventasHoy)}`} icon={<DollarSign />} color="bg-green-100 text-green-600" />
                 <StatCard title="Pedidos Pendientes" value={kpis.pendientes} subtitle="Listos para ruta" icon={<Clock />} color="bg-amber-100 text-amber-600" />
                 <StatCard title="Total Pedidos" value={pedidos.length} subtitle="Histórico completo" icon={<ShoppingCart />} color="bg-blue-100 text-blue-600" />
                 <StatCard title="Clientes Registrados" value={usuarios.length} subtitle="En base de datos" icon={<Users />} color="bg-purple-100 text-purple-600" />
-                
-                {/* NUEVAS TARJETAS */}
                 <StatCard title="Total Productos" value={statsProductos.total} subtitle="En inventario" icon={<Package />} color="bg-indigo-100 text-indigo-600" />
                 <StatCard title="Stock Bajo" value={statsProductos.stockBajo} subtitle="Requieren atención" icon={<AlertTriangle />} color="bg-red-100 text-red-600" />
             </div>
@@ -696,7 +691,6 @@ const AdminDashboard = () => {
                                             <td className="px-4 py-4 md:px-8 md:py-5"><span className={`text-[9px] md:text-[10px] font-black uppercase px-2 py-1 md:px-3 rounded-lg ${stockBajo ? 'bg-red-50 text-red-500 animate-pulse border border-red-200' : 'bg-gray-50 text-gray-500 border border-transparent'}`}>{p.stock} Uds {stockBajo && '⚠️'}</span>{stockBajo && <p className="text-[7px] md:text-[8px] text-red-400 mt-1 font-bold uppercase">Tope: {tope}</p>}</td>
                                             <td className="px-4 py-4 md:px-8 md:py-5 text-right flex justify-end gap-1">
                                                 <button onClick={() => abrirModalEditar(p)} className="p-2 md:p-2.5 hover:bg-black hover:text-white rounded-xl transition-all text-gray-400" title="Editar"><Edit size={14}/></button>
-                                                {/* 🔥 NUEVO BOTÓN PARA DAR DE BAJA 🔥 */}
                                                 <button onClick={() => abrirModalBaja(p)} className="p-2 md:p-2.5 hover:bg-orange-500 hover:text-white rounded-xl transition-all text-orange-500" title="Reportar Dañado/Merma"><PackageMinus size={14}/></button>
                                                 <button onClick={() => { setProductoAEliminar(p); setShowDeleteModal(true); }} className="p-2 md:p-2.5 hover:bg-red-500 hover:text-white rounded-xl transition-all text-red-500" title="Eliminar Permanente"><Trash2 size={14}/></button>
                                             </td>
@@ -710,21 +704,34 @@ const AdminDashboard = () => {
 
                 {tab === 'pedidos' && (
                     <>
-                        {/* 🔥 NUEVO FILTRO DE PEDIDOS 🔥 */}
-                        <div className="flex justify-end mb-4">
-                            <button 
-                                onClick={() => setFiltroPedidosManana(!filtroPedidosManana)} 
-                                className={`px-4 py-2.5 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 transition-all border ${filtroPedidosManana ? 'bg-blue-600 text-white border-blue-600 shadow-lg' : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'}`}
-                            >
-                                <Truck size={14} /> 
-                                {filtroPedidosManana ? 'Mostrando Entregas de Mañana' : 'Filtrar Entregas de Mañana'}
-                            </button>
+                        {/* 🔥 NUEVO FILTRO DE PEDIDOS POR FECHA 🔥 */}
+                        <div className="flex justify-end mb-4 items-center gap-3">
+                            <div className="flex items-center gap-2 bg-white border border-blue-200 p-1.5 rounded-xl shadow-sm">
+                                <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
+                                    <CalendarDays size={16} />
+                                </div>
+                                <input 
+                                    type="date" 
+                                    value={filtroFechaPedidos}
+                                    onChange={(e) => setFiltroFechaPedidos(e.target.value)}
+                                    className="border-none bg-transparent text-[10px] md:text-xs font-black uppercase text-gray-700 outline-none cursor-pointer pr-2"
+                                />
+                                {filtroFechaPedidos && (
+                                    <button 
+                                        onClick={() => setFiltroFechaPedidos('')}
+                                        className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white p-1.5 rounded-lg transition-colors mr-1"
+                                        title="Limpiar filtro"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                             {pedidosFiltradosVisual.length === 0 && (
                                 <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-10">
-                                    <p className="text-gray-400 font-bold text-xs uppercase tracking-widest">No hay pedidos para mostrar.</p>
+                                    <p className="text-gray-400 font-bold text-xs uppercase tracking-widest">No hay pedidos programados para esta fecha.</p>
                                 </div>
                             )}
                             {pedidosFiltradosVisual.map(ped => {
