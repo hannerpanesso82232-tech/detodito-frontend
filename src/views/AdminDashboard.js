@@ -9,13 +9,13 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     AreaChart, Area
 } from 'recharts';
-// 🔥 AQUÍ CAMBIAMOS HandCoins por Banknote y ReceiptText por FileText 🔥
 import { 
     Plus, Edit, Trash2, Package, ShoppingCart, Search, 
     TrendingUp, AlertTriangle, X, Loader2, CheckCircle2,
     Image as ImageIcon, FileSpreadsheet, Eye, Truck, Printer,
     CalendarDays, Activity, DollarSign, Clock, Users, User, Key, Briefcase, Award, Calculator, Settings,
-    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, ArrowLeftRight, PackageMinus, Banknote, FileText
+    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, ArrowLeftRight, PackageMinus, Banknote, FileText,
+    Receipt, History, ChevronRight
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 
@@ -35,16 +35,13 @@ const RUTAS_BASE = [
 
 const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/150';
-    
     let urlLimpia = url;
     if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
         urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
     }
-
     if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
         return urlLimpia;
     }
-    
     const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
     return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
 };
@@ -56,7 +53,6 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
     if (!diaRuta || diaRuta.toUpperCase() === "A CONVENIR") {
         const textoCliente = `${ciudadCliente || ''} ${direccionCliente || ''}`.toUpperCase();
         let matchEncontrado = null;
-
         for (const ruta of rutasDB) {
             const palabrasClave = (ruta.ciudad || '').toUpperCase().split(',').map(c => c.trim());
             if (palabrasClave.some(palabra => palabra !== '' && textoCliente.includes(palabra))) {
@@ -64,7 +60,6 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
                 break;
             }
         }
-
         if (!matchEncontrado) {
             const MAPA_RUTAS_DEFECTO = {
                 "CHIGORODO": "Lunes", "CAREPA": "Lunes", "MUTATA": "Martes", "PAVARANDO": "Martes",
@@ -92,15 +87,11 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
     let diasFaltantes = diaDestino - diaActual;
 
     if (diasFaltantes < 0) diasFaltantes += 7; 
-
-    if (diasFaltantes === 0) {
-        diasFaltantes += 7;
-    } 
+    if (diasFaltantes === 0) diasFaltantes += 7; 
     else if (diasFaltantes === 1) {
         const [limiteHora, limiteMinuto] = horaLimite.split(':').map(Number);
         const horaPedido = fechaBase.getHours();
         const minutoPedido = fechaBase.getMinutes();
-
         if (horaPedido > limiteHora || (horaPedido === limiteHora && minutoPedido >= limiteMinuto)) {
             diasFaltantes += 7; 
         }
@@ -180,7 +171,7 @@ const AdminDashboard = () => {
     const [whatsappTienda, setWhatsappTienda] = useState('');
     const [horaLimite, setHoraLimite] = useState('20:00'); 
     
-    // Modales
+    // Modales Base
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showBajaModal, setShowBajaModal] = useState(false);
@@ -193,9 +184,11 @@ const AdminDashboard = () => {
     const [showEditTransaccionModal, setShowEditTransaccionModal] = useState(false);
     const [showDeleteTransaccionModal, setShowDeleteTransaccionModal] = useState(false);
     
+    // 🔥 MODALES CARTERA 🔥
     const [showCreditoModal, setShowCreditoModal] = useState(false);
     const [showAbonoModal, setShowAbonoModal] = useState(false);
     const [creditoSeleccionado, setCreditoSeleccionado] = useState(null);
+    const [clienteEstadoCuenta, setClienteEstadoCuenta] = useState(null); // MODAL ESTADO CUENTA
 
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
     const [nuevaRutaPersonalizada, setNuevaRutaPersonalizada] = useState('');
@@ -320,16 +313,6 @@ const AdminDashboard = () => {
         return Object.keys(conteo).map(key => ({ name: key, pedidos: conteo[key] })).filter(i => i.pedidos > 0);
     }, [pedidos, rutasDinamicas, horaLimite]);
 
-    const dataMejoresClientes = useMemo(() => {
-        const conteo = {};
-        pedidos.filter(p => p.estado !== 'Cancelado').forEach(ped => {
-            const cliente = ped.Usuario?.nombre || 'Consumidor Final';
-            if (!conteo[cliente]) conteo[cliente] = { pedidos: 0, totalGastado: 0 };
-            conteo[cliente].pedidos += 1; conteo[cliente].totalGastado += parseFloat(ped.total || 0);
-        });
-        return Object.keys(conteo).map(nombre => ({ nombre, ...conteo[nombre] })).sort((a, b) => b.totalGastado - a.totalGastado).slice(0, 5);
-    }, [pedidos]);
-
     const transaccionesFiltradas = useMemo(() => {
         if (mesFiltroContable === 'Todos') return transacciones;
         return transacciones.filter(tx => { const fechaTx = new Date(tx.fecha); return `${fechaTx.getFullYear()}-${String(fechaTx.getMonth() + 1).padStart(2, '0')}` === mesFiltroContable; });
@@ -358,14 +341,47 @@ const AdminDashboard = () => {
         });
     }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos]);
 
-    const creditosFiltrados = useMemo(() => {
-        return creditos.filter(c => {
-            const coincideNombre = c.Usuario?.nombre.toLowerCase().includes(searchTermCartera.toLowerCase()) || 
-                                   c.descripcion?.toLowerCase().includes(searchTermCartera.toLowerCase());
-            const coincideEstado = filtroEstadoCartera === 'TODOS' || c.estado === filtroEstadoCartera;
-            return coincideNombre && coincideEstado;
+    // 🔥 SUPER MOTOR DE CARTERA: Agrupa por cliente 🔥
+    const clientesCartera = useMemo(() => {
+        const mapa = {};
+        
+        // Inicializar con todos los usuarios para no perder a nadie
+        usuarios.forEach(u => {
+            mapa[u.id] = { ...u, creditos: [], pedidos: [], totalDeuda: 0, totalFiado: 0 };
         });
-    }, [creditos, searchTermCartera, filtroEstadoCartera]);
+
+        // Sumar créditos y deudas activas
+        creditos.forEach(c => {
+            if (mapa[c.usuarioId]) {
+                mapa[c.usuarioId].creditos.push(c);
+                if (c.estado === 'VIGENTE') mapa[c.usuarioId].totalDeuda += parseFloat(c.saldo);
+                mapa[c.usuarioId].totalFiado += parseFloat(c.monto_total);
+            }
+        });
+
+        // Añadir historial de pedidos (Facturas)
+        pedidos.forEach(p => {
+            if (mapa[p.usuarioId || p.usuario_id]) {
+                mapa[p.usuarioId || p.usuario_id].pedidos.push(p);
+            }
+        });
+
+        // Filtrar y retornar solo los que tienen historial o deudas (y aplicar filtro de barra de búsqueda)
+        return Object.values(mapa)
+            .filter(c => c.creditos.length > 0 || c.pedidos.length > 0)
+            .filter(c => {
+                if(!searchTermCartera) return true;
+                const termino = searchTermCartera.toLowerCase();
+                return (c.nombre || '').toLowerCase().includes(termino) || (c.cedula || '').includes(termino);
+            })
+            .filter(c => {
+                if(filtroEstadoCartera === 'TODOS') return true;
+                if(filtroEstadoCartera === 'VIGENTE') return c.totalDeuda > 0;
+                if(filtroEstadoCartera === 'PAGADO') return c.totalDeuda === 0 && c.creditos.length > 0;
+                return true;
+            })
+            .sort((a, b) => b.totalDeuda - a.totalDeuda); // Los más endeudados primero
+    }, [usuarios, creditos, pedidos, searchTermCartera, filtroEstadoCartera]);
 
     const statsCartera = useMemo(() => {
         let porCobrar = 0;
@@ -376,6 +392,12 @@ const AdminDashboard = () => {
         });
         return { porCobrar, fiadoTotal };
     }, [creditos]);
+
+    // Variables derivadas para el Modal de Estado de Cuenta Actual
+    const clienteActualData = useMemo(() => {
+        if(!clienteEstadoCuenta) return null;
+        return clientesCartera.find(c => c.id === clienteEstadoCuenta.id);
+    }, [clienteEstadoCuenta, clientesCartera]);
 
     const exportarManifiestoCarga = async () => {
         const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
@@ -503,6 +525,7 @@ const AdminDashboard = () => {
     const handleGuardarTransaccion = async (e) => { e.preventDefault(); setEnviando(true); try { if (transaccionSeleccionada) { await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto); toast.success("Transacción actualizada correctamente"); } else { await API.post('/contabilidad/gasto', formGasto); toast.success("Transacción registrada en el libro mayor"); } setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); fetchDatos(); } catch (err) { toast.error("Error al guardar la transacción"); } finally { setEnviando(false); } };
     const handleEliminarTransaccion = async () => { try { await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`); setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada"); } catch (err) { toast.error("Error al eliminar la transacción"); } };
 
+    // 🔥 FUNCIONES DE CARTERA 🔥
     const handleCrearCredito = async (e) => {
         e.preventDefault();
         setEnviando(true);
@@ -536,6 +559,21 @@ const AdminDashboard = () => {
         }
     };
 
+    const handlePasarPedidoACartera = async (pedido) => {
+        const loadingId = toast.loading("Convirtiendo pedido en deuda oficial...");
+        try {
+            await API.post('/creditos', {
+                usuarioId: pedido.usuarioId || pedido.usuario_id,
+                monto_total: pedido.total,
+                descripcion: `Factura Pedido #${pedido.id}`
+            });
+            toast.success("Factura agregada a cartera", { id: loadingId });
+            fetchDatos();
+        } catch (error) {
+            toast.error("Error al transferir factura", { id: loadingId });
+        }
+    };
+
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
     const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...rutasDinamicas.map(r => r.dia_ruta)])];
 
@@ -548,7 +586,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-3 w-full md:w-auto">
                     {tab === 'finanzas' && (<button onClick={() => { setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); setShowGastoModal(true); }} className="col-span-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-500/30 uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><ArrowDownRight size={16} /> Movimiento Manual</button>)}
-                    {tab === 'cartera' && (<button onClick={() => setShowCreditoModal(true)} className="col-span-2 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Banknote size={16} /> Nuevo Crédito (Fiar)</button>)}
+                    {tab === 'cartera' && (<button onClick={() => setShowCreditoModal(true)} className="col-span-2 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Banknote size={16} /> Fiar Libre</button>)}
                     <button onClick={exportarManifiestoCarga} className={`${(tab === 'finanzas' || tab === 'cartera') ? 'col-span-1' : 'col-span-2'} bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/30 uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95`}><Truck size={16} /> Extraer Ruta</button>
                     {tab === 'productos' && (<button onClick={() => { setProductoEditando(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 }); setPrecioCalculado(0); setShowModal(true); }} className="col-span-1 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Plus size={16} /> Producto</button>)}
                     {tab === 'clientes' && (<button onClick={() => setShowUsuarioModal(true)} className="col-span-1 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Users size={16} /> Cliente</button>)}
@@ -556,28 +594,20 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8 md:mb-12">
+            {/* 🔥 CUADRÍCULA DE ESTADÍSTICAS SIEMPRE VISIBLE 🔥 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
                 <StatCard title="Ventas Mes Actual" value={`$${formatCurrency(kpis.ventasMes)}`} subtitle={`Hoy: $${formatCurrency(kpis.ventasHoy)}`} icon={<DollarSign />} color="bg-green-100 text-green-600" />
                 <StatCard title="Pedidos Pendientes" value={kpis.pendientes} subtitle="Listos para ruta" icon={<Clock />} color="bg-amber-100 text-amber-600" />
                 <StatCard title="Total Pedidos" value={pedidos.length} subtitle="Histórico completo" icon={<ShoppingCart />} color="bg-blue-100 text-blue-600" />
                 <StatCard title="Clientes Registrados" value={usuarios.length} subtitle="En base de datos" icon={<Users />} color="bg-purple-100 text-purple-600" />
-                
-                {tab === 'cartera' ? (
-                    <>
-                        <StatCard title="Cuentas por Cobrar" value={`$${formatCurrency(statsCartera.porCobrar)}`} subtitle="Deuda pendiente total" icon={<Banknote />} color="bg-red-100 text-red-600" />
-                        <StatCard title="Total Histórico Fiado" value={`$${formatCurrency(statsCartera.fiadoTotal)}`} subtitle="Lo que has fiado" icon={<FileText />} color="bg-orange-100 text-orange-600" />
-                    </>
-                ) : (
-                    <>
-                        <StatCard title="Total Productos" value={statsProductos.total} subtitle="En inventario" icon={<Package />} color="bg-indigo-100 text-indigo-600" />
-                        <StatCard title="Stock Bajo" value={statsProductos.stockBajo} subtitle="Requieren atención" icon={<AlertTriangle />} color="bg-red-100 text-red-600" />
-                    </>
-                )}
+                <StatCard title="Total Productos" value={statsProductos.total} subtitle="En inventario" icon={<Package />} color="bg-indigo-100 text-indigo-600" />
+                <StatCard title="Stock Bajo" value={statsProductos.stockBajo} subtitle="Requieren atención" icon={<AlertTriangle />} color="bg-red-100 text-red-600" />
+                <StatCard title="Cuentas por Cobrar" value={`$${formatCurrency(statsCartera.porCobrar)}`} subtitle="Deuda pendiente total" icon={<Banknote />} color="bg-rose-100 text-rose-600" />
+                <StatCard title="Total Histórico Fiado" value={`$${formatCurrency(statsCartera.fiadoTotal)}`} subtitle="Lo que has fiado" icon={<FileText />} color="bg-orange-100 text-orange-600" />
             </div>
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
-                    {/* 🔥 AQUÍ ESTÁ EL MENÚ DE PESTAÑAS, PUSE 'CARTERA' DE SEGUNDO 🔥 */}
                     {['reportes', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => (
                         <button key={t} onClick={() => setTab(t)} className={`px-4 md:px-8 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${tab === t ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>{t === 'reportes' ? 'Analíticas' : t}</button>
                     ))}
@@ -592,48 +622,54 @@ const AdminDashboard = () => {
                 {tab === 'cartera' && (
                     <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 md:gap-4 w-full md:w-auto">
                         <select value={filtroEstadoCartera} onChange={(e) => setFiltroEstadoCartera(e.target.value)} className="px-4 py-3 bg-white border border-gray-200 rounded-xl font-black uppercase text-[10px] outline-none shadow-sm cursor-pointer text-gray-600">
-                            <option value="TODOS">Todas las deudas</option>
-                            <option value="VIGENTE">Vigentes (Por Cobrar)</option>
-                            <option value="PAGADO">Pagadas</option>
+                            <option value="TODOS">Todos los Clientes</option>
+                            <option value="VIGENTE">Tienen Deuda (Mora)</option>
+                            <option value="PAGADO">Sin Deudas</option>
                         </select>
-                        <div className="relative flex-1 md:w-64"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar cliente..." value={searchTermCartera || ''} onChange={(e) => setSearchTermCartera(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none shadow-sm" /></div>
+                        <div className="relative flex-1 md:w-64"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar cliente o CC..." value={searchTermCartera || ''} onChange={(e) => setSearchTermCartera(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none shadow-sm" /></div>
                     </div>
                 )}
             </div>
 
             <div className="animate-in fade-in duration-500">
-                {/* VISTA DE CARTERA */}
+                
+                {/* 🔥 VISTA MAESTRA DE CARTERA (AGRUPADA POR CLIENTE) 🔥 */}
                 {tab === 'cartera' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
                             <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-[0.2em] border-b border-gray-100">
-                                <tr><th className="px-4 py-4 md:px-8 md:py-6">Cliente</th><th className="px-4 py-4 md:px-8 md:py-6">Detalle / Fecha</th><th className="px-4 py-4 md:px-8 md:py-6 text-center">Estado</th><th className="px-4 py-4 md:px-8 md:py-6 text-right">Saldo Deuda</th><th className="px-4 py-4 md:px-8 md:py-6 text-right">Acción</th></tr>
+                                <tr>
+                                    <th className="px-4 py-4 md:px-8 md:py-6">Cliente (Deudor)</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-center">Total Facturas</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Crédito Acumulado</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Saldo en Mora</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Acción</th>
+                                </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {creditosFiltrados.length === 0 ? (<tr><td colSpan="5" className="py-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">No hay créditos registrados.</td></tr>) : (
-                                    creditosFiltrados.map(c => (
+                                {clientesCartera.length === 0 ? (<tr><td colSpan="5" className="py-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">No hay historial de clientes ni deudas.</td></tr>) : (
+                                    clientesCartera.map(c => (
                                         <tr key={c.id} className="group hover:bg-gray-50/50 transition-all">
                                             <td className="px-4 py-4 md:px-8 md:py-5">
-                                                <p className="font-black text-gray-900 uppercase text-[10px] md:text-xs">{c.Usuario?.nombre || 'Desconocido'}</p>
-                                                <p className="text-[8px] md:text-[9px] text-gray-500 font-bold uppercase tracking-widest">ID Crédito: #{c.id}</p>
-                                            </td>
-                                            <td className="px-4 py-4 md:px-8 md:py-5">
-                                                <p className="text-[10px] md:text-xs text-gray-700 font-medium line-clamp-1">{c.descripcion}</p>
-                                                <p className="text-[8px] md:text-[9px] text-gray-400 font-bold uppercase mt-1">{new Date(c.fecha).toLocaleDateString()}</p>
+                                                <p className="font-black text-gray-900 uppercase text-[10px] md:text-xs">{c.nombre}</p>
+                                                <p className="text-[8px] md:text-[9px] text-gray-500 font-bold uppercase tracking-widest">CC: {c.cedula || 'N/A'} • 📞 {c.telefono || 'N/A'}</p>
                                             </td>
                                             <td className="px-4 py-4 md:px-8 md:py-5 text-center">
-                                                <span className={`text-[8px] md:text-[9px] font-black uppercase px-2 py-1 md:px-3 rounded-lg ${c.estado === 'VIGENTE' ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-600'}`}>{c.estado}</span>
+                                                <span className="bg-gray-100 text-gray-600 px-3 py-1 md:px-4 md:py-1.5 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest">{c.pedidos.length} Pedidos</span>
                                             </td>
                                             <td className="px-4 py-4 md:px-8 md:py-5 text-right">
-                                                <p className={`font-black text-sm md:text-base italic ${c.estado === 'VIGENTE' ? 'text-red-600' : 'text-gray-400 line-through'}`}>${formatCurrency(c.saldo)}</p>
-                                                <p className="text-[7px] md:text-[8px] text-gray-400 font-bold uppercase tracking-widest">Total: ${formatCurrency(c.monto_total)}</p>
+                                                <p className="font-bold text-gray-600 text-xs md:text-sm">${formatCurrency(c.totalFiado)}</p>
                                             </td>
                                             <td className="px-4 py-4 md:px-8 md:py-5 text-right">
-                                                {c.estado === 'VIGENTE' && (
-                                                    <button onClick={() => { setCreditoSeleccionado(c); setShowAbonoModal(true); }} className="bg-green-100 text-green-700 hover:bg-green-600 hover:text-white px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 flex items-center gap-1.5 ml-auto">
-                                                        <Banknote size={14} /> Abonar
-                                                    </button>
-                                                )}
+                                                <p className={`font-black text-base md:text-lg italic ${c.totalDeuda > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                                    ${formatCurrency(c.totalDeuda)}
+                                                </p>
+                                                {c.totalDeuda > 0 && <p className="text-[7px] md:text-[8px] text-red-400 font-bold uppercase mt-1 animate-pulse">En Mora</p>}
+                                            </td>
+                                            <td className="px-4 py-4 md:px-8 md:py-5 text-right">
+                                                <button onClick={() => setClienteEstadoCuenta(c)} className="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 flex items-center gap-1.5 ml-auto">
+                                                    <Receipt size={14} /> Estado de Cuenta
+                                                </button>
                                             </td>
                                         </tr>
                                     ))
@@ -643,7 +679,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* VISTAS NORMALES */}
+                {/* DEMÁS VISTAS NORMALES... */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -904,11 +940,113 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* MODALES EXTRAS Y DE CARTERA */}
+            {/* 🔥 MODAL ESTADO DE CUENTA (EL PANEL 360 DEL CLIENTE) 🔥 */}
+            {clienteEstadoCuenta && clienteActualData && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[180] flex items-center justify-center p-2 md:p-6 overflow-hidden">
+                    <div className="bg-gray-50 w-full max-w-6xl h-[95vh] md:h-[90vh] rounded-[2rem] md:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden relative animate-in zoom-in-95 duration-300">
+                        {/* HEADER DEL MODAL */}
+                        <div className="bg-white p-6 md:p-8 border-b border-gray-200 flex justify-between items-center z-10 shrink-0">
+                            <div>
+                                <h2 className="text-xl md:text-3xl font-black uppercase italic tracking-tighter flex items-center gap-3"><User className="text-blue-600" /> {clienteActualData.nombre}</h2>
+                                <p className="text-[9px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Estado de Cuenta Oficial</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="hidden md:block text-right mr-4 border-r pr-8 border-gray-200">
+                                    <p className="text-[9px] font-black uppercase tracking-widest text-red-400">Deuda Total Activa</p>
+                                    <p className="text-2xl font-black italic tracking-tighter text-red-600">${formatCurrency(clienteActualData.totalDeuda)}</p>
+                                </div>
+                                <button onClick={() => setClienteEstadoCuenta(null)} className="p-3 md:p-4 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all active:scale-90"><X size={20}/></button>
+                            </div>
+                        </div>
 
-            {/* 🔥 NUEVO MODAL: CREAR CRÉDITO (FIAR) 🔥 */}
+                        {/* CUERPO DEL MODAL (2 COLUMNAS EN PC, 1 EN MÓVIL CON SCROLL) */}
+                        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                            
+                            {/* COLUMNA IZQUIERDA: CARTERA Y ABONOS */}
+                            <div className="flex-1 border-r border-gray-200 flex flex-col overflow-hidden bg-white">
+                                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
+                                    <h3 className="font-black uppercase tracking-tighter text-lg md:text-xl flex items-center gap-2"><Banknote className="text-red-500" size={20}/> Deudas Activas</h3>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
+                                    {/* Mostrar Deuda en móvil */}
+                                    <div className="md:hidden bg-red-50 border border-red-100 p-4 rounded-2xl mb-4 text-center">
+                                        <p className="text-[9px] font-black uppercase tracking-widest text-red-400">Deuda Total Activa</p>
+                                        <p className="text-3xl font-black italic tracking-tighter text-red-600">${formatCurrency(clienteActualData.totalDeuda)}</p>
+                                    </div>
+
+                                    {clienteActualData.creditos.length === 0 ? (
+                                        <p className="text-center text-gray-400 text-xs font-bold uppercase py-10">El cliente no tiene historial de deudas.</p>
+                                    ) : (
+                                        clienteActualData.creditos.map(c => (
+                                            <div key={c.id} className={`p-5 rounded-2xl md:rounded-3xl border transition-all ${c.estado === 'VIGENTE' ? 'bg-white border-red-100 shadow-lg shadow-red-500/5' : 'bg-gray-50 border-gray-100 opacity-60 hover:opacity-100'}`}>
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div>
+                                                        <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-md ${c.estado === 'VIGENTE' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>{c.estado}</span>
+                                                        <p className="font-black text-gray-900 text-sm md:text-base mt-2 line-clamp-1">{c.descripcion}</p>
+                                                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{new Date(c.fecha).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest">Debe</p>
+                                                        <p className={`font-black italic tracking-tighter text-xl ${c.estado === 'VIGENTE' ? 'text-red-600' : 'text-gray-400 line-through'}`}>${formatCurrency(c.saldo)}</p>
+                                                    </div>
+                                                </div>
+                                                {c.estado === 'VIGENTE' && (
+                                                    <button onClick={() => { setCreditoSeleccionado(c); setShowAbonoModal(true); }} className="w-full mt-2 py-3 bg-green-50 hover:bg-green-600 text-green-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 active:scale-95">
+                                                        <DollarSign size={14}/> Recibir Pago (Abono)
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* COLUMNA DERECHA: HISTORIAL DE PEDIDOS */}
+                            <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+                                <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-white shrink-0">
+                                    <h3 className="font-black uppercase tracking-tighter text-lg md:text-xl flex items-center gap-2 text-gray-700"><History className="text-blue-500" size={20}/> Facturas (Pedidos)</h3>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
+                                    {clienteActualData.pedidos.length === 0 ? (
+                                        <p className="text-center text-gray-400 text-xs font-bold uppercase py-10">El cliente no ha realizado pedidos aún.</p>
+                                    ) : (
+                                        clienteActualData.pedidos.slice().reverse().map(ped => {
+                                            // Verificar si este pedido ya fue pasado a cartera
+                                            const yaEnCartera = clienteActualData.creditos.some(c => c.descripcion.includes(`#${ped.id}`));
+                                            return (
+                                                <div key={ped.id} className="bg-white p-5 rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between gap-4">
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <span className="bg-gray-100 text-black px-2 py-1 rounded-md text-[9px] font-black uppercase italic">ID #{ped.id}</span>
+                                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{new Date(ped.fecha).toLocaleDateString()}</span>
+                                                        </div>
+                                                        <p className="text-xs font-bold text-gray-600 mb-1"><span className="font-black text-gray-800">{ped.Detalles?.length || 0}</span> artículos comprados</p>
+                                                        <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 w-fit px-2 py-1 rounded-md mt-2">Logística: {ped.estado}</p>
+                                                    </div>
+                                                    <div className="flex flex-col items-start sm:items-end justify-between border-t sm:border-t-0 sm:border-l border-gray-100 pt-3 sm:pt-0 sm:pl-4">
+                                                        <p className="font-black text-xl md:text-2xl italic tracking-tighter text-gray-900">${formatCurrency(ped.total)}</p>
+                                                        {yaEnCartera ? (
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-green-500 flex items-center gap-1 mt-2"><CheckCircle2 size={12}/> Ya en Cartera</span>
+                                                        ) : (
+                                                            <button onClick={() => handlePasarPedidoACartera(ped)} className="mt-2 py-2 px-4 bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 active:scale-95 whitespace-nowrap">
+                                                                Fiar Factura <ChevronRight size={12}/>
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 🔥 MODAL: CREAR CRÉDITO (FIAR) 🔥 */}
             {showCreditoModal && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
                         <button onClick={() => setShowCreditoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
                         
@@ -916,7 +1054,7 @@ const AdminDashboard = () => {
                             <Banknote size={24} className="md:w-8 md:h-8"/>
                         </div>
                         <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Fiar a Cliente</h3>
-                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Registrar nueva deuda</p>
+                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Registrar deuda manual</p>
                         
                         <form onSubmit={handleCrearCredito} className="space-y-4 md:space-y-5 text-left">
                             <div>
@@ -947,9 +1085,9 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* 🔥 NUEVO MODAL: REGISTRAR ABONO (PAGO) 🔥 */}
+            {/* 🔥 MODAL: REGISTRAR ABONO (PAGO) 🔥 */}
             {showAbonoModal && creditoSeleccionado && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
                         <button onClick={() => setShowAbonoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
                         
@@ -991,7 +1129,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* RESTO DE LOS MODALES */}
+            {/* MODALES CLÁSICOS */}
             {showBajaModal && productoBaja && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
