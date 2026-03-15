@@ -184,11 +184,15 @@ const AdminDashboard = () => {
     const [showEditTransaccionModal, setShowEditTransaccionModal] = useState(false);
     const [showDeleteTransaccionModal, setShowDeleteTransaccionModal] = useState(false);
     
-    // 🔥 MODALES CARTERA 🔥
+    // 🔥 MODALES CARTERA Y LIQUIDACIÓN 🔥
     const [showCreditoModal, setShowCreditoModal] = useState(false);
     const [showAbonoModal, setShowAbonoModal] = useState(false);
     const [creditoSeleccionado, setCreditoSeleccionado] = useState(null);
-    const [clienteEstadoCuenta, setClienteEstadoCuenta] = useState(null); // MODAL ESTADO CUENTA
+    const [clienteEstadoCuenta, setClienteEstadoCuenta] = useState(null);
+    
+    // NUEVO ESTADO: LIQUIDADOR DE PEDIDOS
+    const [showCobroModal, setShowCobroModal] = useState(false);
+    const [pedidoACobrar, setPedidoACobrar] = useState(null);
 
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
     const [nuevaRutaPersonalizada, setNuevaRutaPersonalizada] = useState('');
@@ -313,7 +317,6 @@ const AdminDashboard = () => {
         return Object.keys(conteo).map(key => ({ name: key, pedidos: conteo[key] })).filter(i => i.pedidos > 0);
     }, [pedidos, rutasDinamicas, horaLimite]);
 
-    // 🔥 RESTAURADO EL CÓDIGO QUE FALTABA 🔥
     const dataMejoresClientes = useMemo(() => {
         const conteo = {};
         pedidos.filter(p => p.estado !== 'Cancelado').forEach(ped => {
@@ -352,16 +355,11 @@ const AdminDashboard = () => {
         });
     }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos]);
 
-    // 🔥 SUPER MOTOR DE CARTERA: Agrupa por cliente 🔥
     const clientesCartera = useMemo(() => {
         const mapa = {};
-        
-        // Inicializar con todos los usuarios para no perder a nadie
         usuarios.forEach(u => {
             mapa[u.id] = { ...u, creditos: [], pedidos: [], totalDeuda: 0, totalFiado: 0 };
         });
-
-        // Sumar créditos y deudas activas
         creditos.forEach(c => {
             if (mapa[c.usuarioId]) {
                 mapa[c.usuarioId].creditos.push(c);
@@ -369,15 +367,11 @@ const AdminDashboard = () => {
                 mapa[c.usuarioId].totalFiado += parseFloat(c.monto_total);
             }
         });
-
-        // Añadir historial de pedidos (Facturas)
         pedidos.forEach(p => {
             if (mapa[p.usuarioId || p.usuario_id]) {
                 mapa[p.usuarioId || p.usuario_id].pedidos.push(p);
             }
         });
-
-        // Filtrar y retornar solo los que tienen historial o deudas (y aplicar filtro de barra de búsqueda)
         return Object.values(mapa)
             .filter(c => c.creditos.length > 0 || c.pedidos.length > 0)
             .filter(c => {
@@ -391,7 +385,7 @@ const AdminDashboard = () => {
                 if(filtroEstadoCartera === 'PAGADO') return c.totalDeuda === 0 && c.creditos.length > 0;
                 return true;
             })
-            .sort((a, b) => b.totalDeuda - a.totalDeuda); // Los más endeudados primero
+            .sort((a, b) => b.totalDeuda - a.totalDeuda);
     }, [usuarios, creditos, pedidos, searchTermCartera, filtroEstadoCartera]);
 
     const statsCartera = useMemo(() => {
@@ -404,7 +398,6 @@ const AdminDashboard = () => {
         return { porCobrar, fiadoTotal };
     }, [creditos]);
 
-    // Variables derivadas para el Modal de Estado de Cuenta Actual
     const clienteActualData = useMemo(() => {
         if(!clienteEstadoCuenta) return null;
         return clientesCartera.find(c => c.id === clienteEstadoCuenta.id);
@@ -506,7 +499,53 @@ const AdminDashboard = () => {
     };
 
     const handleEliminar = async () => { try { await API.delete(`/productos/${productoAEliminar.id}`); setShowDeleteModal(false); fetchDatos(); toast.success("Producto Eliminado"); } catch (err) { toast.error("Error"); } };
-    const actualizarEstadoPedido = async (id, nuevoEstado) => { try { await API.put(`/pedidos/${id}/estado`, { estado: nuevoEstado }); fetchDatos(); toast.success("Estado Actualizado"); } catch (err) { toast.error("Error"); } };
+    
+    const actualizarEstadoPedido = async (id, nuevoEstado) => { 
+        try { 
+            await API.put(`/pedidos/${id}/estado`, { estado: nuevoEstado }); 
+            fetchDatos(); 
+            toast.success("Estado Actualizado"); 
+        } catch (err) { toast.error("Error"); } 
+    };
+
+    // 🔥 EL NUEVO MOTOR DE COBRO/LIQUIDACIÓN 🔥
+    const handleCobro = async (tipoPago) => {
+        setEnviando(true);
+        const loadingId = toast.loading("Procesando liquidación de pedido...");
+        try {
+            // 1. Cambiamos estado a entregado
+            await API.put(`/pedidos/${pedidoACobrar.id}/estado`, { estado: 'Entregado' });
+
+            // 2. Dependiendo del tipo, mandamos a finanzas o a cartera
+            if (tipoPago === 'CONTADO') {
+                await API.post('/contabilidad/gasto', {
+                    monto: pedidoACobrar.total,
+                    descripcion: `Pago de Contado - Pedido #${pedidoACobrar.id}`,
+                    categoria: 'Ventas Productos',
+                    tipo: 'INGRESO',
+                    fecha: new Date().toISOString().split('T')[0],
+                    pedidoId: pedidoACobrar.id
+                });
+                toast.success("Pedido Entregado. Dinero registrado en finanzas.", { id: loadingId });
+            } else if (tipoPago === 'CREDITO') {
+                await API.post('/creditos', {
+                    usuarioId: pedidoACobrar.usuarioId || pedidoACobrar.usuario_id,
+                    monto_total: pedidoACobrar.total,
+                    descripcion: `Factura Pedido #${pedidoACobrar.id}`
+                });
+                toast.success("Pedido Entregado. Deuda creada en Cartera.", { id: loadingId });
+            }
+            
+            setShowCobroModal(false);
+            setPedidoACobrar(null);
+            fetchDatos();
+        } catch (error) {
+            toast.error("Error al liquidar el pedido", { id: loadingId });
+        } finally {
+            setEnviando(false);
+        }
+    };
+
     const actualizarRutaPedido = async (id, nuevaRuta) => { try { await API.put(`/pedidos/${id}/ruta`, { ruta: nuevaRuta }); fetchDatos(); toast.success(`Ruta actualizada a ${nuevaRuta}`); } catch (err) { toast.error("Error al actualizar la ruta"); } };
 
     const handleDevolucionProducto = async (pedidoId, item) => {
@@ -691,6 +730,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {/* DEMÁS VISTAS NORMALES... */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -903,6 +943,12 @@ const AdminDashboard = () => {
                             {pedidosFiltradosVisual.map(ped => {
                                 const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
                                 const items = ped.Detalles || ped.items || [];
+                                
+                                // Verificamos si este pedido ya fue liquidado (en Cartera o Finanzas)
+                                const yaEnCartera = creditos.some(c => c.descripcion && c.descripcion.includes(`#${ped.id}`));
+                                const yaEnFinanzas = transacciones.some(t => t.descripcion && t.descripcion.includes(`#${ped.id}`));
+                                const estaLiquidado = yaEnCartera || yaEnFinanzas;
+
                                 return (
                                     <div key={ped.id} className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden flex flex-col justify-between">
                                         <div>
@@ -919,7 +965,32 @@ const AdminDashboard = () => {
                                                     {diasUnicosDropdown.map(r => <option key={r} value={r}>{r}</option>)}
                                                 </select>
                                             </div>
-                                            <div className="pt-2 mt-2 border-t border-gray-200"><label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Estado Logístico</label><select value={ped.estado || ''} onChange={(e) => actualizarEstadoPedido(ped.id, e.target.value)} className="w-full border-none rounded-xl text-[9px] md:text-[10px] font-black uppercase p-2 md:p-3 outline-none bg-black text-white cursor-pointer mt-1"><option value="Pendiente">⏳ PENDIENTE (Bodega)</option><option value="Enviado">🚚 EN RUTA (Camión)</option><option value="Entregado">✅ ENTREGADO</option><option value="Cancelado">❌ CANCELADO</option></select></div>
+                                            <div className="pt-2 mt-2 border-t border-gray-200">
+                                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Estado Logístico</label>
+                                                <select 
+                                                    value={ped.estado || ''} 
+                                                    onChange={(e) => {
+                                                        if (e.target.value === 'Entregado') {
+                                                            if (estaLiquidado) {
+                                                                // Si ya se cobró o se fío antes, solo cambia el estado logístico
+                                                                actualizarEstadoPedido(ped.id, 'Entregado');
+                                                            } else {
+                                                                // Despierta el Modal de Cobro!
+                                                                setPedidoACobrar(ped);
+                                                                setShowCobroModal(true);
+                                                            }
+                                                        } else {
+                                                            actualizarEstadoPedido(ped.id, e.target.value);
+                                                        }
+                                                    }} 
+                                                    className="w-full border-none rounded-xl text-[9px] md:text-[10px] font-black uppercase p-2 md:p-3 outline-none bg-black text-white cursor-pointer mt-1"
+                                                >
+                                                    <option value="Pendiente">⏳ PENDIENTE (Bodega)</option>
+                                                    <option value="Enviado">🚚 EN RUTA (Camión)</option>
+                                                    <option value="Entregado">✅ ENTREGADO</option>
+                                                    <option value="Cancelado">❌ CANCELADO</option>
+                                                </select>
+                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -1022,8 +1093,10 @@ const AdminDashboard = () => {
                                         <p className="text-center text-gray-400 text-xs font-bold uppercase py-10">El cliente no ha realizado pedidos aún.</p>
                                     ) : (
                                         clienteActualData.pedidos.slice().reverse().map(ped => {
-                                            // Verificar si este pedido ya fue pasado a cartera
+                                            // Verificar si este pedido ya fue liquidado (en Cartera o Finanzas)
                                             const yaEnCartera = clienteActualData.creditos.some(c => c.descripcion.includes(`#${ped.id}`));
+                                            const yaEnFinanzas = transacciones.some(t => t.descripcion && t.descripcion.includes(`#${ped.id}`));
+
                                             return (
                                                 <div key={ped.id} className="bg-white p-5 rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between gap-4">
                                                     <div>
@@ -1036,11 +1109,19 @@ const AdminDashboard = () => {
                                                     </div>
                                                     <div className="flex flex-col items-start sm:items-end justify-between border-t sm:border-t-0 sm:border-l border-gray-100 pt-3 sm:pt-0 sm:pl-4">
                                                         <p className="font-black text-xl md:text-2xl italic tracking-tighter text-gray-900">${formatCurrency(ped.total)}</p>
+                                                        
                                                         {yaEnCartera ? (
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-green-500 flex items-center gap-1 mt-2"><CheckCircle2 size={12}/> Ya en Cartera</span>
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-orange-500 flex items-center gap-1 mt-2"><CheckCircle2 size={12}/> Fiado (En Cartera)</span>
+                                                        ) : yaEnFinanzas ? (
+                                                            <span className="text-[9px] font-black uppercase tracking-widest text-green-500 flex items-center gap-1 mt-2"><CheckCircle2 size={12}/> Pagado de Contado</span>
                                                         ) : (
-                                                            <button onClick={() => handlePasarPedidoACartera(ped)} className="mt-2 py-2 px-4 bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 active:scale-95 whitespace-nowrap">
-                                                                Fiar Factura <ChevronRight size={12}/>
+                                                            <button onClick={() => {
+                                                                // Si le dan clic aquí, levanta el mismo modal de cobro
+                                                                setPedidoACobrar(ped);
+                                                                setShowCobroModal(true);
+                                                                setClienteEstadoCuenta(null); // Cierra este modal para no sobreponer
+                                                            }} className="mt-2 py-2 px-4 bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 active:scale-95 whitespace-nowrap">
+                                                                Liquidar Factura <ChevronRight size={12}/>
                                                             </button>
                                                         )}
                                                     </div>
@@ -1055,7 +1136,39 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* 🔥 MODAL: CREAR CRÉDITO (FIAR) 🔥 */}
+            {/* 🔥 NUEVO MODAL: LIQUIDAR PEDIDO (CONTADO VS CRÉDITO) 🔥 */}
+            {showCobroModal && pedidoACobrar && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
+                        <button onClick={() => {setShowCobroModal(false); setPedidoACobrar(null);}} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
+                        
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <CheckCircle2 size={24} className="md:w-8 md:h-8"/>
+                        </div>
+                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Liquidar Pedido</h3>
+                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Pedido #{pedidoACobrar.id} • ${formatCurrency(pedidoACobrar.total)}</p>
+                        
+                        <div className="space-y-3">
+                            <button 
+                                onClick={() => handleCobro('CONTADO')}
+                                disabled={enviando}
+                                className="w-full p-4 border-2 border-green-500 bg-green-50 hover:bg-green-500 hover:text-white text-green-700 rounded-2xl transition-all font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 active:scale-95"
+                            >
+                                {enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16} />} Pago de Contado (Finanzas)
+                            </button>
+                            <button 
+                                onClick={() => handleCobro('CREDITO')}
+                                disabled={enviando}
+                                className="w-full p-4 border-2 border-orange-500 bg-orange-50 hover:bg-orange-500 hover:text-white text-orange-700 rounded-2xl transition-all font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 active:scale-95"
+                            >
+                                {enviando ? <Loader2 className="animate-spin" size={16} /> : <Banknote size={16} />} Fiar (Mandar a Cartera)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 🔥 MODAL: CREAR CRÉDITO (FIAR MANUAL) 🔥 */}
             {showCreditoModal && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
@@ -1181,7 +1294,7 @@ const AdminDashboard = () => {
                                 <p className="text-lg md:text-xl font-black text-orange-600 italic">-${formatCurrency((productoBaja.costo_compra || 0) * formBaja.cantidad)}</p>
                             </div>
                             
-                            <button disabled={enviando} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-orange-500 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50">
+                            <button disabled={enviando || productoBaja.stock <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-orange-500 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50">
                                 {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Baja y Guardar'}
                             </button>
                         </form>
