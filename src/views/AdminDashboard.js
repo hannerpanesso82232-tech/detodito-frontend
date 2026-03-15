@@ -14,7 +14,7 @@ import {
     TrendingUp, AlertTriangle, X, Loader2, CheckCircle2,
     Image as ImageIcon, FileSpreadsheet, Eye, Truck, Printer,
     CalendarDays, Activity, DollarSign, Clock, Users, User, Key, Briefcase, Award, Calculator, Settings,
-    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, ArrowLeftRight, PackageMinus
+    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, ArrowLeftRight, PackageMinus, HandCoins, ReceiptText
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 
@@ -164,6 +164,7 @@ const AdminDashboard = () => {
     const [categorias, setCategorias] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
     const [rutasDinamicas, setRutasDinamicas] = useState([]); 
+    const [creditos, setCreditos] = useState([]); // 🔥 ESTADO DE CARTERA
     const [tab, setTab] = useState('reportes'); 
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
@@ -172,9 +173,9 @@ const AdminDashboard = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
-    
-    // 🔥 NUEVO ESTADO PARA EL FILTRO DE FECHA EXACTA 🔥
     const [filtroFechaPedidos, setFiltroFechaPedidos] = useState(''); 
+    const [searchTermCartera, setSearchTermCartera] = useState(''); // Filtro para buscar en Cartera
+    const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('VIGENTE'); // Filtro de estado de cartera
 
     const [whatsappTienda, setWhatsappTienda] = useState('');
     const [horaLimite, setHoraLimite] = useState('20:00'); 
@@ -192,6 +193,11 @@ const AdminDashboard = () => {
     const [showEditTransaccionModal, setShowEditTransaccionModal] = useState(false);
     const [showDeleteTransaccionModal, setShowDeleteTransaccionModal] = useState(false);
     
+    // 🔥 MODALES CARTERA 🔥
+    const [showCreditoModal, setShowCreditoModal] = useState(false);
+    const [showAbonoModal, setShowAbonoModal] = useState(false);
+    const [creditoSeleccionado, setCreditoSeleccionado] = useState(null);
+
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
     const [nuevaRutaPersonalizada, setNuevaRutaPersonalizada] = useState('');
     const [rutasDisponibles, setRutasDisponibles] = useState(RUTAS_BASE);
@@ -212,6 +218,11 @@ const AdminDashboard = () => {
     const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
     const [formGasto, setFormGasto] = useState({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' });
     const [formBaja, setFormBaja] = useState({ cantidad: 1, motivo: 'Dañado/Roto' });
+    
+    // 🔥 FORMS CARTERA 🔥
+    const [formCredito, setFormCredito] = useState({ usuarioId: '', monto_total: '', descripcion: '' });
+    const [formAbono, setFormAbono] = useState({ monto: '', nota: '' });
+
     const [nuevaPassword, setNuevaPassword] = useState('');
     const [finanzas, setFinanzas] = useState({ ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 });
     const [transacciones, setTransacciones] = useState([]);
@@ -219,17 +230,19 @@ const AdminDashboard = () => {
 
     const fetchDatos = useCallback(async () => {
         try {
-            const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora] = await Promise.all([
+            const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos] = await Promise.all([
                 API.get('/productos'), API.get('/pedidos/admin/todos'), API.get('/categorias'),
                 API.get('/auth/admin/usuarios'), API.get('/auth/config/whatsapp'),
                 API.get('/contabilidad/resumen'), API.get('/contabilidad/transacciones'),
                 API.get('/pedidos/config/rutas').catch(() => ({ data: [] })),
-                API.get('/pedidos/config/horalimite').catch(() => ({ data: { hora: '20:00' } })) 
+                API.get('/pedidos/config/horalimite').catch(() => ({ data: { hora: '20:00' } })),
+                API.get('/creditos').catch(() => ({ data: [] })) // 🔥 Traemos la cartera
             ]);
             setProductos(resProd.data || []); setPedidos(resPed.data || []); setCategorias(resCat.data || []);
             setUsuarios(resUsers.data || []); setWhatsappTienda(resWa.data.whatsapp || ''); 
             setFinanzas(resFinanzas.data); setTransacciones(resTransacciones.data); setRutasDinamicas(resRutas.data || []);
             setHoraLimite(resHora.data.hora || '20:00');
+            setCreditos(resCreditos.data || []); // 🔥 Seteamos cartera
             const rutasExtraPed = (resPed.data || []).map(p => p.ruta).filter(r => r && !RUTAS_BASE.includes(r));
             const rutasExtraBD = (resRutas.data || []).map(r => r.dia_ruta);
             setRutasDisponibles([...new Set([...RUTAS_BASE, ...rutasExtraPed, ...rutasExtraBD])]);
@@ -338,22 +351,40 @@ const AdminDashboard = () => {
         return Array.from(meses).sort((a,b) => b.localeCompare(a));
     }, [transacciones]);
 
-    // 🔥 NUEVA LÓGICA: FILTRAR PEDIDOS POR FECHA EXACTA 🔥
     const pedidosFiltradosVisual = useMemo(() => {
         if (!filtroFechaPedidos) return pedidos;
         
-        // Parseamos la fecha del input (YYYY-MM-DD) y la ajustamos
         const [year, month, day] = filtroFechaPedidos.split('-').map(Number);
         const targetDate = new Date(year, month - 1, day);
-        targetDate.setHours(0, 0, 0, 0); // La ponemos a medianoche local
+        targetDate.setHours(0, 0, 0, 0); 
 
         return pedidos.filter(ped => {
             const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
-            // Comparamos los milisegundos de ambas fechas a medianoche
             return infoRuta.fechaRaw && infoRuta.fechaRaw.getTime() === targetDate.getTime();
         });
     }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos]);
 
+    // 🔥 LÓGICA DE CARTERA (FILTROS Y KPIS) 🔥
+    const creditosFiltrados = useMemo(() => {
+        return creditos.filter(c => {
+            const coincideNombre = c.Usuario?.nombre.toLowerCase().includes(searchTermCartera.toLowerCase()) || 
+                                   c.descripcion?.toLowerCase().includes(searchTermCartera.toLowerCase());
+            const coincideEstado = filtroEstadoCartera === 'TODOS' || c.estado === filtroEstadoCartera;
+            return coincideNombre && coincideEstado;
+        });
+    }, [creditos, searchTermCartera, filtroEstadoCartera]);
+
+    const statsCartera = useMemo(() => {
+        let porCobrar = 0;
+        let fiadoTotal = 0;
+        creditos.forEach(c => {
+            if(c.estado === 'VIGENTE') porCobrar += parseFloat(c.saldo);
+            fiadoTotal += parseFloat(c.monto_total);
+        });
+        return { porCobrar, fiadoTotal };
+    }, [creditos]);
+
+    // Lógicas de Exportar y Acciones Normales (Ocultas por espacio, mismas de antes)
     const exportarManifiestoCarga = async () => {
         const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
         if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
@@ -480,6 +511,41 @@ const AdminDashboard = () => {
     const handleGuardarTransaccion = async (e) => { e.preventDefault(); setEnviando(true); try { if (transaccionSeleccionada) { await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto); toast.success("Transacción actualizada correctamente"); } else { await API.post('/contabilidad/gasto', formGasto); toast.success("Transacción registrada en el libro mayor"); } setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); fetchDatos(); } catch (err) { toast.error("Error al guardar la transacción"); } finally { setEnviando(false); } };
     const handleEliminarTransaccion = async () => { try { await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`); setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada"); } catch (err) { toast.error("Error al eliminar la transacción"); } };
 
+    // 🔥 FUNCIONES DE CARTERA 🔥
+    const handleCrearCredito = async (e) => {
+        e.preventDefault();
+        setEnviando(true);
+        try {
+            await API.post('/creditos', formCredito);
+            toast.success("Crédito registrado con éxito");
+            setShowCreditoModal(false);
+            setFormCredito({ usuarioId: '', monto_total: '', descripcion: '' });
+            fetchDatos();
+        } catch (err) {
+            toast.error(err.response?.data?.error || "Error al crear el crédito");
+        } finally {
+            setEnviando(false);
+        }
+    };
+
+    const handleRegistrarAbono = async (e) => {
+        e.preventDefault();
+        setEnviando(true);
+        try {
+            await API.post(`/creditos/${creditoSeleccionado.id}/abono`, formAbono);
+            toast.success("Abono registrado. Finanzas actualizadas.");
+            setShowAbonoModal(false);
+            setCreditoSeleccionado(null);
+            setFormAbono({ monto: '', nota: '' });
+            fetchDatos();
+        } catch (err) {
+            toast.error(err.response?.data?.error || "Error al registrar el abono");
+        } finally {
+            setEnviando(false);
+        }
+    };
+
+
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
     const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...rutasDinamicas.map(r => r.dia_ruta)])];
 
@@ -492,7 +558,8 @@ const AdminDashboard = () => {
                 </div>
                 <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-3 w-full md:w-auto">
                     {tab === 'finanzas' && (<button onClick={() => { setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); setShowGastoModal(true); }} className="col-span-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-500/30 uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><ArrowDownRight size={16} /> Movimiento Manual</button>)}
-                    <button onClick={exportarManifiestoCarga} className={`${tab === 'finanzas' ? 'col-span-1' : 'col-span-2'} bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/30 uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95`}><Truck size={16} /> Extraer Ruta</button>
+                    {tab === 'cartera' && (<button onClick={() => setShowCreditoModal(true)} className="col-span-2 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><HandCoins size={16} /> Nuevo Crédito (Fiar)</button>)}
+                    <button onClick={exportarManifiestoCarga} className={`${(tab === 'finanzas' || tab === 'cartera') ? 'col-span-1' : 'col-span-2'} bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/30 uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95`}><Truck size={16} /> Extraer Ruta</button>
                     {tab === 'productos' && (<button onClick={() => { setProductoEditando(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 }); setPrecioCalculado(0); setShowModal(true); }} className="col-span-1 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Plus size={16} /> Producto</button>)}
                     {tab === 'clientes' && (<button onClick={() => setShowUsuarioModal(true)} className="col-span-1 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Users size={16} /> Cliente</button>)}
                     <button onClick={() => setShowConfigModal(true)} className="col-span-1 bg-gray-200 hover:bg-gray-300 text-gray-900 px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Settings size={16} /> Ajustes</button>
@@ -504,13 +571,24 @@ const AdminDashboard = () => {
                 <StatCard title="Pedidos Pendientes" value={kpis.pendientes} subtitle="Listos para ruta" icon={<Clock />} color="bg-amber-100 text-amber-600" />
                 <StatCard title="Total Pedidos" value={pedidos.length} subtitle="Histórico completo" icon={<ShoppingCart />} color="bg-blue-100 text-blue-600" />
                 <StatCard title="Clientes Registrados" value={usuarios.length} subtitle="En base de datos" icon={<Users />} color="bg-purple-100 text-purple-600" />
-                <StatCard title="Total Productos" value={statsProductos.total} subtitle="En inventario" icon={<Package />} color="bg-indigo-100 text-indigo-600" />
-                <StatCard title="Stock Bajo" value={statsProductos.stockBajo} subtitle="Requieren atención" icon={<AlertTriangle />} color="bg-red-100 text-red-600" />
+                
+                {/* SI ESTAMOS EN CARTERA MOSTRAMOS STATS DE CARTERA, SI NO DE PRODUCTOS */}
+                {tab === 'cartera' ? (
+                    <>
+                        <StatCard title="Cuentas por Cobrar" value={`$${formatCurrency(statsCartera.porCobrar)}`} subtitle="Deuda pendiente total" icon={<HandCoins />} color="bg-red-100 text-red-600" />
+                        <StatCard title="Total Histórico Fiado" value={`$${formatCurrency(statsCartera.fiadoTotal)}`} subtitle="Lo que has fiado" icon={<ReceiptText />} color="bg-orange-100 text-orange-600" />
+                    </>
+                ) : (
+                    <>
+                        <StatCard title="Total Productos" value={statsProductos.total} subtitle="En inventario" icon={<Package />} color="bg-indigo-100 text-indigo-600" />
+                        <StatCard title="Stock Bajo" value={statsProductos.stockBajo} subtitle="Requieren atención" icon={<AlertTriangle />} color="bg-red-100 text-red-600" />
+                    </>
+                )}
             </div>
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
-                    {['reportes', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => (
+                    {['reportes', 'finanzas', 'cartera', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => (
                         <button key={t} onClick={() => setTab(t)} className={`px-4 md:px-8 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${tab === t ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>{t === 'reportes' ? 'Analíticas' : t}</button>
                     ))}
                 </div>
@@ -521,9 +599,61 @@ const AdminDashboard = () => {
                         <div className="relative flex-1 md:w-64"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="BUSCAR..." value={searchTerm || ''} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none shadow-sm" /></div>
                     </div>
                 )}
+                {tab === 'cartera' && (
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 md:gap-4 w-full md:w-auto">
+                        <select value={filtroEstadoCartera} onChange={(e) => setFiltroEstadoCartera(e.target.value)} className="px-4 py-3 bg-white border border-gray-200 rounded-xl font-black uppercase text-[10px] outline-none shadow-sm cursor-pointer text-gray-600">
+                            <option value="TODOS">Todas las deudas</option>
+                            <option value="VIGENTE">Vigentes (Por Cobrar)</option>
+                            <option value="PAGADO">Pagadas</option>
+                        </select>
+                        <div className="relative flex-1 md:w-64"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar cliente..." value={searchTermCartera || ''} onChange={(e) => setSearchTermCartera(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none shadow-sm" /></div>
+                    </div>
+                )}
             </div>
 
             <div className="animate-in fade-in duration-500">
+                {/* VISTA DE CARTERA */}
+                {tab === 'cartera' && (
+                    <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left min-w-[700px]">
+                            <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-[0.2em] border-b border-gray-100">
+                                <tr><th className="px-4 py-4 md:px-8 md:py-6">Cliente</th><th className="px-4 py-4 md:px-8 md:py-6">Detalle / Fecha</th><th className="px-4 py-4 md:px-8 md:py-6 text-center">Estado</th><th className="px-4 py-4 md:px-8 md:py-6 text-right">Saldo Deuda</th><th className="px-4 py-4 md:px-8 md:py-6 text-right">Acción</th></tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {creditosFiltrados.length === 0 ? (<tr><td colSpan="5" className="py-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">No hay créditos registrados.</td></tr>) : (
+                                    creditosFiltrados.map(c => (
+                                        <tr key={c.id} className="group hover:bg-gray-50/50 transition-all">
+                                            <td className="px-4 py-4 md:px-8 md:py-5">
+                                                <p className="font-black text-gray-900 uppercase text-[10px] md:text-xs">{c.Usuario?.nombre || 'Desconocido'}</p>
+                                                <p className="text-[8px] md:text-[9px] text-gray-500 font-bold uppercase tracking-widest">ID Crédito: #{c.id}</p>
+                                            </td>
+                                            <td className="px-4 py-4 md:px-8 md:py-5">
+                                                <p className="text-[10px] md:text-xs text-gray-700 font-medium line-clamp-1">{c.descripcion}</p>
+                                                <p className="text-[8px] md:text-[9px] text-gray-400 font-bold uppercase mt-1">{new Date(c.fecha).toLocaleDateString()}</p>
+                                            </td>
+                                            <td className="px-4 py-4 md:px-8 md:py-5 text-center">
+                                                <span className={`text-[8px] md:text-[9px] font-black uppercase px-2 py-1 md:px-3 rounded-lg ${c.estado === 'VIGENTE' ? 'bg-red-50 text-red-500' : 'bg-green-50 text-green-600'}`}>{c.estado}</span>
+                                            </td>
+                                            <td className="px-4 py-4 md:px-8 md:py-5 text-right">
+                                                <p className={`font-black text-sm md:text-base italic ${c.estado === 'VIGENTE' ? 'text-red-600' : 'text-gray-400 line-through'}`}>${formatCurrency(c.saldo)}</p>
+                                                <p className="text-[7px] md:text-[8px] text-gray-400 font-bold uppercase tracking-widest">Total: ${formatCurrency(c.monto_total)}</p>
+                                            </td>
+                                            <td className="px-4 py-4 md:px-8 md:py-5 text-right">
+                                                {c.estado === 'VIGENTE' && (
+                                                    <button onClick={() => { setCreditoSeleccionado(c); setShowAbonoModal(true); }} className="bg-green-100 text-green-700 hover:bg-green-600 hover:text-white px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 flex items-center gap-1.5 ml-auto">
+                                                        <HandCoins size={14} /> Abonar
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* VISTAS NORMALES */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -704,7 +834,6 @@ const AdminDashboard = () => {
 
                 {tab === 'pedidos' && (
                     <>
-                        {/* 🔥 NUEVO FILTRO DE PEDIDOS POR FECHA 🔥 */}
                         <div className="flex justify-end mb-4 items-center gap-3">
                             <div className="flex items-center gap-2 bg-white border border-blue-200 p-1.5 rounded-xl shadow-sm">
                                 <div className="bg-blue-50 p-2 rounded-lg text-blue-600">
@@ -785,9 +914,94 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* MODALES */}
+            {/* MODALES EXTRAS Y DE CARTERA */}
 
-            {/* 🔥 NUEVO MODAL: DAR DE BAJA / MERMA 🔥 */}
+            {/* 🔥 NUEVO MODAL: CREAR CRÉDITO (FIAR) 🔥 */}
+            {showCreditoModal && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
+                        <button onClick={() => setShowCreditoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
+                        
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <HandCoins size={24} className="md:w-8 md:h-8"/>
+                        </div>
+                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Fiar a Cliente</h3>
+                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Registrar nueva deuda</p>
+                        
+                        <form onSubmit={handleCrearCredito} className="space-y-4 md:space-y-5 text-left">
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Cliente Deudor</label>
+                                <select required className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-gray-900 outline-none focus:ring-2 focus:ring-black text-xs md:text-sm cursor-pointer" value={formCredito.usuarioId} onChange={e => setFormCredito({...formCredito, usuarioId: e.target.value})}>
+                                    <option value="" disabled>Selecciona un cliente</option>
+                                    {usuarios.map(u => (
+                                        <option key={u.id} value={u.id}>{u.nombre} - CC: {u.cedula || 'N/A'}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Monto a Fiar ($)</label>
+                                <input required type="number" step="0.01" min="1" placeholder="Ej: 150000" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-black text-sm" value={formCredito.monto_total} onChange={e => setFormCredito({...formCredito, monto_total: e.target.value})} />
+                            </div>
+
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Concepto / Descripción</label>
+                                <input required type="text" placeholder="Ej: Mercancía de Noviembre" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-black text-xs md:text-sm" value={formCredito.descripcion} onChange={e => setFormCredito({...formCredito, descripcion: e.target.value})} />
+                            </div>
+                            
+                            <button disabled={enviando} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-black text-white hover:bg-blue-600 transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50">
+                                {enviando ? <Loader2 className="animate-spin" /> : 'Crear Crédito'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* 🔥 NUEVO MODAL: REGISTRAR ABONO (PAGO) 🔥 */}
+            {showAbonoModal && creditoSeleccionado && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
+                        <button onClick={() => setShowAbonoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
+                        
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <DollarSign size={24} className="md:w-8 md:h-8"/>
+                        </div>
+                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Recibir Abono</h3>
+                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center line-clamp-1">{creditoSeleccionado.Usuario?.nombre}</p>
+                        
+                        <form onSubmit={handleRegistrarAbono} className="space-y-4 md:space-y-5 text-left">
+                            <div className="flex items-center justify-between bg-red-50 p-3 rounded-xl border border-red-100">
+                                <span className="text-[9px] md:text-[10px] font-black text-red-400 uppercase tracking-widest">Deuda Actual:</span>
+                                <span className="text-sm md:text-base font-black italic text-red-600">${formatCurrency(creditoSeleccionado.saldo)}</span>
+                            </div>
+                            
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">¿Cuánto pagó hoy?</label>
+                                <input required type="number" step="0.01" min="1" max={creditoSeleccionado.saldo} placeholder={`Máximo $${creditoSeleccionado.saldo}`} className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-green-500 text-sm text-green-700" value={formAbono.monto} onChange={e => setFormAbono({...formAbono, monto: e.target.value})} />
+                            </div>
+
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Nota (Opcional)</label>
+                                <input type="text" placeholder="Ej: Efectivo, Transferencia Bancolombia..." className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-green-500 text-xs md:text-sm" value={formAbono.nota} onChange={e => setFormAbono({...formAbono, nota: e.target.value})} />
+                            </div>
+
+                            <div className="bg-green-50 p-4 rounded-xl md:rounded-2xl border border-green-100 flex justify-between items-center mt-2">
+                                <div>
+                                    <p className="text-[8px] md:text-[9px] font-black text-green-600 uppercase">Impacto Contable</p>
+                                    <p className="text-[7px] md:text-[8px] font-bold text-green-500 uppercase">Se registrará como ingreso</p>
+                                </div>
+                                <p className="text-lg md:text-xl font-black text-green-600 italic">+${formatCurrency(formAbono.monto || 0)}</p>
+                            </div>
+                            
+                            <button disabled={enviando || parseFloat(formAbono.monto || 0) <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-green-600 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50 active:scale-95">
+                                {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Abono'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* RESTO DE LOS MODALES */}
             {showBajaModal && productoBaja && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
@@ -1065,7 +1279,7 @@ const AdminDashboard = () => {
                             <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Ciudad</label><input type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.ciudad || ''} onChange={e => setFormEditUsuario({...formEditUsuario, ciudad: e.target.value})} /></div>
                             <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Rol del Sistema</label>
                                 <select className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.rol || 'CLIENTE'} onChange={e => setFormEditUsuario({...formEditUsuario, rol: e.target.value})}>
-                                    <option value="CLIENTE">CLIENTE REGULAR</option><option value="ADMIN">ADMINISTRADOR</option>
+                                    <option value="CLIENTE">CLIENTE REGULAR</option><option value="ADMIN">ADMINISTRADOR</option><option value="COMPRAS">ENCARGADO DE COMPRAS</option>
                                 </select>
                             </div>
                             <div className="sm:col-span-2"><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Dirección Exacta</label><textarea rows="2" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 resize-none text-xs md:text-sm" value={formEditUsuario.direccion || ''} onChange={e => setFormEditUsuario({...formEditUsuario, direccion: e.target.value})} /></div>
