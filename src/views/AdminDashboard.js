@@ -2,142 +2,24 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import API from '../services/api';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { io } from "socket.io-client";
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     AreaChart, Area
 } from 'recharts';
 import { 
-    Plus, Edit, Trash2, Package, ShoppingCart, Search, 
-    TrendingUp, AlertTriangle, X, Loader2, CheckCircle2,
-    Image as ImageIcon, FileSpreadsheet, Eye, Truck, Printer,
-    CalendarDays, Activity, DollarSign, Clock, Users, User, Key, Briefcase, Award, Calculator, Settings,
-    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, ArrowLeftRight, PackageMinus, Banknote, FileText,
-    Receipt, History, ChevronRight
+    Plus, Package, ShoppingCart, Search, 
+    AlertTriangle, Loader2, FileSpreadsheet, Eye, Truck,
+    CalendarDays, Activity, DollarSign, Clock, Users, Settings,
+    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
+    Receipt
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
+import AdminModals from '../components/admin/AdminModals';
+import { formatCurrency, formatearImagen, calcularFechaReal } from '../utils/adminUtils';
 
-// --- CONFIGURACIÓN DE URLS ---
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
-
-const formatCurrency = (valor) => {
-    return Number(valor || 0).toLocaleString('es-CO', {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2
-    });
-};
-
-const RUTAS_BASE = [
-    "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"
-];
-
-const formatearImagen = (url) => {
-    if (!url) return 'https://placehold.co/150';
-    let urlLimpia = url;
-    if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
-        urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
-    }
-    if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
-        return urlLimpia;
-    }
-    const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
-    return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
-};
-
-const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
-    let diaRuta = rutaGuardada;
-    const fechaMaxima = new Date(8640000000000000); 
-    
-    if (!diaRuta || diaRuta.toUpperCase() === "A CONVENIR") {
-        const textoCliente = `${ciudadCliente || ''} ${direccionCliente || ''}`.toUpperCase();
-        let matchEncontrado = null;
-        for (const ruta of rutasDB) {
-            const palabrasClave = (ruta.ciudad || '').toUpperCase().split(',').map(c => c.trim());
-            if (palabrasClave.some(palabra => palabra !== '' && textoCliente.includes(palabra))) {
-                matchEncontrado = ruta.dia_ruta;
-                break;
-            }
-        }
-        if (!matchEncontrado) {
-            const MAPA_RUTAS_DEFECTO = {
-                "CHIGORODO": "Lunes", "CAREPA": "Lunes", "MUTATA": "Martes", "PAVARANDO": "Martes",
-                "BAJIRA": "Miércoles", "PLAYA ROJA": "Miércoles", "APARTADO": "Jueves", "TURBO": "Jueves",
-                "NECOCLI": "Viernes", "ARBOLETES": "Viernes"
-            };
-            for (const [ciudadMap, diaMap] of Object.entries(MAPA_RUTAS_DEFECTO)) {
-                if (textoCliente.includes(ciudadMap)) {
-                    matchEncontrado = diaMap; break;
-                }
-            }
-        }
-        diaRuta = matchEncontrado || "A CONVENIR";
-    }
-
-    if (diaRuta.toUpperCase() === "A CONVENIR") return { diaNombre: "A CONVENIR", fechaFormateada: "Por coordinar con cliente", fechaRaw: fechaMaxima };
-
-    const mapDias = { "DOMINGO": 0, "LUNES": 1, "MARTES": 2, "MIÉRCOLES": 3, "MIERCOLES": 3, "JUEVES": 4, "VIERNES": 5, "SÁBADO": 6, "SABADO": 6 };
-    const diaDestino = mapDias[diaRuta.toUpperCase()];
-    
-    if (diaDestino === undefined) return { diaNombre: diaRuta, fechaFormateada: diaRuta, fechaRaw: fechaMaxima };
-
-    const fechaBase = fechaCreacionStr ? new Date(fechaCreacionStr) : new Date();
-    const diaActual = fechaBase.getDay(); 
-    let diasFaltantes = diaDestino - diaActual;
-
-    if (diasFaltantes < 0) diasFaltantes += 7; 
-    if (diasFaltantes === 0) diasFaltantes += 7; 
-    else if (diasFaltantes === 1) {
-        const [limiteHora, limiteMinuto] = horaLimite.split(':').map(Number);
-        const horaPedido = fechaBase.getHours();
-        const minutoPedido = fechaBase.getMinutes();
-        if (horaPedido > limiteHora || (horaPedido === limiteHora && minutoPedido >= limiteMinuto)) {
-            diasFaltantes += 7; 
-        }
-    }
-
-    const fechaEntrega = new Date(fechaBase);
-    fechaEntrega.setDate(fechaBase.getDate() + diasFaltantes);
-    fechaEntrega.setHours(0, 0, 0, 0); 
-
-    return { 
-        diaNombre: diaRuta, 
-        fechaFormateada: fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' }),
-        fechaRaw: fechaEntrega 
-    };
-};
-
-const imprimirFacturaCliente = (pedido, rutasDinamicas = [], horaLimiteGlobal) => {
-    toast.success("Generando PDF de la factura...");
-    const doc = new jsPDF();
-    doc.setFillColor(0, 0, 0); doc.rect(0, 0, 210, 35, 'F'); 
-    doc.setFontSize(24); doc.setFont("helvetica", "bold"); doc.setTextColor(255, 255, 255); doc.text("MODERN SHOP S.A.C.", 14, 18);
-    doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text("ORDEN DE ENTREGA Y FACTURA DE VENTA", 14, 26);
-    doc.setTextColor(0, 0, 0); doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("DATOS DEL CLIENTE", 14, 45);
-    const nombreCliente = pedido.Usuario?.nombre || pedido.cliente || 'Consumidor Final';
-    doc.setFontSize(10); doc.setFont("helvetica", "normal");
-    doc.text(`Nombre: ${nombreCliente}`, 14, 52);
-    doc.text(`Dirección: ${pedido.direccion || pedido.Usuario?.direccion || 'A Convenir'}`, 14, 58);
-    doc.text(`Ciudad/Zona: ${pedido.Usuario?.ciudad || pedido.ruta || 'Urabá Antioquia'}`, 14, 64);
-    const infoRuta = calcularFechaReal(pedido.ruta, pedido.Usuario?.ciudad, pedido.direccion, rutasDinamicas, pedido.fecha, horaLimiteGlobal);
-    doc.setFont("helvetica", "bold"); doc.text(`N° DE ORDEN: #${pedido.id}`, 130, 45);
-    doc.setFont("helvetica", "normal"); doc.text(`Fecha Pedido: ${new Date(pedido.fecha || new Date()).toLocaleDateString('es-ES')}`, 130, 52);
-    doc.text(`Estado: ${(pedido.estado || 'Pendiente').toUpperCase()}`, 130, 58);
-    doc.setFont("helvetica", "bold"); doc.text(`Entrega: ${infoRuta.fechaFormateada}`, 130, 64); 
-    const tableRows = (pedido.Detalles || pedido.items || []).map(item => {
-        const nombreItem = item.Producto?.nombre || item.nombre || 'Item';
-        const precioUnitario = parseFloat(item.precioUnitario || item.precio || 0);
-        const subtotal = item.cantidad * precioUnitario;
-        return [item.cantidad, nombreItem.toUpperCase(), `$${formatCurrency(precioUnitario)}`, `$${formatCurrency(subtotal)}`];
-    });
-    autoTable(doc, { startY: 75, head: [['CANT', 'PRODUCTO / REFERENCIA', 'PRECIO UNITARIO', 'SUBTOTAL']], body: tableRows, theme: 'striped', headStyles: { fillColor: [0, 0, 0], textColor: [255,255,255], fontStyle: 'bold' }, styles: { fontSize: 9, cellPadding: 5 } });
-    const finalY = doc.lastAutoTable.finalY || 75;
-    doc.setFillColor(248, 250, 252); doc.rect(120, finalY + 5, 75, 12, 'F'); doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.text(`TOTAL: $${formatCurrency(pedido.total)}`, 125, finalY + 13);
-    doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.line(14, finalY + 50, 80, finalY + 50); doc.text("Firma de Recibido a Conformidad", 14, finalY + 55); doc.text(`C.C: _______________________`, 14, finalY + 62); doc.line(110, finalY + 50, 180, finalY + 50); doc.text("Entregado por (Firma del Conductor)", 110, finalY + 55);
-    doc.setFontSize(8); doc.setTextColor(150, 150, 150); doc.text("Gracias por elegirnos Dios te bendiga. Este documento avala la entrega de los productos.", 14, 280);
-    const nombreArchivoSeguro = nombreCliente.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''); doc.save(`Factura_${nombreArchivoSeguro}_ModernShop_Orden${pedido.id}.pdf`); 
-};
+const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
 
 const StatCard = ({ title, value, icon, color, subtitle }) => (
     <div className="bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm group hover:border-black transition-all duration-300">
@@ -149,29 +31,32 @@ const StatCard = ({ title, value, icon, color, subtitle }) => (
 );
 
 const AdminDashboard = () => {
-    // ESTADOS GLOBALES
+    // --- ESTADOS ---
     const [productos, setProductos] = useState([]);
     const [pedidos, setPedidos] = useState([]);
     const [categorias, setCategorias] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
     const [rutasDinamicas, setRutasDinamicas] = useState([]); 
     const [creditos, setCreditos] = useState([]); 
+    const [transacciones, setTransacciones] = useState([]);
+    const [finanzas, setFinanzas] = useState({ ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 });
+    const [whatsappTienda, setWhatsappTienda] = useState('');
+    const [horaLimite, setHoraLimite] = useState('20:00'); 
+    
     const [tab, setTab] = useState('reportes'); 
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
     
-    // Filtros
+    // --- FILTROS ---
     const [searchTerm, setSearchTerm] = useState('');
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
     const [filtroFechaPedidos, setFiltroFechaPedidos] = useState(''); 
     const [searchTermCartera, setSearchTermCartera] = useState(''); 
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('VIGENTE'); 
+    const [mesFiltroContable, setMesFiltroContable] = useState('Todos');
 
-    const [whatsappTienda, setWhatsappTienda] = useState('');
-    const [horaLimite, setHoraLimite] = useState('20:00'); 
-    
-    // Modales Base
+    // --- MODALES (STATES Y SETTERS PARA AdminModals) ---
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showBajaModal, setShowBajaModal] = useState(false);
@@ -183,32 +68,29 @@ const AdminDashboard = () => {
     const [showGastoModal, setShowGastoModal] = useState(false);
     const [showEditTransaccionModal, setShowEditTransaccionModal] = useState(false);
     const [showDeleteTransaccionModal, setShowDeleteTransaccionModal] = useState(false);
-    
-    // 🔥 MODALES CARTERA Y LIQUIDACIÓN 🔥
     const [showCreditoModal, setShowCreditoModal] = useState(false);
     const [showAbonoModal, setShowAbonoModal] = useState(false);
-    const [creditoSeleccionado, setCreditoSeleccionado] = useState(null);
-    const [clienteEstadoCuenta, setClienteEstadoCuenta] = useState(null);
-    
-    // NUEVO ESTADO: LIQUIDADOR DE PEDIDOS
     const [showCobroModal, setShowCobroModal] = useState(false);
-    const [pedidoACobrar, setPedidoACobrar] = useState(null);
-
+    
+    // --- SELECCIONES ---
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
-    const [nuevaRutaPersonalizada, setNuevaRutaPersonalizada] = useState('');
-    const [rutasDisponibles, setRutasDisponibles] = useState(RUTAS_BASE);
-    const [nuevaRutaCiudad, setNuevaRutaCiudad] = useState('');
-    const [nuevaRutaDia, setNuevaRutaDia] = useState('');
     const [productoEditando, setProductoEditando] = useState(null);
     const [productoAEliminar, setProductoAEliminar] = useState(null);
     const [productoBaja, setProductoBaja] = useState(null);
     const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
     const [usuarioAEliminar, setUsuarioAEliminar] = useState(null);
+    const [creditoSeleccionado, setCreditoSeleccionado] = useState(null);
+    const [clienteEstadoCuenta, setClienteEstadoCuenta] = useState(null);
+    const [pedidoACobrar, setPedidoACobrar] = useState(null);
     const [imagenArchivo, setImagenArchivo] = useState(null);
     const [preview, setPreview] = useState(null);
     const [precioCalculado, setPrecioCalculado] = useState(0);
-    
-    // Formularios
+
+    // --- FORMS ---
+    const [nuevaRutaPersonalizada, setNuevaRutaPersonalizada] = useState('');
+    const [nuevaRutaCiudad, setNuevaRutaCiudad] = useState('');
+    const [nuevaRutaDia, setNuevaRutaDia] = useState('');
+    const [nuevaPassword, setNuevaPassword] = useState('');
     const [formulario, setFormulario] = useState({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 });
     const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
     const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
@@ -216,11 +98,10 @@ const AdminDashboard = () => {
     const [formBaja, setFormBaja] = useState({ cantidad: 1, motivo: 'Dañado/Roto' });
     const [formCredito, setFormCredito] = useState({ usuarioId: '', monto_total: '', descripcion: '' });
     const [formAbono, setFormAbono] = useState({ monto: '', nota: '' });
-    const [nuevaPassword, setNuevaPassword] = useState('');
-    const [finanzas, setFinanzas] = useState({ ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 });
-    const [transacciones, setTransacciones] = useState([]);
-    const [mesFiltroContable, setMesFiltroContable] = useState('Todos');
 
+    const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...rutasDinamicas.map(r => r.dia_ruta)])];
+
+    // --- CARGA DE DATOS ---
     const fetchDatos = useCallback(async () => {
         try {
             const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos] = await Promise.all([
@@ -236,9 +117,6 @@ const AdminDashboard = () => {
             setFinanzas(resFinanzas.data); setTransacciones(resTransacciones.data); setRutasDinamicas(resRutas.data || []);
             setHoraLimite(resHora.data.hora || '20:00');
             setCreditos(resCreditos.data || []); 
-            const rutasExtraPed = (resPed.data || []).map(p => p.ruta).filter(r => r && !RUTAS_BASE.includes(r));
-            const rutasExtraBD = (resRutas.data || []).map(r => r.dia_ruta);
-            setRutasDisponibles([...new Set([...RUTAS_BASE, ...rutasExtraPed, ...rutasExtraBD])]);
         } catch (err) { toast.error("Error de sincronización"); } finally { setLoading(false); }
     }, []);
 
@@ -256,6 +134,7 @@ const AdminDashboard = () => {
         return () => { if(socket) socket.disconnect(); };
     }, [fetchDatos]);
 
+    // --- LÓGICAS CALCULADAS (MEMOS) ---
     useEffect(() => {
         const costoBase = parseFloat(formulario.costo_compra) || 0; const margen = parseFloat(formulario.margen_ganancia) || 0;
         if (!productoEditando) { setPrecioCalculado(costoBase + (costoBase * (margen / 100)) || 0); } else {
@@ -279,9 +158,7 @@ const AdminDashboard = () => {
     }, [pedidos]);
 
     const statsProductos = useMemo(() => {
-        const total = productos.length;
-        const stockBajo = productos.filter(p => parseInt(p.stock) <= (parseInt(p.tope_stock) || 10)).length;
-        return { total, stockBajo };
+        return { total: productos.length, stockBajo: productos.filter(p => parseInt(p.stock) <= (parseInt(p.tope_stock) || 10)).length };
     }, [productos]);
 
     const dataVentasMensuales = useMemo(() => {
@@ -357,9 +234,7 @@ const AdminDashboard = () => {
 
     const clientesCartera = useMemo(() => {
         const mapa = {};
-        usuarios.forEach(u => {
-            mapa[u.id] = { ...u, creditos: [], pedidos: [], totalDeuda: 0, totalFiado: 0 };
-        });
+        usuarios.forEach(u => { mapa[u.id] = { ...u, creditos: [], pedidos: [], totalDeuda: 0, totalFiado: 0 }; });
         creditos.forEach(c => {
             if (mapa[c.usuarioId]) {
                 mapa[c.usuarioId].creditos.push(c);
@@ -367,34 +242,23 @@ const AdminDashboard = () => {
                 mapa[c.usuarioId].totalFiado += parseFloat(c.monto_total);
             }
         });
-        pedidos.forEach(p => {
-            if (mapa[p.usuarioId || p.usuario_id]) {
-                mapa[p.usuarioId || p.usuario_id].pedidos.push(p);
-            }
-        });
-        return Object.values(mapa)
-            .filter(c => c.creditos.length > 0 || c.pedidos.length > 0)
+        pedidos.forEach(p => { if (mapa[p.usuarioId || p.usuario_id]) mapa[p.usuarioId || p.usuario_id].pedidos.push(p); });
+        return Object.values(mapa).filter(c => c.creditos.length > 0 || c.pedidos.length > 0)
             .filter(c => {
                 if(!searchTermCartera) return true;
                 const termino = searchTermCartera.toLowerCase();
                 return (c.nombre || '').toLowerCase().includes(termino) || (c.cedula || '').includes(termino);
-            })
-            .filter(c => {
+            }).filter(c => {
                 if(filtroEstadoCartera === 'TODOS') return true;
                 if(filtroEstadoCartera === 'VIGENTE') return c.totalDeuda > 0;
                 if(filtroEstadoCartera === 'PAGADO') return c.totalDeuda === 0 && c.creditos.length > 0;
                 return true;
-            })
-            .sort((a, b) => b.totalDeuda - a.totalDeuda);
+            }).sort((a, b) => b.totalDeuda - a.totalDeuda);
     }, [usuarios, creditos, pedidos, searchTermCartera, filtroEstadoCartera]);
 
     const statsCartera = useMemo(() => {
-        let porCobrar = 0;
-        let fiadoTotal = 0;
-        creditos.forEach(c => {
-            if(c.estado === 'VIGENTE') porCobrar += parseFloat(c.saldo);
-            fiadoTotal += parseFloat(c.monto_total);
-        });
+        let porCobrar = 0, fiadoTotal = 0;
+        creditos.forEach(c => { if(c.estado === 'VIGENTE') porCobrar += parseFloat(c.saldo); fiadoTotal += parseFloat(c.monto_total); });
         return { porCobrar, fiadoTotal };
     }, [creditos]);
 
@@ -402,46 +266,6 @@ const AdminDashboard = () => {
         if(!clienteEstadoCuenta) return null;
         return clientesCartera.find(c => c.id === clienteEstadoCuenta.id);
     }, [clienteEstadoCuenta, clientesCartera]);
-
-    const exportarManifiestoCarga = async () => {
-        const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
-        if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
-        const pedidosConInfoFecha = pedidosPendientes.map(p => ({
-            ...p,
-            infoCalculada: calcularFechaReal(p.ruta, p.Usuario?.ciudad, p.direccion, rutasDinamicas, p.fecha, horaLimite)
-        }));
-        const pedidosConRutaProgramada = pedidosConInfoFecha.filter(p => p.infoCalculada.diaNombre !== "A CONVENIR");
-        if (pedidosConRutaProgramada.length === 0) return toast.error("Solo hay pedidos 'A CONVENIR'. Asígnales un día primero.");
-        pedidosConRutaProgramada.sort((a, b) => a.infoCalculada.fechaRaw - b.infoCalculada.fechaRaw);
-        const fechaProximaStr = pedidosConRutaProgramada[0].infoCalculada.fechaFormateada;
-        const pedidosParaExportar = pedidosConRutaProgramada.filter(p => p.infoCalculada.fechaFormateada === fechaProximaStr);
-        const loadId = toast.loading(`Empaquetando ruta de ${fechaProximaStr}...`);
-        const datosExcel = [];
-        try {
-            for (const ped of pedidosParaExportar) {
-                const info = ped.infoCalculada;
-                const items = ped.Detalles || [];
-                for (const item of items) {
-                    const nombreProd = item.Producto?.nombre || 'Producto sin nombre';
-                    const descripcionProd = item.Producto?.descripcion || 'Sin descripción';
-                    datosExcel.push({
-                        "DÍA ASIGNADO": info.diaNombre.toUpperCase(), "FECHA EXACTA": info.fechaFormateada, "CLIENTE": ped.Usuario?.nombre || 'Consumidor Final',
-                        "CIUDAD DESTINO": ped.Usuario?.ciudad || 'N/A', "DIRECCIÓN EXACTA": ped.direccion || ped.Usuario?.direccion || 'N/A',
-                        "TELÉFONO": ped.Usuario?.telefono || 'N/A', "PEDIDO ID": `#${ped.id}`, "PRODUCTO": nombreProd.toUpperCase(),
-                        "DESCRIPCIÓN": descripcionProd, "CANTIDAD": item.cantidad
-                    });
-                }
-                await API.put(`/pedidos/${ped.id}/estado`, { estado: 'Enviado' });
-            }
-            const ws = XLSX.utils.json_to_sheet(datosExcel); 
-            const wb = XLSX.utils.book_new(); 
-            XLSX.utils.book_append_sheet(wb, ws, "Manifiesto_Ruta"); 
-            const nombreLimpio = fechaProximaStr.replace(/[, ]+/g, '_').toUpperCase();
-            XLSX.writeFile(wb, `RUTA_TRABAJO_${nombreLimpio}.xlsx`);
-            fetchDatos(); 
-            toast.success(`Ruta generada para el ${fechaProximaStr}`, { id: loadId });
-        } catch (err) { toast.error("Error procesando ruta", { id: loadId }); }
-    };
 
     const productosFiltrados = useMemo(() => {
         if (!Array.isArray(productos)) return [];
@@ -452,6 +276,39 @@ const AdminDashboard = () => {
             return coincideNombre && coincideCat && coincideStock;
         });
     }, [productos, searchTerm, filtroCategoria, filtroStockBajo]);
+
+    // --- HANDLERS ---
+    const exportarManifiestoCarga = async () => {
+        const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
+        if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
+        const pedidosConInfoFecha = pedidosPendientes.map(p => ({
+            ...p, infoCalculada: calcularFechaReal(p.ruta, p.Usuario?.ciudad, p.direccion, rutasDinamicas, p.fecha, horaLimite)
+        }));
+        const pedidosConRutaProgramada = pedidosConInfoFecha.filter(p => p.infoCalculada.diaNombre !== "A CONVENIR");
+        if (pedidosConRutaProgramada.length === 0) return toast.error("Solo hay pedidos 'A CONVENIR'. Asígnales un día primero.");
+        pedidosConRutaProgramada.sort((a, b) => a.infoCalculada.fechaRaw - b.infoCalculada.fechaRaw);
+        const fechaProximaStr = pedidosConRutaProgramada[0].infoCalculada.fechaFormateada;
+        const pedidosParaExportar = pedidosConRutaProgramada.filter(p => p.infoCalculada.fechaFormateada === fechaProximaStr);
+        const loadId = toast.loading(`Empaquetando ruta de ${fechaProximaStr}...`);
+        const datosExcel = [];
+        try {
+            for (const ped of pedidosParaExportar) {
+                const info = ped.infoCalculada; const items = ped.Detalles || [];
+                for (const item of items) {
+                    datosExcel.push({
+                        "DÍA ASIGNADO": info.diaNombre.toUpperCase(), "FECHA EXACTA": info.fechaFormateada, "CLIENTE": ped.Usuario?.nombre || 'Consumidor Final',
+                        "CIUDAD DESTINO": ped.Usuario?.ciudad || 'N/A', "DIRECCIÓN EXACTA": ped.direccion || ped.Usuario?.direccion || 'N/A',
+                        "TELÉFONO": ped.Usuario?.telefono || 'N/A', "PEDIDO ID": `#${ped.id}`, "PRODUCTO": (item.Producto?.nombre || 'Producto sin nombre').toUpperCase(),
+                        "DESCRIPCIÓN": item.Producto?.descripcion || 'Sin descripción', "CANTIDAD": item.cantidad
+                    });
+                }
+                await API.put(`/pedidos/${ped.id}/estado`, { estado: 'Enviado' });
+            }
+            const ws = XLSX.utils.json_to_sheet(datosExcel); const wb = XLSX.utils.book_new(); 
+            XLSX.utils.book_append_sheet(wb, ws, "Manifiesto_Ruta"); XLSX.writeFile(wb, `RUTA_TRABAJO_${fechaProximaStr.replace(/[, ]+/g, '_').toUpperCase()}.xlsx`);
+            fetchDatos(); toast.success(`Ruta generada para el ${fechaProximaStr}`, { id: loadId });
+        } catch (err) { toast.error("Error procesando ruta", { id: loadId }); }
+    };
 
     const exportarExcelInventario = () => {
         const dataParaExportar = productosFiltrados.map(p => ({ ID: p.id, Nombre: p.nombre, Categoria: p.Categoria?.nombre || 'N/A', Costo_Compra: p.costo_compra, Margen: p.margen_ganancia, Precio_Final: p.precio, Stock: p.stock, Tope_Minimo: p.tope_stock || 10, Proveedor: p.proveedor || 'No especificado' }));
@@ -473,161 +330,84 @@ const AdminDashboard = () => {
     };
 
     const handleGuardarBaja = async (e) => {
-        e.preventDefault();
-        setEnviando(true);
+        e.preventDefault(); setEnviando(true);
         try {
             await API.put(`/productos/${productoBaja.id}/stock`, { cantidad: formBaja.cantidad, operacion: 'restar' });
             const costoPerdida = parseFloat(productoBaja.costo_compra || 0) * parseInt(formBaja.cantidad);
             if (costoPerdida > 0) {
-                await API.post('/contabilidad/gasto', {
-                    monto: costoPerdida,
-                    descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`,
-                    categoria: 'Mercancía',
-                    tipo: 'EGRESO',
-                    fecha: new Date().toISOString().split('T')[0]
-                });
+                await API.post('/contabilidad/gasto', { monto: costoPerdida, descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`, categoria: 'Mercancía', tipo: 'EGRESO', fecha: new Date().toISOString().split('T')[0] });
             }
-            toast.success("Producto dado de baja. Pérdida registrada en contabilidad.");
-            setShowBajaModal(false);
-            setProductoBaja(null);
-            fetchDatos();
-        } catch (err) {
-            toast.error(err.response?.data?.error || "Error al procesar la baja del producto.");
-        } finally {
-            setEnviando(false);
-        }
+            toast.success("Producto dado de baja. Pérdida registrada en contabilidad."); setShowBajaModal(false); setProductoBaja(null); fetchDatos();
+        } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la baja del producto."); } finally { setEnviando(false); }
     };
 
     const handleEliminar = async () => { try { await API.delete(`/productos/${productoAEliminar.id}`); setShowDeleteModal(false); fetchDatos(); toast.success("Producto Eliminado"); } catch (err) { toast.error("Error"); } };
-    
-    const actualizarEstadoPedido = async (id, nuevoEstado) => { 
-        try { 
-            await API.put(`/pedidos/${id}/estado`, { estado: nuevoEstado }); 
-            fetchDatos(); 
-            toast.success("Estado Actualizado"); 
-        } catch (err) { toast.error("Error"); } 
-    };
-
-    // 🔥 EL NUEVO MOTOR DE COBRO/LIQUIDACIÓN 🔥
-    const handleCobro = async (tipoPago) => {
-        setEnviando(true);
-        const loadingId = toast.loading("Procesando liquidación de pedido...");
-        try {
-            // 1. Cambiamos estado a entregado
-            await API.put(`/pedidos/${pedidoACobrar.id}/estado`, { estado: 'Entregado' });
-
-            // 2. Dependiendo del tipo, mandamos a finanzas o a cartera
-            if (tipoPago === 'CONTADO') {
-                await API.post('/contabilidad/gasto', {
-                    monto: pedidoACobrar.total,
-                    descripcion: `Pago de Contado - Pedido #${pedidoACobrar.id}`,
-                    categoria: 'Ventas Productos',
-                    tipo: 'INGRESO',
-                    fecha: new Date().toISOString().split('T')[0],
-                    pedidoId: pedidoACobrar.id
-                });
-                toast.success("Pedido Entregado. Dinero registrado en finanzas.", { id: loadingId });
-            } else if (tipoPago === 'CREDITO') {
-                await API.post('/creditos', {
-                    usuarioId: pedidoACobrar.usuarioId || pedidoACobrar.usuario_id,
-                    monto_total: pedidoACobrar.total,
-                    descripcion: `Factura Pedido #${pedidoACobrar.id}`
-                });
-                toast.success("Pedido Entregado. Deuda creada en Cartera.", { id: loadingId });
-            }
-            
-            setShowCobroModal(false);
-            setPedidoACobrar(null);
-            fetchDatos();
-        } catch (error) {
-            toast.error("Error al liquidar el pedido", { id: loadingId });
-        } finally {
-            setEnviando(false);
-        }
-    };
-
+    const actualizarEstadoPedido = async (id, nuevoEstado) => { try { await API.put(`/pedidos/${id}/estado`, { estado: nuevoEstado }); fetchDatos(); toast.success("Estado Actualizado"); } catch (err) { toast.error("Error"); } };
     const actualizarRutaPedido = async (id, nuevaRuta) => { try { await API.put(`/pedidos/${id}/ruta`, { ruta: nuevaRuta }); fetchDatos(); toast.success(`Ruta actualizada a ${nuevaRuta}`); } catch (err) { toast.error("Error al actualizar la ruta"); } };
 
     const handleDevolucionProducto = async (pedidoId, item) => {
-        const nombreProd = item.Producto?.nombre || item.nombre;
-        const qtyStr = window.prompt(`Reembolso / Devolución:\n\n¿Cuántas unidades de "${nombreProd}" regresó el cliente?\n(Máximo disponible: ${item.cantidad})`, "1");
-        if (qtyStr === null) return; 
-        const qty = parseInt(qtyStr);
+        const qtyStr = window.prompt(`Reembolso / Devolución:\n\n¿Cuántas unidades de "${item.Producto?.nombre || item.nombre}" regresó el cliente?\n(Máximo disponible: ${item.cantidad})`, "1");
+        if (qtyStr === null) return; const qty = parseInt(qtyStr);
         if (isNaN(qty) || qty <= 0 || qty > item.cantidad) return toast.error("Cantidad inválida ingresada.");
         try {
-            setEnviando(true);
-            const productoId = item.productoId || item.Producto?.id || item.producto_id;
-            await API.put(`/pedidos/${pedidoId}/devolucion`, { productoId: productoId, cantidadDevuelta: qty, precioUnitario: item.precioUnitario || item.precio });
-            toast.success("Devolución y Reembolso procesado con éxito");
-            setPedidoDetalle(null); fetchDatos();
+            setEnviando(true); await API.put(`/pedidos/${pedidoId}/devolucion`, { productoId: item.productoId || item.Producto?.id || item.producto_id, cantidadDevuelta: qty, precioUnitario: item.precioUnitario || item.precio });
+            toast.success("Devolución y Reembolso procesado con éxito"); setPedidoDetalle(null); fetchDatos();
         } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la devolución."); } finally { setEnviando(false); }
     };
 
-    const handleCrearUsuario = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/auth/registro', formUsuario); setShowUsuarioModal(false); fetchDatos(); toast.success("Cliente registrado en el sistema"); setFormUsuario({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' }); } catch (err) { toast.error(err.response?.data?.error || "Error al crear cliente"); } finally { setEnviando(false); } };
+    const handleCrearUsuario = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/auth/registro', formUsuario); setShowUsuarioModal(false); fetchDatos(); toast.success("Cliente registrado"); setFormUsuario({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' }); } catch (err) { toast.error("Error al crear cliente"); } finally { setEnviando(false); } };
     const abrirModalEditarUsuario = (u) => { setFormEditUsuario({ id: u.id, nombre: u.nombre || '', cedula: u.cedula || '', email: u.email || '', telefono: u.telefono || '', ciudad: u.ciudad || '', direccion: u.direccion || '', rol: u.rol || 'CLIENTE' }); setShowEditUsuarioModal(true); };
-    const handleEditarUsuario = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${formEditUsuario.id}`, formEditUsuario); setShowEditUsuarioModal(false); fetchDatos(); toast.success("Datos del cliente actualizados"); } catch (err) { toast.error(err.response?.data?.error || "Error al actualizar cliente"); } finally { setEnviando(false); } };
-    const handleRestablecerPassword = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${usuarioSeleccionado.id}/password`, { password: nuevaPassword }); setShowPasswordModal(false); setNuevaPassword(''); toast.success("Contraseña restablecida con éxito"); } catch (err) { toast.error(err.response?.data?.error || "Error al cambiar contraseña"); } finally { setEnviando(false); } };
-    const handleEliminarUsuario = async () => { try { await API.delete(`/auth/admin/usuarios/${usuarioAEliminar.id}`); setUsuarioAEliminar(null); fetchDatos(); toast.success("Usuario eliminado para siempre"); } catch (err) { toast.error(err.response?.data?.error || "Error al eliminar usuario"); } };
-    const handleCrearRutaConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/pedidos/config/rutas', { ciudad: nuevaRutaCiudad, dia_ruta: nuevaRutaDia }); toast.success(`Reglas guardadas exitosamente`); setNuevaRutaCiudad(''); setNuevaRutaDia(''); fetchDatos(); } catch (err) { toast.error("Error al crear la regla"); } finally { setEnviando(false); } };
-    const handleEliminarRutaConfig = async (id) => { try { await API.delete(`/pedidos/config/rutas/${id}`); fetchDatos(); toast.success("Regla eliminada"); } catch (err) { toast.error("Error al borrar regla"); } };
-    const handleGuardarConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put('/auth/config/whatsapp', { whatsapp: whatsappTienda }); await API.put('/pedidos/config/horalimite', { hora: horaLimite }); toast.success("Ajustes guardados exitosamente"); setShowConfigModal(false); } catch (err) { toast.error("Error al guardar la configuración"); } finally { setEnviando(false); } };
+    const handleEditarUsuario = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${formEditUsuario.id}`, formEditUsuario); setShowEditUsuarioModal(false); fetchDatos(); toast.success("Datos actualizados"); } catch (err) { toast.error("Error al actualizar cliente"); } finally { setEnviando(false); } };
+    const handleRestablecerPassword = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${usuarioSeleccionado.id}/password`, { password: nuevaPassword }); setShowPasswordModal(false); setNuevaPassword(''); toast.success("Contraseña restablecida"); } catch (err) { toast.error("Error al cambiar contraseña"); } finally { setEnviando(false); } };
+    const handleEliminarUsuario = async () => { try { await API.delete(`/auth/admin/usuarios/${usuarioAEliminar.id}`); setUsuarioAEliminar(null); fetchDatos(); toast.success("Usuario eliminado"); } catch (err) { toast.error("Error al eliminar usuario"); } };
+    
+    const handleCrearRutaConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/pedidos/config/rutas', { ciudad: nuevaRutaCiudad, dia_ruta: nuevaRutaDia }); toast.success(`Reglas guardadas`); setNuevaRutaCiudad(''); setNuevaRutaDia(''); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
+    const handleEliminarRutaConfig = async (id) => { try { await API.delete(`/pedidos/config/rutas/${id}`); fetchDatos(); toast.success("Regla eliminada"); } catch (err) { toast.error("Error"); } };
+    const handleGuardarConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put('/auth/config/whatsapp', { whatsapp: whatsappTienda }); await API.put('/pedidos/config/horalimite', { hora: horaLimite }); toast.success("Ajustes guardados"); setShowConfigModal(false); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
+    
     const abrirModalEditarTransaccion = (tx) => { setTransaccionSeleccionada(tx); setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: new Date(tx.fecha).toISOString().split('T')[0] }); setShowEditTransaccionModal(true); };
-    const handleGuardarTransaccion = async (e) => { e.preventDefault(); setEnviando(true); try { if (transaccionSeleccionada) { await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto); toast.success("Transacción actualizada correctamente"); } else { await API.post('/contabilidad/gasto', formGasto); toast.success("Transacción registrada en el libro mayor"); } setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); fetchDatos(); } catch (err) { toast.error("Error al guardar la transacción"); } finally { setEnviando(false); } };
-    const handleEliminarTransaccion = async () => { try { await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`); setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada"); } catch (err) { toast.error("Error al eliminar la transacción"); } };
+    const handleGuardarTransaccion = async (e) => { e.preventDefault(); setEnviando(true); try { if (transaccionSeleccionada) { await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto); toast.success("Transacción actualizada"); } else { await API.post('/contabilidad/gasto', formGasto); toast.success("Transacción registrada"); } setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
+    const handleEliminarTransaccion = async () => { try { await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`); setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada"); } catch (err) { toast.error("Error"); } };
 
-    const handleCrearCredito = async (e) => {
-        e.preventDefault();
-        setEnviando(true);
+    const handleCrearCredito = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/creditos', formCredito); toast.success("Crédito registrado"); setShowCreditoModal(false); setFormCredito({ usuarioId: '', monto_total: '', descripcion: '' }); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
+    const handleRegistrarAbono = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post(`/creditos/${creditoSeleccionado.id}/abono`, formAbono); toast.success("Abono registrado."); setShowAbonoModal(false); setCreditoSeleccionado(null); setFormAbono({ monto: '', nota: '' }); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
+    
+    const handleCobro = async (tipoPago) => {
+        setEnviando(true); const loadingId = toast.loading("Procesando liquidación de pedido...");
         try {
-            await API.post('/creditos', formCredito);
-            toast.success("Crédito registrado con éxito");
-            setShowCreditoModal(false);
-            setFormCredito({ usuarioId: '', monto_total: '', descripcion: '' });
-            fetchDatos();
-        } catch (err) {
-            toast.error(err.response?.data?.error || "Error al crear el crédito");
-        } finally {
-            setEnviando(false);
-        }
+            await API.put(`/pedidos/${pedidoACobrar.id}/estado`, { estado: 'Entregado' });
+            if (tipoPago === 'CONTADO') {
+                await API.post('/contabilidad/gasto', { monto: pedidoACobrar.total, descripcion: `Pago de Contado - Pedido #${pedidoACobrar.id}`, categoria: 'Ventas Productos', tipo: 'INGRESO', fecha: new Date().toISOString().split('T')[0], pedidoId: pedidoACobrar.id });
+                toast.success("Pedido Entregado. Dinero registrado en finanzas.", { id: loadingId });
+            } else if (tipoPago === 'CREDITO') {
+                await API.post('/creditos', { usuarioId: pedidoACobrar.usuarioId || pedidoACobrar.usuario_id, monto_total: pedidoACobrar.total, descripcion: `Factura Pedido #${pedidoACobrar.id}` });
+                toast.success("Pedido Entregado. Deuda creada en Cartera.", { id: loadingId });
+            }
+            setShowCobroModal(false); setPedidoACobrar(null); fetchDatos();
+        } catch (error) { toast.error("Error al liquidar el pedido", { id: loadingId }); } finally { setEnviando(false); }
     };
-
-    const handleRegistrarAbono = async (e) => {
-        e.preventDefault();
-        setEnviando(true);
-        try {
-            await API.post(`/creditos/${creditoSeleccionado.id}/abono`, formAbono);
-            toast.success("Abono registrado. Finanzas actualizadas.");
-            setShowAbonoModal(false);
-            setCreditoSeleccionado(null);
-            setFormAbono({ monto: '', nota: '' });
-            fetchDatos();
-        } catch (err) {
-            toast.error(err.response?.data?.error || "Error al registrar el abono");
-        } finally {
-            setEnviando(false);
-        }
-    };
-
+    
     const handlePasarPedidoACartera = async (pedido) => {
-        const loadingId = toast.loading("Convirtiendo pedido en deuda oficial...");
+        const loadingId = toast.loading("Convirtiendo pedido en deuda...");
         try {
-            await API.post('/creditos', {
-                usuarioId: pedido.usuarioId || pedido.usuario_id,
-                monto_total: pedido.total,
-                descripcion: `Factura Pedido #${pedido.id}`
-            });
-            toast.success("Factura agregada a cartera", { id: loadingId });
-            fetchDatos();
-        } catch (error) {
-            toast.error("Error al transferir factura", { id: loadingId });
-        }
+            await API.post('/creditos', { usuarioId: pedido.usuarioId || pedido.usuario_id, monto_total: pedido.total, descripcion: `Factura Pedido #${pedido.id}` });
+            toast.success("Factura agregada a cartera", { id: loadingId }); fetchDatos();
+        } catch (error) { toast.error("Error al transferir factura", { id: loadingId }); }
     };
+
+    // --- EMPAQUETAR PROPS PARA MODALES ---
+    const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando };
+    const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
+    const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado };
+    const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera };
+    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData };
 
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
-    const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...rutasDinamicas.map(r => r.dia_ruta)])];
 
+    // --- RENDERIZADO DEL DASHBOARD (Sin Modales aquí) ---
     return (
         <div className="min-h-screen bg-gray-50 pb-20 px-4 md:px-8">
+            {/* Cabecera Principal */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-10 gap-4 pt-8">
                 <div>
                     <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter uppercase italic">HQ Dashboard</h1>
@@ -643,22 +423,21 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            {/* 🔥 CUADRÍCULA DE ESTADÍSTICAS SIEMPRE VISIBLE 🔥 */}
+            {/* Cuadrícula de Estadísticas Permanentes */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
                 <StatCard title="Ventas Mes Actual" value={`$${formatCurrency(kpis.ventasMes)}`} subtitle={`Hoy: $${formatCurrency(kpis.ventasHoy)}`} icon={<DollarSign />} color="bg-green-100 text-green-600" />
                 <StatCard title="Pedidos Pendientes" value={kpis.pendientes} subtitle="Listos para ruta" icon={<Clock />} color="bg-amber-100 text-amber-600" />
                 <StatCard title="Total Pedidos" value={pedidos.length} subtitle="Histórico completo" icon={<ShoppingCart />} color="bg-blue-100 text-blue-600" />
                 <StatCard title="Clientes Registrados" value={usuarios.length} subtitle="En base de datos" icon={<Users />} color="bg-purple-100 text-purple-600" />
-                
                 <StatCard title="Total Productos" value={statsProductos.total} subtitle="En inventario" icon={<Package />} color="bg-indigo-100 text-indigo-600" />
                 <StatCard title="Stock Bajo" value={statsProductos.stockBajo} subtitle="Requieren atención" icon={<AlertTriangle />} color="bg-red-100 text-red-600" />
                 <StatCard title="Cuentas por Cobrar" value={`$${formatCurrency(statsCartera.porCobrar)}`} subtitle="Deuda pendiente total" icon={<Banknote />} color="bg-rose-100 text-rose-600" />
                 <StatCard title="Total Histórico Fiado" value={`$${formatCurrency(statsCartera.fiadoTotal)}`} subtitle="Lo que has fiado" icon={<FileText />} color="bg-orange-100 text-orange-600" />
             </div>
 
+            {/* Filtros y Navegación de Pestañas */}
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
-                    {/* 🔥 MENÚ DE PESTAÑAS 🔥 */}
                     {['reportes', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => (
                         <button key={t} onClick={() => setTab(t)} className={`px-4 md:px-8 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${tab === t ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>{t === 'reportes' ? 'Analíticas' : t}</button>
                     ))}
@@ -673,18 +452,17 @@ const AdminDashboard = () => {
                 {tab === 'cartera' && (
                     <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 md:gap-4 w-full md:w-auto">
                         <select value={filtroEstadoCartera} onChange={(e) => setFiltroEstadoCartera(e.target.value)} className="px-4 py-3 bg-white border border-gray-200 rounded-xl font-black uppercase text-[10px] outline-none shadow-sm cursor-pointer text-gray-600">
-                            <option value="TODOS">Todas las deudas</option>
-                            <option value="VIGENTE">Vigentes (Por Cobrar)</option>
-                            <option value="PAGADO">Pagadas</option>
+                            <option value="TODOS">Todos los Clientes</option>
+                            <option value="VIGENTE">Tienen Deuda (Mora)</option>
+                            <option value="PAGADO">Sin Deudas</option>
                         </select>
-                        <div className="relative flex-1 md:w-64"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar cliente..." value={searchTermCartera || ''} onChange={(e) => setSearchTermCartera(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none shadow-sm" /></div>
+                        <div className="relative flex-1 md:w-64"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar cliente o CC..." value={searchTermCartera || ''} onChange={(e) => setSearchTermCartera(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none shadow-sm" /></div>
                     </div>
                 )}
             </div>
 
             <div className="animate-in fade-in duration-500">
-                
-                {/* 🔥 VISTA MAESTRA DE CARTERA (AGRUPADA POR CLIENTE) 🔥 */}
+                {/* VISTA DE CARTERA */}
                 {tab === 'cartera' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
@@ -730,7 +508,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* DEMÁS VISTAS NORMALES... */}
+                {/* VISTAS NORMALES */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -944,7 +722,6 @@ const AdminDashboard = () => {
                                 const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
                                 const items = ped.Detalles || ped.items || [];
                                 
-                                // Verificamos si este pedido ya fue liquidado (en Cartera o Finanzas)
                                 const yaEnCartera = creditos.some(c => c.descripcion && c.descripcion.includes(`#${ped.id}`));
                                 const yaEnFinanzas = transacciones.some(t => t.descripcion && t.descripcion.includes(`#${ped.id}`));
                                 const estaLiquidado = yaEnCartera || yaEnFinanzas;
@@ -971,17 +748,9 @@ const AdminDashboard = () => {
                                                     value={ped.estado || ''} 
                                                     onChange={(e) => {
                                                         if (e.target.value === 'Entregado') {
-                                                            if (estaLiquidado) {
-                                                                // Si ya se cobró o se fío antes, solo cambia el estado logístico
-                                                                actualizarEstadoPedido(ped.id, 'Entregado');
-                                                            } else {
-                                                                // Despierta el Modal de Cobro!
-                                                                setPedidoACobrar(ped);
-                                                                setShowCobroModal(true);
-                                                            }
-                                                        } else {
-                                                            actualizarEstadoPedido(ped.id, e.target.value);
-                                                        }
+                                                            if (estaLiquidado) actualizarEstadoPedido(ped.id, 'Entregado');
+                                                            else { setPedidoACobrar(ped); setShowCobroModal(true); }
+                                                        } else { actualizarEstadoPedido(ped.id, e.target.value); }
                                                     }} 
                                                     className="w-full border-none rounded-xl text-[9px] md:text-[10px] font-black uppercase p-2 md:p-3 outline-none bg-black text-white cursor-pointer mt-1"
                                                 >
@@ -1022,669 +791,8 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* 🔥 MODAL ESTADO DE CUENTA (EL PANEL 360 DEL CLIENTE) 🔥 */}
-            {clienteEstadoCuenta && clienteActualData && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[180] flex items-center justify-center p-2 md:p-6 overflow-hidden">
-                    <div className="bg-gray-50 w-full max-w-6xl h-[95vh] md:h-[90vh] rounded-[2rem] md:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden relative animate-in zoom-in-95 duration-300">
-                        {/* HEADER DEL MODAL */}
-                        <div className="bg-white p-6 md:p-8 border-b border-gray-200 flex justify-between items-center z-10 shrink-0">
-                            <div>
-                                <h2 className="text-xl md:text-3xl font-black uppercase italic tracking-tighter flex items-center gap-3"><User className="text-blue-600" /> {clienteActualData.nombre}</h2>
-                                <p className="text-[9px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Estado de Cuenta Oficial</p>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <div className="hidden md:block text-right mr-4 border-r pr-8 border-gray-200">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-red-400">Deuda Total Activa</p>
-                                    <p className="text-2xl font-black italic tracking-tighter text-red-600">${formatCurrency(clienteActualData.totalDeuda)}</p>
-                                </div>
-                                <button onClick={() => setClienteEstadoCuenta(null)} className="p-3 md:p-4 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all active:scale-90"><X size={20}/></button>
-                            </div>
-                        </div>
-
-                        {/* CUERPO DEL MODAL (2 COLUMNAS EN PC, 1 EN MÓVIL CON SCROLL) */}
-                        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-                            
-                            {/* COLUMNA IZQUIERDA: CARTERA Y ABONOS */}
-                            <div className="flex-1 border-r border-gray-200 flex flex-col overflow-hidden bg-white">
-                                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
-                                    <h3 className="font-black uppercase tracking-tighter text-lg md:text-xl flex items-center gap-2"><Banknote className="text-red-500" size={20}/> Deudas Activas</h3>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
-                                    {/* Mostrar Deuda en móvil */}
-                                    <div className="md:hidden bg-red-50 border border-red-100 p-4 rounded-2xl mb-4 text-center">
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-red-400">Deuda Total Activa</p>
-                                        <p className="text-3xl font-black italic tracking-tighter text-red-600">${formatCurrency(clienteActualData.totalDeuda)}</p>
-                                    </div>
-
-                                    {clienteActualData.creditos.length === 0 ? (
-                                        <p className="text-center text-gray-400 text-xs font-bold uppercase py-10">El cliente no tiene historial de deudas.</p>
-                                    ) : (
-                                        clienteActualData.creditos.map(c => (
-                                            <div key={c.id} className={`p-5 rounded-2xl md:rounded-3xl border transition-all ${c.estado === 'VIGENTE' ? 'bg-white border-red-100 shadow-lg shadow-red-500/5' : 'bg-gray-50 border-gray-100 opacity-60 hover:opacity-100'}`}>
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <div>
-                                                        <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-md ${c.estado === 'VIGENTE' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>{c.estado}</span>
-                                                        <p className="font-black text-gray-900 text-sm md:text-base mt-2 line-clamp-1">{c.descripcion}</p>
-                                                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{new Date(c.fecha).toLocaleDateString()}</p>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest">Debe</p>
-                                                        <p className={`font-black italic tracking-tighter text-xl ${c.estado === 'VIGENTE' ? 'text-red-600' : 'text-gray-400 line-through'}`}>${formatCurrency(c.saldo)}</p>
-                                                    </div>
-                                                </div>
-                                                {c.estado === 'VIGENTE' && (
-                                                    <button onClick={() => { setCreditoSeleccionado(c); setShowAbonoModal(true); }} className="w-full mt-2 py-3 bg-green-50 hover:bg-green-600 text-green-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 active:scale-95">
-                                                        <DollarSign size={14}/> Recibir Pago (Abono)
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* COLUMNA DERECHA: HISTORIAL DE PEDIDOS */}
-                            <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
-                                <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-white shrink-0">
-                                    <h3 className="font-black uppercase tracking-tighter text-lg md:text-xl flex items-center gap-2 text-gray-700"><History className="text-blue-500" size={20}/> Facturas (Pedidos)</h3>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
-                                    {clienteActualData.pedidos.length === 0 ? (
-                                        <p className="text-center text-gray-400 text-xs font-bold uppercase py-10">El cliente no ha realizado pedidos aún.</p>
-                                    ) : (
-                                        clienteActualData.pedidos.slice().reverse().map(ped => {
-                                            // Verificar si este pedido ya fue liquidado (en Cartera o Finanzas)
-                                            const yaEnCartera = clienteActualData.creditos.some(c => c.descripcion.includes(`#${ped.id}`));
-                                            const yaEnFinanzas = transacciones.some(t => t.descripcion && t.descripcion.includes(`#${ped.id}`));
-
-                                            return (
-                                                <div key={ped.id} className="bg-white p-5 rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between gap-4">
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <span className="bg-gray-100 text-black px-2 py-1 rounded-md text-[9px] font-black uppercase italic">ID #{ped.id}</span>
-                                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{new Date(ped.fecha).toLocaleDateString()}</span>
-                                                        </div>
-                                                        <p className="text-xs font-bold text-gray-600 mb-1"><span className="font-black text-gray-800">{ped.Detalles?.length || 0}</span> artículos comprados</p>
-                                                        <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 w-fit px-2 py-1 rounded-md mt-2">Logística: {ped.estado}</p>
-                                                    </div>
-                                                    <div className="flex flex-col items-start sm:items-end justify-between border-t sm:border-t-0 sm:border-l border-gray-100 pt-3 sm:pt-0 sm:pl-4">
-                                                        <p className="font-black text-xl md:text-2xl italic tracking-tighter text-gray-900">${formatCurrency(ped.total)}</p>
-                                                        
-                                                        {yaEnCartera ? (
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-orange-500 flex items-center gap-1 mt-2"><CheckCircle2 size={12}/> Fiado (En Cartera)</span>
-                                                        ) : yaEnFinanzas ? (
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-green-500 flex items-center gap-1 mt-2"><CheckCircle2 size={12}/> Pagado de Contado</span>
-                                                        ) : (
-                                                            <button onClick={() => {
-                                                                // Si le dan clic aquí, levanta el mismo modal de cobro
-                                                                setPedidoACobrar(ped);
-                                                                setShowCobroModal(true);
-                                                                setClienteEstadoCuenta(null); // Cierra este modal para no sobreponer
-                                                            }} className="mt-2 py-2 px-4 bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 active:scale-95 whitespace-nowrap">
-                                                                Liquidar Factura <ChevronRight size={12}/>
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* 🔥 NUEVO MODAL: LIQUIDAR PEDIDO (CONTADO VS CRÉDITO) 🔥 */}
-            {showCobroModal && pedidoACobrar && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[300] flex items-center justify-center p-4">
-                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => {setShowCobroModal(false); setPedidoACobrar(null);}} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle2 size={24} className="md:w-8 md:h-8"/>
-                        </div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Liquidar Pedido</h3>
-                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Pedido #{pedidoACobrar.id} • ${formatCurrency(pedidoACobrar.total)}</p>
-                        
-                        <div className="space-y-3">
-                            <button 
-                                onClick={() => handleCobro('CONTADO')}
-                                disabled={enviando}
-                                className="w-full p-4 border-2 border-green-500 bg-green-50 hover:bg-green-500 hover:text-white text-green-700 rounded-2xl transition-all font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 active:scale-95"
-                            >
-                                {enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16} />} Pago de Contado (Finanzas)
-                            </button>
-                            <button 
-                                onClick={() => handleCobro('CREDITO')}
-                                disabled={enviando}
-                                className="w-full p-4 border-2 border-orange-500 bg-orange-50 hover:bg-orange-500 hover:text-white text-orange-700 rounded-2xl transition-all font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 active:scale-95"
-                            >
-                                {enviando ? <Loader2 className="animate-spin" size={16} /> : <Banknote size={16} />} Fiar (Mandar a Cartera)
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* 🔥 MODAL: CREAR CRÉDITO (FIAR MANUAL) 🔥 */}
-            {showCreditoModal && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
-                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => setShowCreditoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <Banknote size={24} className="md:w-8 md:h-8"/>
-                        </div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Fiar a Cliente</h3>
-                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Registrar deuda manual</p>
-                        
-                        <form onSubmit={handleCrearCredito} className="space-y-4 md:space-y-5 text-left">
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Cliente Deudor</label>
-                                <select required className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-gray-900 outline-none focus:ring-2 focus:ring-black text-xs md:text-sm cursor-pointer" value={formCredito.usuarioId} onChange={e => setFormCredito({...formCredito, usuarioId: e.target.value})}>
-                                    <option value="" disabled>Selecciona un cliente</option>
-                                    {usuarios.map(u => (
-                                        <option key={u.id} value={u.id}>{u.nombre} - CC: {u.cedula || 'N/A'}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Monto a Fiar ($)</label>
-                                <input required type="number" step="0.01" min="1" placeholder="Ej: 150000" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-black text-sm" value={formCredito.monto_total} onChange={e => setFormCredito({...formCredito, monto_total: e.target.value})} />
-                            </div>
-
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Concepto / Descripción</label>
-                                <input required type="text" placeholder="Ej: Mercancía de Noviembre" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-black text-xs md:text-sm" value={formCredito.descripcion} onChange={e => setFormCredito({...formCredito, descripcion: e.target.value})} />
-                            </div>
-                            
-                            <button disabled={enviando} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-black text-white hover:bg-blue-600 transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50">
-                                {enviando ? <Loader2 className="animate-spin" /> : 'Crear Crédito'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* 🔥 MODAL: REGISTRAR ABONO (PAGO) 🔥 */}
-            {showAbonoModal && creditoSeleccionado && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
-                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => setShowAbonoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <DollarSign size={24} className="md:w-8 md:h-8"/>
-                        </div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Recibir Abono</h3>
-                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center line-clamp-1">{creditoSeleccionado.Usuario?.nombre}</p>
-                        
-                        <form onSubmit={handleRegistrarAbono} className="space-y-4 md:space-y-5 text-left">
-                            <div className="flex items-center justify-between bg-red-50 p-3 rounded-xl border border-red-100">
-                                <span className="text-[9px] md:text-[10px] font-black text-red-400 uppercase tracking-widest">Deuda Actual:</span>
-                                <span className="text-sm md:text-base font-black italic text-red-600">${formatCurrency(creditoSeleccionado.saldo)}</span>
-                            </div>
-                            
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">¿Cuánto pagó hoy?</label>
-                                <input required type="number" step="0.01" min="1" max={creditoSeleccionado.saldo} placeholder={`Máximo $${creditoSeleccionado.saldo}`} className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-green-500 text-sm text-green-700" value={formAbono.monto} onChange={e => setFormAbono({...formAbono, monto: e.target.value})} />
-                            </div>
-
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Nota (Opcional)</label>
-                                <input type="text" placeholder="Ej: Efectivo, Transferencia Bancolombia..." className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-green-500 text-xs md:text-sm" value={formAbono.nota} onChange={e => setFormAbono({...formAbono, nota: e.target.value})} />
-                            </div>
-
-                            <div className="bg-green-50 p-4 rounded-xl md:rounded-2xl border border-green-100 flex justify-between items-center mt-2">
-                                <div>
-                                    <p className="text-[8px] md:text-[9px] font-black text-green-600 uppercase">Impacto Contable</p>
-                                    <p className="text-[7px] md:text-[8px] font-bold text-green-500 uppercase">Se registrará como ingreso</p>
-                                </div>
-                                <p className="text-lg md:text-xl font-black text-green-600 italic">+${formatCurrency(formAbono.monto || 0)}</p>
-                            </div>
-                            
-                            <button disabled={enviando || parseFloat(formAbono.monto || 0) <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-green-600 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50 active:scale-95">
-                                {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Abono'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* RESTO DE LOS MODALES */}
-            {showBajaModal && productoBaja && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => setShowBajaModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <PackageMinus size={24} className="md:w-8 md:h-8"/>
-                        </div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Dar de Baja</h3>
-                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center line-clamp-1">{productoBaja.nombre}</p>
-                        
-                        <form onSubmit={handleGuardarBaja} className="space-y-4 md:space-y-5">
-                            <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl">
-                                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">Stock Actual:</span>
-                                <span className="text-xs md:text-sm font-black text-gray-900">{productoBaja.stock} Uds</span>
-                            </div>
-                            
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">¿Cuántas unidades se dañaron?</label>
-                                <input required type="number" min="1" max={productoBaja.stock} className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-orange-500 text-sm" value={formBaja.cantidad} onChange={e => setFormBaja({...formBaja, cantidad: parseInt(e.target.value)})} />
-                            </div>
-                            
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Motivo de la pérdida</label>
-                                <select className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-gray-700 outline-none focus:ring-2 focus:ring-orange-500 text-xs md:text-sm cursor-pointer" value={formBaja.motivo} onChange={e => setFormBaja({...formBaja, motivo: e.target.value})}>
-                                    <option value="Dañado/Roto">Dañado / Roto</option>
-                                    <option value="Defectuoso de Fábrica">Defectuoso de Fábrica</option>
-                                    <option value="Vencido/Caducado">Vencido / Caducado</option>
-                                    <option value="Pérdida/Robo">Pérdida / Robo</option>
-                                </select>
-                            </div>
-                            
-                            <div className="bg-orange-50 p-4 rounded-xl md:rounded-2xl border border-orange-100 flex justify-between items-center">
-                                <div>
-                                    <p className="text-[8px] md:text-[9px] font-black text-orange-600 uppercase">Pérdida Financiera</p>
-                                    <p className="text-[7px] md:text-[8px] font-bold text-orange-500">Se restará del libro mayor</p>
-                                </div>
-                                <p className="text-lg md:text-xl font-black text-orange-600 italic">-${formatCurrency((productoBaja.costo_compra || 0) * formBaja.cantidad)}</p>
-                            </div>
-                            
-                            <button disabled={enviando || productoBaja.stock <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-orange-500 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50">
-                                {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Baja y Guardar'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {(showGastoModal || showEditTransaccionModal) && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center animate-in zoom-in-95 duration-200">
-                        <button onClick={() => {setShowGastoModal(false); setShowEditTransaccionModal(false);}} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={18}/></button>
-                        <div className={`w-12 h-12 md:w-16 md:h-16 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center mx-auto mb-4 md:mb-6 ${formGasto.tipo === 'INGRESO' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
-                            {formGasto.tipo === 'INGRESO' ? <ArrowUpRight size={24} className="md:w-8 md:h-8"/> : <ArrowDownRight size={24} className="md:w-8 md:h-8"/>}
-                        </div>
-                        <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 md:mb-2">{transaccionSeleccionada ? 'Editar Movimiento' : 'Registrar Movimiento'}</h2>
-                        <form onSubmit={handleGuardarTransaccion} className="space-y-3 md:space-y-4 text-left mt-4">
-                            <div className="flex gap-2 mb-2 md:mb-4">
-                                <button type="button" onClick={() => setFormGasto({...formGasto, tipo: 'INGRESO'})} className={`flex-1 py-2 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase transition-all ${formGasto.tipo === 'INGRESO' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Ingreso</button>
-                                <button type="button" onClick={() => setFormGasto({...formGasto, tipo: 'EGRESO'})} className={`flex-1 py-2 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase transition-all ${formGasto.tipo === 'EGRESO' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Egreso</button>
-                            </div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Monto ($)</label><input required type="number" step="0.01" min="0" placeholder="Ej: 50000" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={formGasto.monto || ''} onChange={e => setFormGasto({...formGasto, monto: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Descripción</label><input required type="text" placeholder="Ej: Gasolina camión" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={formGasto.descripcion || ''} onChange={e => setFormGasto({...formGasto, descripcion: e.target.value})} /></div>
-                            <div className="flex flex-col md:flex-row gap-2">
-                                <div className="flex-1">
-                                    <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Categoría</label>
-                                    <select className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formGasto.categoria || 'Logística'} onChange={e => setFormGasto({...formGasto, categoria: e.target.value})}>
-                                        <option value="Ventas Productos">Ventas Productos</option><option value="Logística">Logística / Transporte</option><option value="Mercancía">Compra de Mercancía</option><option value="Servicios">Servicios Generales</option><option value="Nómina">Nómina / Empleados</option><option value="Otros">Otros Gastos</option>
-                                    </select>
-                                </div>
-                                <div className="flex-1">
-                                    <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Fecha</label>
-                                    <input type="date" required className="w-full bg-white p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formGasto.fecha || new Date().toISOString().split('T')[0]} onChange={e => setFormGasto({...formGasto, fecha: e.target.value})} />
-                                </div>
-                            </div>
-                            <button disabled={enviando} className={`w-full text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all flex items-center justify-center mt-2 shadow-lg active:scale-95 ${formGasto.tipo === 'INGRESO' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>{enviando ? <Loader2 className="animate-spin" /> : 'Guardar Movimiento'}</button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {showDeleteTransaccionModal && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-                    <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="w-16 h-16 md:w-24 md:h-24 bg-red-50 text-red-500 rounded-2xl md:rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 md:mb-8"><AlertTriangle size={32} className="md:w-12 md:h-12"/></div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-2">¿Borrar Registro?</h3>
-                        <p className="text-gray-400 text-[9px] md:text-[10px] font-bold mb-8 md:mb-10 uppercase tracking-[0.2em]">Se eliminará este movimiento de la contabilidad.</p>
-                        <div className="flex gap-3 md:gap-4">
-                            <button onClick={() => setShowDeleteTransaccionModal(false)} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-gray-100 hover:bg-gray-200 transition-all">Cancelar</button>
-                            <button onClick={handleEliminarTransaccion} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-red-600 text-white hover:bg-red-700 transition-all">Borrar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {pedidoDetalle && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative animate-in zoom-in duration-200">
-                        <button onClick={() => setPedidoDetalle(null)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={18}/></button>
-                        <div className="flex justify-between items-center border-b border-gray-100 pb-4 mb-6 md:mb-8 pr-10 md:pr-12">
-                            <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter">Order Manifest</h2>
-                            <button onClick={() => imprimirFacturaCliente(pedidoDetalle, rutasDinamicas, horaLimite)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 md:gap-2 transition-all shadow-lg active:scale-95">
-                                <Printer size={14}/> PDF
-                            </button>
-                        </div>
-                        <div className="space-y-3 md:space-y-4 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-                            {(pedidoDetalle.Detalles || pedidoDetalle.items || []).map((item, idx) => (
-                                <div key={idx} className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 p-4 md:p-5 rounded-[1rem] md:rounded-[1.5rem] border border-gray-100 gap-3 sm:gap-0">
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] md:text-[10px] font-black uppercase text-gray-900">{item.Producto?.nombre || item.nombre || 'Item'}</span>
-                                        <span className="text-[9px] font-bold text-gray-400 mt-1">Cant: {item.cantidad} x ${formatCurrency(item.precioUnitario || item.precio)}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 md:gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                                        <span className="font-black text-sm md:text-sm italic text-blue-600">${formatCurrency(item.cantidad * parseFloat(item.precioUnitario || item.precio || 0))}</span>
-                                        <button onClick={() => handleDevolucionProducto(pedidoDetalle.id, item)} className="bg-red-100 text-red-600 p-1.5 md:p-2 rounded-lg hover:bg-red-200 transition-colors flex items-center gap-1 text-[8px] md:text-[10px] font-bold uppercase" title="Procesar Devolución">
-                                            <ArrowLeftRight size={12} className="md:w-3 md:h-3"/> <span className="sm:hidden">Devolver</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t-2 border-dashed border-gray-100 flex justify-between items-center">
-                            <span className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 tracking-widest">Total Cliente</span>
-                            <span className="text-3xl md:text-4xl font-black italic tracking-tighter text-black">${formatCurrency(pedidoDetalle.total)}</span>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {showModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white w-full max-w-5xl rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row relative animate-in slide-in-from-bottom-4 duration-300 my-auto">
-                        <button onClick={cerrarModal} className="absolute top-4 right-4 md:top-6 md:right-6 z-10 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        <div className="w-full md:w-1/3 bg-gray-50 p-6 md:p-10 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-100">
-                            <div className="w-32 h-32 md:w-full md:aspect-square bg-white rounded-2xl md:rounded-[2.5rem] shadow-inner border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden mb-4 md:mb-8">
-                                {preview ? <img src={preview} className="w-full h-full object-cover" alt="Preview" /> : <ImageIcon size={32} className="text-gray-200 md:w-12 md:h-12" />}
-                            </div>
-                            <label className="w-full text-center bg-black text-white px-4 py-3 md:px-6 md:py-5 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase cursor-pointer hover:bg-blue-600 transition-all shadow-xl">
-                                {preview ? 'CAMBIAR IMAGEN' : 'ADJUNTAR IMAGEN'}
-                                <input type="file" className="hidden" accept="image/*" onChange={handleImagenChange} />
-                            </label>
-                        </div>
-                        <form onSubmit={handleGuardarProducto} className="flex-1 p-6 md:p-10 grid grid-cols-2 gap-4 md:gap-5 max-h-[70vh] md:max-h-[85vh] overflow-y-auto custom-scrollbar">
-                            <h2 className="col-span-2 text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-2 md:mb-4">
-                                {productoEditando ? 'EDITAR PRODUCTO' : 'NUEVO PRODUCTO'}
-                            </h2>
-                            
-                            <div className="col-span-2 md:col-span-1">
-                                <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">NOMBRE</label>
-                                <input required type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-sm" value={formulario.nombre || ''} onChange={e => setFormulario({...formulario, nombre: e.target.value})} />
-                            </div>
-                            <div className="col-span-2 md:col-span-1">
-                                <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">PROVEEDOR / MARCA</label>
-                                <input type="text" placeholder="Ej: Nike, Mayorista local..." className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-sm" value={formulario.proveedor || ''} onChange={e => setFormulario({...formulario, proveedor: e.target.value})} />
-                            </div>
-                            <div className="col-span-2 md:col-span-1">
-                                <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">CATEGORÍA</label>
-                                <select required className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-sm" value={formulario.categoriaId || ''} onChange={e => setFormulario({...formulario, categoriaId: e.target.value})}>
-                                    <option value="" disabled>SELECCIONAR</option>
-                                    {categorias.map(cat => <option key={cat.id} value={cat.id}>{cat.nombre.toUpperCase()}</option>)}
-                                </select>
-                            </div>
-                            <div className="col-span-2 md:col-span-1">
-                                <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">DESCRIPCIÓN</label>
-                                <textarea rows="1" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black resize-none text-sm" value={formulario.descripcion || ''} onChange={e => setFormulario({...formulario, descripcion: e.target.value})} />
-                            </div>
-
-                            <div className="col-span-2 bg-blue-50/50 p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-blue-100 mt-2 md:mt-4 space-y-4 md:space-y-5">
-                                <div className="flex items-center gap-3 mb-2 border-b border-blue-100 pb-3 md:pb-4">
-                                    <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 text-white rounded-lg md:rounded-xl flex items-center justify-center shadow-lg"><Calculator size={16} className="md:w-5 md:h-5" /></div>
-                                    <div>
-                                        <p className="text-xs md:text-sm font-black uppercase text-blue-900 tracking-tighter italic">Calculadora precio</p>
-                                        <p className="text-[8px] md:text-[9px] font-black text-blue-500 uppercase tracking-widest">Cálculo Automático de Rentabilidad</p>
-                                    </div>
-                                </div>
-
-                                {!productoEditando ? (
-                                    <div className="grid grid-cols-2 gap-3 md:gap-4">
-                                        <div>
-                                            <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Costo de Compra (C/U)</label>
-                                            <input required type="number" step="0.01" min="0" placeholder="¿Cuánto costó?" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-600 shadow-sm text-xs md:text-sm" value={formulario.costo_compra || ''} onChange={e => setFormulario({...formulario, costo_compra: e.target.value})} />
-                                        </div>
-                                        <div>
-                                            <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Margen de Ganancia (%)</label>
-                                            <input required type="number" min="0" placeholder="Ej: 30" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-orange-500 shadow-sm text-xs md:text-sm" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} />
-                                        </div>
-                                        <div>
-                                            <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Cantidad Inicial (Stock)</label>
-                                            <input required type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black shadow-sm text-xs md:text-sm" value={formulario.stock || ''} onChange={e => setFormulario({...formulario, stock: e.target.value})} />
-                                        </div>
-                                        <div>
-                                            <label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Alerta Stock Bajo</label>
-                                            <input required type="number" min="0" placeholder="Tope..." className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-red-500 shadow-sm text-xs md:text-sm" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-2 gap-3 md:gap-4">
-                                        <div className="bg-gray-100 p-3 md:p-4 rounded-xl md:rounded-2xl">
-                                            <p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Costo Promedio Actual</p>
-                                            <p className="font-bold text-gray-600 text-xs md:text-sm">${formatCurrency(productoEditando.costo_compra)}</p>
-                                        </div>
-                                        <div className="bg-gray-100 p-3 md:p-4 rounded-xl md:rounded-2xl">
-                                            <p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Cantidad Restante</p>
-                                            <p className="font-bold text-gray-600 text-xs md:text-sm">{formulario.stock} Uds</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">📦 ➕ Unidades Nuevas</label>
-                                            <input type="number" placeholder="Ej: 50" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs md:text-sm" value={formulario.stock_adicional || ''} onChange={e => setFormulario({...formulario, stock_adicional: e.target.value})} />
-                                        </div>
-                                        <div>
-                                            <label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">💰 Costo (C/U) Nuevo</label>
-                                            <input type="number" step="0.01" min="0" placeholder="Costo hoy..." className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs md:text-sm" value={formulario.costo_nuevo_lote || ''} onChange={e => setFormulario({...formulario, costo_nuevo_lote: e.target.value})} />
-                                        </div>
-                                        <div className="col-span-2 border-t border-dashed border-blue-200 pt-3 md:pt-4 mt-1 md:mt-2 flex gap-3 md:gap-4">
-                                            <div className="flex-1">
-                                                <label className="text-[8px] md:text-[9px] font-black uppercase text-orange-600 mb-1">Margen (%)</label>
-                                                <input type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold text-orange-600 focus:ring-2 focus:ring-orange-500 shadow-sm outline-none text-xs md:text-sm" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} />
-                                            </div>
-                                            <div className="flex-1">
-                                                <label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Alerta Stock Bajo</label>
-                                                <input type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold text-red-600 focus:ring-2 focus:ring-red-500 shadow-sm outline-none text-xs md:text-sm" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} />
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="mt-3 md:mt-4 p-4 md:p-5 bg-black text-white rounded-xl md:rounded-2xl flex justify-between items-center shadow-2xl">
-                                    <div>
-                                        <p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-green-400">Precio de Venta</p>
-                                        <p className="text-2xl md:text-3xl font-black italic tracking-tighter">
-                                            ${formatCurrency(precioCalculado)}
-                                        </p>
-                                    </div>
-                                    {productoEditando && parseInt(formulario.stock_adicional || 0) > 0 && (
-                                        <div className="text-right">
-                                            <p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-400">Stock Final</p>
-                                            <p className="text-lg md:text-xl font-bold">{parseInt(formulario.stock || 0) + parseInt(formulario.stock_adicional || 0)} Uds</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            {productoEditando && parseInt(formulario.stock_adicional || 0) === 0 && (
-                                <div className="col-span-2 mt-1 md:mt-2 p-3 md:p-4 bg-gray-50 rounded-xl md:rounded-2xl border border-gray-100 flex items-center justify-between">
-                                    <div>
-                                        <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 block mb-0.5 md:mb-1">¿Forzar cambio de precio manual?</label>
-                                        <p className="text-[8px] md:text-[10px] text-gray-400 font-bold hidden sm:block">Sobrescribe el cálculo automático</p>
-                                    </div>
-                                    <input type="number" step="0.01" className="w-1/2 sm:w-1/3 bg-white border-none rounded-lg md:rounded-xl p-2 md:p-3 font-bold shadow-sm outline-none focus:ring-2 focus:ring-black text-xs md:text-sm" value={formulario.precio || ''} onChange={e => setFormulario({...formulario, precio: e.target.value})} placeholder="Precio exacto..." />
-                                </div>
-                            )}
-
-                            <button disabled={enviando || (precioCalculado <= 0 && !formulario.precio)} className={`col-span-2 mt-2 md:mt-4 text-white py-4 md:py-6 rounded-xl md:rounded-3xl font-black uppercase tracking-[0.2em] text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-2 md:gap-3 shadow-xl ${(precioCalculado <= 0 && !formulario.precio) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-black hover:scale-[1.02]'}`}>
-                                {enviando ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={16} className="md:w-5 md:h-5"/>}
-                                {productoEditando ? 'Guardar Cambios' : 'PUBLICAR PRODUCTO'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {showEditUsuarioModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white w-full max-w-2xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative animate-in zoom-in-95 duration-200">
-                        <button onClick={() => setShowEditUsuarioModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white"><X size={18}/></button>
-                        <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8 border-b border-gray-100 pb-4">
-                            <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center"><User size={20} className="md:w-6 md:h-6"/></div>
-                            <div><h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter">Editar Cliente</h2></div>
-                        </div>
-                        <form onSubmit={handleEditarUsuario} className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Nombre Completo</label><input required type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.nombre || ''} onChange={e => setFormEditUsuario({...formEditUsuario, nombre: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Cédula</label><input required type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.cedula || ''} onChange={e => setFormEditUsuario({...formEditUsuario, cedula: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Correo (Opcional)</label><input type="email" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.email || ''} onChange={e => setFormEditUsuario({...formEditUsuario, email: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Teléfono</label><input type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.telefono || ''} onChange={e => setFormEditUsuario({...formEditUsuario, telefono: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Ciudad</label><input type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.ciudad || ''} onChange={e => setFormEditUsuario({...formEditUsuario, ciudad: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Rol del Sistema</label>
-                                <select className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.rol || 'CLIENTE'} onChange={e => setFormEditUsuario({...formEditUsuario, rol: e.target.value})}>
-                                    <option value="CLIENTE">CLIENTE REGULAR</option><option value="ADMIN">ADMINISTRADOR</option><option value="COMPRAS">ENCARGADO DE COMPRAS</option>
-                                </select>
-                            </div>
-                            <div className="sm:col-span-2"><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Dirección Exacta</label><textarea rows="2" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 resize-none text-xs md:text-sm" value={formEditUsuario.direccion || ''} onChange={e => setFormEditUsuario({...formEditUsuario, direccion: e.target.value})} /></div>
-                            <button disabled={enviando} className="sm:col-span-2 bg-blue-600 text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-black transition-all flex items-center justify-center mt-2 shadow-lg active:scale-95">{enviando ? <Loader2 className="animate-spin" /> : 'Guardar Cambios'}</button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {showUsuarioModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative">
-                        <button onClick={() => setShowUsuarioModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white"><X size={18}/></button>
-                        <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-4 md:mb-6">Crear Cliente</h2>
-                        <form onSubmit={handleCrearUsuario} className="space-y-3 md:space-y-4">
-                            <input required type="text" placeholder="Nombre completo" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.nombre || ''} onChange={e => setFormUsuario({...formUsuario, nombre: e.target.value})} />
-                            <input required type="text" placeholder="Número de Cédula" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.cedula || ''} onChange={e => setFormUsuario({...formUsuario, cedula: e.target.value})} />
-                            <input type="email" placeholder="Correo electrónico (Opcional)" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.email || ''} onChange={e => setFormUsuario({...formUsuario, email: e.target.value})} />
-                            <input required type="password" placeholder="Contraseña (mínimo 6 caracteres)" minLength="6" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.password || ''} onChange={e => setFormUsuario({...formUsuario, password: e.target.value})} />
-                            <div className="grid grid-cols-2 gap-3 md:gap-4"><input type="text" placeholder="Ciudad (Ej: Carepa)" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.ciudad || ''} onChange={e => setFormUsuario({...formUsuario, ciudad: e.target.value})} /><input type="text" placeholder="Teléfono" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.telefono || ''} onChange={e => setFormUsuario({...formUsuario, telefono: e.target.value})} /></div>
-                            <input type="text" placeholder="Dirección Exacta" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.direccion || ''} onChange={e => setFormUsuario({...formUsuario, direccion: e.target.value})} />
-                            <button disabled={enviando} className="w-full mt-2 md:mt-4 bg-black text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-blue-600 transition-all flex items-center justify-center">
-                                {enviando ? <Loader2 className="animate-spin" /> : 'Registrar Cliente'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {showPasswordModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center">
-                        <button onClick={() => setShowPasswordModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white"><X size={18}/></button>
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center mx-auto mb-4 md:mb-6"><Key size={24} className="md:w-8 md:h-8"/></div>
-                        <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 md:mb-2">Restablecer Clave</h2>
-                        <p className="text-[8px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4 md:mb-6">Para: {usuarioSeleccionado?.nombre}</p>
-                        <form onSubmit={handleRestablecerPassword} className="space-y-3 md:space-y-4">
-                            <input required type="text" placeholder="Nueva contraseña" minLength="6" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-center text-xs md:text-sm outline-none" value={nuevaPassword || ''} onChange={e => setNuevaPassword(e.target.value)} />
-                            <button disabled={enviando} className="w-full bg-blue-600 text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-black transition-all flex items-center justify-center">
-                                {enviando ? <Loader2 className="animate-spin" /> : 'Forzar Cambio'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {showConfigModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white w-full max-w-4xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative flex flex-col md:flex-row gap-6 md:gap-8 animate-in zoom-in-95 duration-200">
-                        <button onClick={() => setShowConfigModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={18}/></button>
-                        
-                        <div className="flex-1 border-b md:border-b-0 md:border-r border-gray-100 pb-6 md:pb-0 md:pr-8 text-center">
-                            <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-500 rounded-xl md:rounded-[2rem] flex items-center justify-center mx-auto mb-4 md:mb-6"><Settings size={24} className="md:w-8 md:h-8"/></div>
-                            <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 md:mb-2">Ajustes Generales</h2>
-                            <p className="text-[8px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4 md:mb-6">Soporte y Límite de Pedidos</p>
-                            
-                            <form onSubmit={handleGuardarConfig} className="space-y-4 md:space-y-5 text-left">
-                                <div className="bg-gray-50 p-4 md:p-5 rounded-2xl border border-gray-100">
-                                    <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Número de WhatsApp</label>
-                                    <input required type="text" placeholder="Ej: 573001234567" className="w-full bg-white p-3 rounded-xl font-bold text-xs md:text-sm outline-none focus:ring-2 focus:ring-green-500 transition-all shadow-sm" value={whatsappTienda || ''} onChange={e => setWhatsappTienda(e.target.value)} />
-                                    <p className="text-[8px] text-gray-400 mt-1">Con código de país (Ej: 57).</p>
-                                </div>
-                                
-                                <div className="bg-blue-50 p-4 md:p-5 rounded-2xl border border-blue-100">
-                                    <label className="text-[8px] md:text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1 block">Corte Diario de Rutas</label>
-                                    <p className="text-[8px] text-gray-500 mb-2 leading-tight">Si un cliente pide <b>después</b> de esta hora para la ruta de mañana, el sistema lo pasará a la próxima semana.</p>
-                                    <input required type="time" className="w-full bg-white p-3 rounded-xl font-black text-blue-900 text-sm md:text-base outline-none focus:ring-2 focus:ring-blue-600 transition-all shadow-sm cursor-pointer" value={horaLimite} onChange={e => setHoraLimite(e.target.value)} />
-                                </div>
-
-                                <button disabled={enviando} className="w-full bg-black text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-green-500 transition-all shadow-lg active:scale-95">{enviando ? <Loader2 className="animate-spin mx-auto" /> : 'Guardar Ajustes'}</button>
-                            </form>
-                        </div>
-
-                        <div className="flex-1 md:pl-4 mt-2 md:mt-0">
-                            <div className="flex items-center gap-3 md:gap-4 mb-4 md:mb-6">
-                                <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 text-blue-500 rounded-xl md:rounded-2xl flex items-center justify-center"><Map size={20} className="md:w-6 md:h-6"/></div>
-                                <div>
-                                    <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Tabla de Rutas</h2>
-                                    <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest">Asigna días a ciudades</p>
-                                </div>
-                            </div>
-                            
-                            <form onSubmit={handleCrearRutaConfig} className="flex flex-col gap-2 mb-4 md:mb-6 bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl border border-gray-100">
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest">Ciudades (Separadas por coma)</label>
-                                <input required type="text" placeholder="Ej: Medellín, Bello, Envigado" className="bg-white p-2.5 md:p-3 rounded-lg md:rounded-xl font-bold text-[10px] md:text-xs uppercase outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" value={nuevaRutaCiudad} onChange={e => setNuevaRutaCiudad(e.target.value)} />
-                                
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1 md:mt-2">Día de Entrega</label>
-                                <div className="flex gap-2">
-                                    <select required className="flex-1 bg-white p-2.5 md:p-3 rounded-lg md:rounded-xl font-bold text-[10px] md:text-xs uppercase outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm" value={nuevaRutaDia} onChange={e => setNuevaRutaDia(e.target.value)}>
-                                        <option value="" disabled>Selecciona Día</option>
-                                        <option value="Lunes">Lunes</option><option value="Martes">Martes</option>
-                                        <option value="Miércoles">Miércoles</option><option value="Jueves">Jueves</option>
-                                        <option value="Viernes">Viernes</option><option value="Sábado">Sábado</option><option value="Domingo">Domingo</option>
-                                    </select>
-                                    <button disabled={enviando} className="bg-blue-600 text-white px-4 md:px-6 rounded-lg md:rounded-xl font-black uppercase text-[10px] md:text-xs hover:bg-blue-700 shadow-md">Añadir</button>
-                                </div>
-                            </form>
-
-                            <div className="max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="border-b border-gray-200">
-                                            <th className="py-2 text-[8px] md:text-[9px] font-black text-gray-400 uppercase">Día</th>
-                                            <th className="py-2 text-[8px] md:text-[9px] font-black text-gray-400 uppercase">Ciudades</th>
-                                            <th></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {rutasDinamicas.length === 0 && <tr><td colSpan="3" className="text-center text-gray-400 text-[9px] md:text-[10px] font-bold uppercase py-6">No hay reglas de ruta</td></tr>}
-                                        {rutasDinamicas.map(r => (
-                                            <tr key={r.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
-                                                <td className="py-2 md:py-3 text-[9px] md:text-[10px] font-black text-blue-600 uppercase">{r.dia_ruta}</td>
-                                                <td className="py-2 md:py-3 text-[9px] md:text-[10px] font-bold text-gray-900 uppercase truncate max-w-[100px] md:max-w-[150px]">{r.ciudad}</td>
-                                                <td className="py-2 md:py-3 text-right">
-                                                    <button onClick={() => handleEliminarRutaConfig(r.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 md:p-2 rounded-lg transition-colors"><Trash2 size={12} className="md:w-3.5 md:h-3.5"/></button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {usuarioAEliminar && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-                    <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="w-16 h-16 md:w-24 md:h-24 bg-red-50 text-red-500 rounded-2xl md:rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 md:mb-8"><AlertTriangle size={32} className="md:w-12 md:h-12" /></div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-2">¿Eliminar Cliente?</h3>
-                        <p className="text-gray-400 text-[9px] md:text-[10px] font-bold mb-8 md:mb-10 uppercase tracking-[0.2em]">Se borrará a "{usuarioAEliminar.nombre}" permanentemente.</p>
-                        <div className="flex gap-3 md:gap-4">
-                            <button onClick={() => setUsuarioAEliminar(null)} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-gray-100 hover:bg-gray-200 transition-all">Cancelar</button>
-                            <button onClick={handleEliminarUsuario} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-red-600 text-white hover:bg-red-700 transition-all">Destruir</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {showDeleteModal && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-                    <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="w-16 h-16 md:w-24 md:h-24 bg-red-50 text-red-500 rounded-2xl md:rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 md:mb-8"><AlertTriangle size={32} className="md:w-12 md:h-12"/></div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-2">Delete Asset?</h3>
-                        <p className="text-gray-400 text-[9px] md:text-[10px] font-bold mb-8 md:mb-10 uppercase tracking-[0.2em]">Permanently remove "{productoAEliminar?.nombre}"</p>
-                        <div className="flex gap-3 md:gap-4">
-                            <button onClick={() => setShowDeleteModal(false)} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-gray-100 hover:bg-gray-200 transition-all">Cancel</button>
-                            <button onClick={handleEliminar} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-red-600 text-white hover:bg-red-700 transition-all">Destroy</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* 🔥 Y AQUÍ LLAMAMOS A TODOS LOS MODALES EN 1 SOLA LÍNEA 🔥 */}
+            <AdminModals states={statesProps} forms={formsProps} setters={settersProps} handlers={handlersProps} data={dataProps} />
         </div>
     );
 };
