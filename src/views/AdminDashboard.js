@@ -4,16 +4,15 @@ import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { io } from "socket.io-client";
 import { 
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-    AreaChart, Area
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
-// 🔥 AQUÍ AGREGAMOS Award A LA LISTA DE ÍCONOS 🔥
 import { 
-    Plus, Package, ShoppingCart, Search, 
-    AlertTriangle, Loader2, FileSpreadsheet, Eye, Truck,
-    CalendarDays, Activity, DollarSign, Clock, Users, Settings,
-    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
-    Receipt, Award
+    Plus, Edit, Trash2, Package, ShoppingCart, Search, 
+    TrendingUp, AlertTriangle, X, Loader2, CheckCircle2,
+    Image as ImageIcon, FileSpreadsheet, Eye, Truck, Printer,
+    CalendarDays, Activity, DollarSign, Clock, Users, User, Key, Briefcase, Award, Calculator, Settings,
+    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, ArrowLeftRight, PackageMinus, Banknote, FileText,
+    Receipt, History, ChevronRight
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
@@ -32,7 +31,7 @@ const StatCard = ({ title, value, icon, color, subtitle }) => (
 );
 
 const AdminDashboard = () => {
-    // --- ESTADOS ---
+    // --- ESTADOS GLOBALES ---
     const [productos, setProductos] = useState([]);
     const [pedidos, setPedidos] = useState([]);
     const [categorias, setCategorias] = useState([]);
@@ -57,7 +56,7 @@ const AdminDashboard = () => {
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('VIGENTE'); 
     const [mesFiltroContable, setMesFiltroContable] = useState('Todos');
 
-    // --- MODALES (STATES Y SETTERS PARA AdminModals) ---
+    // --- MODALES (ESTADOS PARA EL COMPONENTE AdminModals) ---
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showBajaModal, setShowBajaModal] = useState(false);
@@ -86,12 +85,8 @@ const AdminDashboard = () => {
     const [imagenArchivo, setImagenArchivo] = useState(null);
     const [preview, setPreview] = useState(null);
     const [precioCalculado, setPrecioCalculado] = useState(0);
-
-    // --- FORMS ---
-    const [nuevaRutaPersonalizada, setNuevaRutaPersonalizada] = useState('');
-    const [nuevaRutaCiudad, setNuevaRutaCiudad] = useState('');
-    const [nuevaRutaDia, setNuevaRutaDia] = useState('');
-    const [nuevaPassword, setNuevaPassword] = useState('');
+    
+    // --- FORMULARIOS ---
     const [formulario, setFormulario] = useState({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 });
     const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
     const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE' });
@@ -99,6 +94,10 @@ const AdminDashboard = () => {
     const [formBaja, setFormBaja] = useState({ cantidad: 1, motivo: 'Dañado/Roto' });
     const [formCredito, setFormCredito] = useState({ usuarioId: '', monto_total: '', descripcion: '' });
     const [formAbono, setFormAbono] = useState({ monto: '', nota: '' });
+    const [nuevaPassword, setNuevaPassword] = useState('');
+    const [nuevaRutaPersonalizada, setNuevaRutaPersonalizada] = useState('');
+    const [nuevaRutaCiudad, setNuevaRutaCiudad] = useState('');
+    const [nuevaRutaDia, setNuevaRutaDia] = useState('');
 
     const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...rutasDinamicas.map(r => r.dia_ruta)])];
 
@@ -278,7 +277,7 @@ const AdminDashboard = () => {
         });
     }, [productos, searchTerm, filtroCategoria, filtroStockBajo]);
 
-    // --- HANDLERS ---
+    // --- MANEJADORES DE ACCIONES ---
     const exportarManifiestoCarga = async () => {
         const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
         if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
@@ -405,7 +404,6 @@ const AdminDashboard = () => {
 
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
 
-    // --- RENDERIZADO DEL DASHBOARD (Sin Modales aquí) ---
     return (
         <div className="min-h-screen bg-gray-50 pb-20 px-4 md:px-8">
             {/* Cabecera Principal */}
@@ -509,7 +507,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* DEMÁS VISTAS NORMALES... */}
+                {/* VISTAS NORMALES... */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -749,15 +747,9 @@ const AdminDashboard = () => {
                                                     value={ped.estado || ''} 
                                                     onChange={(e) => {
                                                         if (e.target.value === 'Entregado') {
-                                                            if (estaLiquidado) {
-                                                                actualizarEstadoPedido(ped.id, 'Entregado');
-                                                            } else {
-                                                                setPedidoACobrar(ped);
-                                                                setShowCobroModal(true);
-                                                            }
-                                                        } else {
-                                                            actualizarEstadoPedido(ped.id, e.target.value);
-                                                        }
+                                                            if (estaLiquidado) actualizarEstadoPedido(ped.id, 'Entregado');
+                                                            else { setPedidoACobrar(ped); setShowCobroModal(true); }
+                                                        } else { actualizarEstadoPedido(ped.id, e.target.value); }
                                                     }} 
                                                     className="w-full border-none rounded-xl text-[9px] md:text-[10px] font-black uppercase p-2 md:p-3 outline-none bg-black text-white cursor-pointer mt-1"
                                                 >
