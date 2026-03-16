@@ -1,29 +1,32 @@
 import React from 'react';
-import { X, Loader2, CheckCircle2, Calculator, AlertTriangle, User, Key, Settings, Map, Trash2, PackageMinus, Banknote, DollarSign, Image as ImageIcon, Printer, ArrowLeftRight, CalendarDays, ChevronRight, History } from 'lucide-react';
+import { X, Loader2, CheckCircle2, Calculator, AlertTriangle, User, Key, Settings, Map, Trash2, PackageMinus, Banknote, DollarSign, Image as ImageIcon, Printer, ArrowLeftRight, CalendarDays, ChevronRight, History, Edit } from 'lucide-react';
 import { formatCurrency, imprimirFacturaCliente } from '../../utils/adminUtils';
 
 const AdminModals = ({ states, forms, setters, handlers, data }) => {
+    // 1. Extraemos los estados
     const { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando } = states;
     const { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono } = forms;
     const { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado } = setters;
     const { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera } = handlers;
-    const { categorias, usuarios, rutasDinamicas, transacciones } = data;
+    
+    // 🔥 CORRECCIÓN: Ahora desempaquetamos 'transacciones' correctamente 🔥
+    const { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones } = data;
 
     return (
         <>
             {/* 🔥 MODAL: ESTADO DE CUENTA CARTERA (Panel 360) 🔥 */}
-            {clienteEstadoCuenta && data.clienteActualData && (
+            {clienteEstadoCuenta && clienteActualData && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[180] flex items-center justify-center p-2 md:p-6 overflow-hidden">
                     <div className="bg-gray-50 w-full max-w-6xl h-[95vh] md:h-[90vh] rounded-[2rem] md:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden relative animate-in zoom-in-95 duration-300">
                         <div className="bg-white p-6 md:p-8 border-b border-gray-200 flex justify-between items-center z-10 shrink-0">
                             <div>
-                                <h2 className="text-xl md:text-3xl font-black uppercase italic tracking-tighter flex items-center gap-3"><User className="text-blue-600" /> {data.clienteActualData.nombre}</h2>
+                                <h2 className="text-xl md:text-3xl font-black uppercase italic tracking-tighter flex items-center gap-3"><User className="text-blue-600" /> {clienteActualData.nombre}</h2>
                                 <p className="text-[9px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Estado de Cuenta Oficial</p>
                             </div>
                             <div className="flex items-center gap-4">
                                 <div className="hidden md:block text-right mr-4 border-r pr-8 border-gray-200">
                                     <p className="text-[9px] font-black uppercase tracking-widest text-red-400">Deuda Total Activa</p>
-                                    <p className="text-2xl font-black italic tracking-tighter text-red-600">${formatCurrency(data.clienteActualData.totalDeuda)}</p>
+                                    <p className="text-2xl font-black italic tracking-tighter text-red-600">${formatCurrency(clienteActualData.totalDeuda)}</p>
                                 </div>
                                 <button onClick={() => setClienteEstadoCuenta(null)} className="p-3 md:p-4 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all active:scale-90"><X size={20}/></button>
                             </div>
@@ -37,12 +40,12 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
                                     <div className="md:hidden bg-red-50 border border-red-100 p-4 rounded-2xl mb-4 text-center">
                                         <p className="text-[9px] font-black uppercase tracking-widest text-red-400">Deuda Total Activa</p>
-                                        <p className="text-3xl font-black italic tracking-tighter text-red-600">${formatCurrency(data.clienteActualData.totalDeuda)}</p>
+                                        <p className="text-3xl font-black italic tracking-tighter text-red-600">${formatCurrency(clienteActualData.totalDeuda)}</p>
                                     </div>
-                                    {data.clienteActualData.creditos.length === 0 ? (
+                                    {clienteActualData.creditos.length === 0 ? (
                                         <p className="text-center text-gray-400 text-xs font-bold uppercase py-10">El cliente no tiene historial de deudas.</p>
                                     ) : (
-                                        data.clienteActualData.creditos.map(c => {
+                                        clienteActualData.creditos.map(c => {
                                             const hoy = new Date(); hoy.setHours(0,0,0,0);
                                             const vence = new Date(c.fecha_vencimiento); vence.setHours(0,0,0,0);
                                             const estaEnMora = c.estado === 'VIGENTE' && hoy > vence;
@@ -81,12 +84,12 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                     <h3 className="font-black uppercase tracking-tighter text-lg md:text-xl flex items-center gap-2 text-gray-700"><History className="text-blue-500" size={20}/> Facturas (Pedidos)</h3>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
-                                    {data.clienteActualData.pedidos.length === 0 ? (
+                                    {clienteActualData.pedidos.length === 0 ? (
                                         <p className="text-center text-gray-400 text-xs font-bold uppercase py-10">El cliente no ha realizado pedidos aún.</p>
                                     ) : (
-                                        data.clienteActualData.pedidos.slice().reverse().map(ped => {
-                                            // 🔥 FIX ESTRICTO: Búsqueda exacta para evitar duplicar pagos 🔥
-                                            const yaEnCartera = data.clienteActualData.creditos.some(c => c.descripcion === `Factura Pedido #${ped.id}`);
+                                        clienteActualData.pedidos.slice().reverse().map(ped => {
+                                            // 🔥 FIX ESTRICTO: Para evitar que un pedido liquidado se vuelva a liquidar
+                                            const yaEnCartera = clienteActualData.creditos.some(c => c.descripcion === `Factura Pedido #${ped.id}`);
                                             const yaEnFinanzas = transacciones.some(t => t.pedidoId === ped.id || t.descripcion === `Pago de Contado - Pedido #${ped.id}` || t.descripcion === `Venta - Orden #${ped.id}`);
 
                                             return (
@@ -101,7 +104,6 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                                     </div>
                                                     <div className="flex flex-col items-start sm:items-end justify-between border-t sm:border-t-0 sm:border-l border-gray-100 pt-3 sm:pt-0 sm:pl-4">
                                                         <p className="font-black text-xl md:text-2xl italic tracking-tighter text-gray-900">${formatCurrency(ped.total)}</p>
-                                                        
                                                         {yaEnCartera ? (
                                                             <span className="text-[9px] font-black uppercase tracking-widest text-orange-500 flex items-center gap-1 mt-2"><CheckCircle2 size={12}/> Fiado (En Cartera)</span>
                                                         ) : yaEnFinanzas ? (
@@ -123,15 +125,60 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* 🔥 MODAL: LIQUIDAR PEDIDO (CONTADO VS CREDITO) 🔥 */}
+            {/* MODALES TRANSACCIONES (LIBRO MAYOR) */}
+            {(showGastoModal || showEditTransaccionModal) && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center animate-in zoom-in-95 duration-200">
+                        <button onClick={() => {setShowGastoModal(false); setShowEditTransaccionModal(false);}} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={18}/></button>
+                        <div className={`w-12 h-12 md:w-16 md:h-16 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center mx-auto mb-4 md:mb-6 ${formGasto.tipo === 'INGRESO' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
+                            <DollarSign size={24} className="md:w-8 md:h-8"/>
+                        </div>
+                        <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 md:mb-2">{transaccionSeleccionada ? 'Editar Movimiento' : 'Registrar Movimiento'}</h2>
+                        <form onSubmit={handleGuardarTransaccion} className="space-y-3 md:space-y-4 text-left mt-4">
+                            <div className="flex gap-2 mb-2 md:mb-4">
+                                <button type="button" onClick={() => setFormGasto({...formGasto, tipo: 'INGRESO'})} className={`flex-1 py-2 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase transition-all ${formGasto.tipo === 'INGRESO' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Ingreso</button>
+                                <button type="button" onClick={() => setFormGasto({...formGasto, tipo: 'EGRESO'})} className={`flex-1 py-2 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase transition-all ${formGasto.tipo === 'EGRESO' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Egreso</button>
+                            </div>
+                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Monto ($)</label><input required type="number" step="0.01" min="0" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={formGasto.monto || ''} onChange={e => setFormGasto({...formGasto, monto: e.target.value})} /></div>
+                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Descripción</label><input required type="text" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={formGasto.descripcion || ''} onChange={e => setFormGasto({...formGasto, descripcion: e.target.value})} /></div>
+                            <div className="flex flex-col md:flex-row gap-2">
+                                <div className="flex-1">
+                                    <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Categoría</label>
+                                    <select className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formGasto.categoria || 'Logística'} onChange={e => setFormGasto({...formGasto, categoria: e.target.value})}>
+                                        <option value="Ventas Productos">Ventas Productos</option><option value="Logística">Logística</option><option value="Mercancía">Compra Mercancía</option><option value="Servicios">Servicios</option><option value="Nómina">Nómina</option><option value="Otros">Otros</option>
+                                    </select>
+                                </div>
+                                <div className="flex-1">
+                                    <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Fecha</label>
+                                    <input type="date" required className="w-full bg-white p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formGasto.fecha || new Date().toISOString().split('T')[0]} onChange={e => setFormGasto({...formGasto, fecha: e.target.value})} />
+                                </div>
+                            </div>
+                            <button disabled={enviando} className={`w-full text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all flex items-center justify-center mt-2 shadow-lg active:scale-95 ${formGasto.tipo === 'INGRESO' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>{enviando ? <Loader2 className="animate-spin" /> : 'Guardar Movimiento'}</button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {showDeleteTransaccionModal && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                    <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 md:w-24 md:h-24 bg-red-50 text-red-500 rounded-2xl md:rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 md:mb-8"><AlertTriangle size={32} className="md:w-12 md:h-12"/></div>
+                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-2">¿Borrar Registro?</h3>
+                        <p className="text-gray-400 text-[9px] md:text-[10px] font-bold mb-8 md:mb-10 uppercase tracking-[0.2em]">Se eliminará de la contabilidad.</p>
+                        <div className="flex gap-3 md:gap-4">
+                            <button onClick={() => setShowDeleteTransaccionModal(false)} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-gray-100 hover:bg-gray-200 transition-all">Cancelar</button>
+                            <button onClick={handleEliminarTransaccion} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-red-600 text-white hover:bg-red-700 transition-all">Borrar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* MODAL: LIQUIDAR PEDIDO (CONTADO VS CREDITO) */}
             {showCobroModal && pedidoACobrar && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[300] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
                         <button onClick={() => {setShowCobroModal(false); setPedidoACobrar(null);}} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <CheckCircle2 size={24} className="md:w-8 md:h-8"/>
-                        </div>
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={24} className="md:w-8 md:h-8"/></div>
                         <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Liquidar Pedido</h3>
                         <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Pedido #{pedidoACobrar.id} • ${formatCurrency(pedidoACobrar.total)}</p>
                         
@@ -147,15 +194,12 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* 🔥 MODAL: CREAR CRÉDITO (FIAR MANUAL) 🔥 */}
+            {/* MODAL: CREAR CRÉDITO (FIAR MANUAL) */}
             {showCreditoModal && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
                         <button onClick={() => setShowCreditoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <Banknote size={24} className="md:w-8 md:h-8"/>
-                        </div>
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4"><Banknote size={24} className="md:w-8 md:h-8"/></div>
                         <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Fiar a Cliente</h3>
                         <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Registrar deuda manual</p>
                         
@@ -164,22 +208,17 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Cliente Deudor</label>
                                 <select required className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-gray-900 outline-none focus:ring-2 focus:ring-black text-xs md:text-sm cursor-pointer" value={formCredito.usuarioId} onChange={e => setFormCredito({...formCredito, usuarioId: e.target.value})}>
                                     <option value="" disabled>Selecciona un cliente</option>
-                                    {usuarios.map(u => (
-                                        <option key={u.id} value={u.id}>{u.nombre} - CC: {u.cedula || 'N/A'}</option>
-                                    ))}
+                                    {usuarios.map(u => (<option key={u.id} value={u.id}>{u.nombre} - CC: {u.cedula || 'N/A'}</option>))}
                                 </select>
                             </div>
-                            
                             <div>
                                 <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Monto a Fiar ($)</label>
                                 <input required type="number" step="0.01" min="1" placeholder="Ej: 150000" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-black text-sm" value={formCredito.monto_total} onChange={e => setFormCredito({...formCredito, monto_total: e.target.value})} />
                             </div>
-
                             <div>
                                 <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Concepto / Descripción</label>
                                 <input required type="text" placeholder="Ej: Mercancía de Noviembre" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-black text-xs md:text-sm" value={formCredito.descripcion} onChange={e => setFormCredito({...formCredito, descripcion: e.target.value})} />
                             </div>
-                            
                             <button disabled={enviando} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-black text-white hover:bg-blue-600 transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50">
                                 {enviando ? <Loader2 className="animate-spin" /> : 'Crear Crédito'}
                             </button>
@@ -188,15 +227,12 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* 🔥 MODAL: REGISTRAR ABONO (PAGO) 🔥 */}
+            {/* MODAL: REGISTRAR ABONO (PAGO) */}
             {showAbonoModal && creditoSeleccionado && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
                         <button onClick={() => setShowAbonoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <DollarSign size={24} className="md:w-8 md:h-8"/>
-                        </div>
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><DollarSign size={24} className="md:w-8 md:h-8"/></div>
                         <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Recibir Abono</h3>
                         <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center line-clamp-1">{creditoSeleccionado.Usuario?.nombre}</p>
                         
@@ -205,17 +241,14 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 <span className="text-[9px] md:text-[10px] font-black text-red-400 uppercase tracking-widest">Deuda Actual:</span>
                                 <span className="text-sm md:text-base font-black italic text-red-600">${formatCurrency(creditoSeleccionado.saldo)}</span>
                             </div>
-                            
                             <div>
                                 <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">¿Cuánto pagó hoy?</label>
                                 <input required type="number" step="0.01" min="1" max={creditoSeleccionado.saldo} placeholder={`Máximo $${creditoSeleccionado.saldo}`} className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-green-500 text-sm text-green-700" value={formAbono.monto} onChange={e => setFormAbono({...formAbono, monto: e.target.value})} />
                             </div>
-
                             <div>
                                 <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Nota (Opcional)</label>
-                                <input type="text" placeholder="Ej: Efectivo, Transferencia Bancolombia..." className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-green-500 text-xs md:text-sm" value={formAbono.nota} onChange={e => setFormAbono({...formAbono, nota: e.target.value})} />
+                                <input type="text" placeholder="Ej: Efectivo, Transferencia..." className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-green-500 text-xs md:text-sm" value={formAbono.nota} onChange={e => setFormAbono({...formAbono, nota: e.target.value})} />
                             </div>
-
                             <div className="bg-green-50 p-4 rounded-xl md:rounded-2xl border border-green-100 flex justify-between items-center mt-2">
                                 <div>
                                     <p className="text-[8px] md:text-[9px] font-black text-green-600 uppercase">Impacto Contable</p>
@@ -223,7 +256,6 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 </div>
                                 <p className="text-lg md:text-xl font-black text-green-600 italic">+${formatCurrency(formAbono.monto || 0)}</p>
                             </div>
-                            
                             <button disabled={enviando || parseFloat(formAbono.monto || 0) <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-green-600 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50 active:scale-95">
                                 {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Abono'}
                             </button>
@@ -232,7 +264,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* 🔥 MODAL EDITAR USUARIO (CON LÍMITES) 🔥 */}
+            {/* MODAL EDITAR USUARIO (CON LÍMITES) */}
             {showEditUsuarioModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-2xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative animate-in zoom-in-95 duration-200">
@@ -254,6 +286,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                             </div>
                             <div className="sm:col-span-2"><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Dirección Exacta</label><textarea rows="2" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 resize-none text-xs md:text-sm" value={formEditUsuario.direccion || ''} onChange={e => setFormEditUsuario({...formEditUsuario, direccion: e.target.value})} /></div>
                             
+                            {/* 🔥 NUEVO: CONFIGURACIÓN DE CRÉDITO 🔥 */}
                             <div className="sm:col-span-2 mt-4 bg-orange-50/50 p-4 rounded-2xl border border-orange-100 grid grid-cols-2 gap-4">
                                 <div className="col-span-2"><p className="text-[9px] font-black text-orange-600 uppercase tracking-widest flex items-center gap-2"><Banknote size={14}/> Configuración de Crédito</p></div>
                                 <div><label className="text-[8px] font-black uppercase text-gray-500 mb-1 ml-1">Límite de Crédito ($)</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-orange-500 text-xs shadow-sm" placeholder="0 = Sin Crédito" value={formEditUsuario.limite_credito} onChange={e => setFormEditUsuario({...formEditUsuario, limite_credito: e.target.value})} /></div>
@@ -266,7 +299,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* 🔥 MODAL CREAR USUARIO (CON LÍMITES) 🔥 */}
+            {/* MODAL CREAR USUARIO (CON LÍMITES) */}
             {showUsuarioModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-lg rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative my-auto animate-in zoom-in-95 duration-200">
@@ -294,7 +327,46 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* RESTO DE LOS MODALES CLÁSICOS */}
+            {/* MODAL: BAJA DE PRODUCTOS */}
+            {showBajaModal && productoBaja && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
+                        <button onClick={() => setShowBajaModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4"><PackageMinus size={24} className="md:w-8 md:h-8"/></div>
+                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Dar de Baja</h3>
+                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center line-clamp-1">{productoBaja.nombre}</p>
+                        
+                        <form onSubmit={handleGuardarBaja} className="space-y-4 md:space-y-5">
+                            <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl">
+                                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">Stock Actual:</span>
+                                <span className="text-xs md:text-sm font-black text-gray-900">{productoBaja.stock} Uds</span>
+                            </div>
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">¿Cuántas unidades se dañaron?</label>
+                                <input required type="number" min="1" max={productoBaja.stock} className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-orange-500 text-sm" value={formBaja.cantidad} onChange={e => setFormBaja({...formBaja, cantidad: parseInt(e.target.value)})} />
+                            </div>
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Motivo de la pérdida</label>
+                                <select className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-gray-700 outline-none focus:ring-2 focus:ring-orange-500 text-xs md:text-sm cursor-pointer" value={formBaja.motivo} onChange={e => setFormBaja({...formBaja, motivo: e.target.value})}>
+                                    <option value="Dañado/Roto">Dañado / Roto</option><option value="Defectuoso de Fábrica">Defectuoso de Fábrica</option><option value="Vencido/Caducado">Vencido / Caducado</option><option value="Pérdida/Robo">Pérdida / Robo</option>
+                                </select>
+                            </div>
+                            <div className="bg-orange-50 p-4 rounded-xl md:rounded-2xl border border-orange-100 flex justify-between items-center">
+                                <div>
+                                    <p className="text-[8px] md:text-[9px] font-black text-orange-600 uppercase">Pérdida Financiera</p>
+                                    <p className="text-[7px] md:text-[8px] font-bold text-orange-500">Se restará del libro mayor</p>
+                                </div>
+                                <p className="text-lg md:text-xl font-black text-orange-600 italic">-${formatCurrency((productoBaja.costo_compra || 0) * formBaja.cantidad)}</p>
+                            </div>
+                            <button disabled={enviando || productoBaja.stock <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-orange-500 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50">
+                                {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Baja'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* RESTO DE LOS MODALES DE CONFIG Y BORRADO */}
             {showPasswordModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center">
@@ -316,12 +388,10 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-4xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative flex flex-col md:flex-row gap-6 md:gap-8 animate-in zoom-in-95 duration-200">
                         <button onClick={() => setShowConfigModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={18}/></button>
-                        
                         <div className="flex-1 border-b md:border-b-0 md:border-r border-gray-100 pb-6 md:pb-0 md:pr-8 text-center">
                             <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-500 rounded-xl md:rounded-[2rem] flex items-center justify-center mx-auto mb-4 md:mb-6"><Settings size={24} className="md:w-8 md:h-8"/></div>
                             <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 md:mb-2">Ajustes Generales</h2>
                             <p className="text-[8px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4 md:mb-6">Soporte y Límite de Pedidos</p>
-                            
                             <form onSubmit={handleGuardarConfig} className="space-y-4 md:space-y-5 text-left">
                                 <div className="bg-gray-50 p-4 md:p-5 rounded-2xl border border-gray-100">
                                     <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Número de WhatsApp</label>
@@ -334,7 +404,6 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 <button disabled={enviando} className="w-full bg-black text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-green-500 transition-all shadow-lg active:scale-95">{enviando ? <Loader2 className="animate-spin mx-auto" /> : 'Guardar Ajustes'}</button>
                             </form>
                         </div>
-
                         <div className="flex-1 md:pl-4 mt-2 md:mt-0">
                             <div className="flex items-center gap-3 md:gap-4 mb-4 md:mb-6">
                                 <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 text-blue-500 rounded-xl md:rounded-2xl flex items-center justify-center"><Map size={20} className="md:w-6 md:h-6"/></div>
@@ -370,42 +439,6 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* MODAL DETALLE PEDIDO (COMPROBANTE BÁSICO) */}
-            {pedidoDetalle && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative animate-in zoom-in duration-200">
-                        <button onClick={() => setPedidoDetalle(null)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={18}/></button>
-                        <div className="flex justify-between items-center border-b border-gray-100 pb-4 mb-6 md:mb-8 pr-10 md:pr-12">
-                            <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter">Detalle Pedido</h2>
-                            <button onClick={() => imprimirFacturaCliente(pedidoDetalle, data.rutasDinamicas, forms.horaLimite)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 md:gap-2 transition-all shadow-lg active:scale-95">
-                                <Printer size={14}/> PDF
-                            </button>
-                        </div>
-                        <div className="space-y-3 md:space-y-4 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
-                            {(pedidoDetalle.Detalles || pedidoDetalle.items || []).map((item, idx) => (
-                                <div key={idx} className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 p-4 md:p-5 rounded-[1rem] md:rounded-[1.5rem] border border-gray-100 gap-3 sm:gap-0">
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] md:text-[10px] font-black uppercase text-gray-900">{item.Producto?.nombre || item.nombre || 'Item'}</span>
-                                        <span className="text-[9px] font-bold text-gray-400 mt-1">Cant: {item.cantidad} x ${formatCurrency(item.precioUnitario || item.precio)}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 md:gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                                        <span className="font-black text-sm md:text-sm italic text-blue-600">${formatCurrency(item.cantidad * parseFloat(item.precioUnitario || item.precio || 0))}</span>
-                                        <button onClick={() => handleDevolucionProducto(pedidoDetalle.id, item)} className="bg-red-100 text-red-600 p-1.5 md:p-2 rounded-lg hover:bg-red-200 transition-colors flex items-center gap-1 text-[8px] md:text-[10px] font-bold uppercase" title="Procesar Devolución">
-                                            <ArrowLeftRight size={12} className="md:w-3 md:h-3"/> <span className="sm:hidden">Devolver</span>
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t-2 border-dashed border-gray-100 flex justify-between items-center">
-                            <span className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 tracking-widest">Total Cliente</span>
-                            <span className="text-3xl md:text-4xl font-black italic tracking-tighter text-black">${formatCurrency(pedidoDetalle.total)}</span>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* MODALES DE BORRADO */}
             {usuarioAEliminar && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
                     <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
