@@ -7,12 +7,13 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     AreaChart, Area
 } from 'recharts';
+// 🔥 AQUÍ AGREGAMOS Award A LA LISTA DE ÍCONOS 🔥
 import { 
     Plus, Package, ShoppingCart, Search, 
     AlertTriangle, Loader2, FileSpreadsheet, Eye, Truck,
     CalendarDays, Activity, DollarSign, Clock, Users, Settings,
     ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
-    Receipt
+    Receipt, Award
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
@@ -508,7 +509,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* VISTAS NORMALES */}
+                {/* DEMÁS VISTAS NORMALES... */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -748,9 +749,15 @@ const AdminDashboard = () => {
                                                     value={ped.estado || ''} 
                                                     onChange={(e) => {
                                                         if (e.target.value === 'Entregado') {
-                                                            if (estaLiquidado) actualizarEstadoPedido(ped.id, 'Entregado');
-                                                            else { setPedidoACobrar(ped); setShowCobroModal(true); }
-                                                        } else { actualizarEstadoPedido(ped.id, e.target.value); }
+                                                            if (estaLiquidado) {
+                                                                actualizarEstadoPedido(ped.id, 'Entregado');
+                                                            } else {
+                                                                setPedidoACobrar(ped);
+                                                                setShowCobroModal(true);
+                                                            }
+                                                        } else {
+                                                            actualizarEstadoPedido(ped.id, e.target.value);
+                                                        }
                                                     }} 
                                                     className="w-full border-none rounded-xl text-[9px] md:text-[10px] font-black uppercase p-2 md:p-3 outline-none bg-black text-white cursor-pointer mt-1"
                                                 >
