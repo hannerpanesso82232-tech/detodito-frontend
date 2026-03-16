@@ -913,7 +913,7 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* 🔥 Y AQUÍ LLAMAMOS A TODOS LOS MODALES 🔥 */}
+            {/*Y AQUÍ LLAMAMOS A TODOS LOS MODALES */}
             <AdminModals states={statesProps} forms={formsProps} setters={settersProps} handlers={handlersProps} data={dataProps} />
         </div>
     );

@@ -147,7 +147,7 @@ const GestionCategorias = () => {
             </button>
             
             <h2 className="text-3xl font-black uppercase italic tracking-tighter mb-8 text-gray-900">
-              {editando ? 'Edit Tag' : 'New Tag'}
+              {editando ? 'Editar etiqueta': 'Nueva etiqueta'}
             </h2>
             
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -171,7 +171,7 @@ const GestionCategorias = () => {
                 className="w-full bg-black text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-blue-600 disabled:bg-gray-400 transition-all flex items-center justify-center gap-3 active:scale-95 shadow-xl shadow-blue-900/10"
               >
                 {enviando ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
-                {editando ? 'Commit Update' : 'Initialize Category'}
+                {editando ? 'Confirmar actualización': 'Inicializar categoría'}
               </button>
             </form>
           </div>

@@ -98,7 +98,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* 🔥 MODAL: ESTADO DE CUENTA CARTERA (Panel 360) 🔥 */}
+            {/* MODAL: ESTADO DE CUENTA CARTERA (Panel 360) */}
             {clienteEstadoCuenta && clienteActualData && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[180] flex items-center justify-center p-2 md:p-6 overflow-hidden">
                     <div className="bg-gray-50 w-full max-w-6xl h-[95vh] md:h-[90vh] rounded-[2rem] md:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden relative animate-in zoom-in-95 duration-300">
