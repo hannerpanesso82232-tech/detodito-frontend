@@ -6,7 +6,7 @@ import { io } from "socket.io-client";
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
-// 🔥 AQUÍ ESTÁ LA CORRECCIÓN: Volví a agregar Edit, Trash2, Key, PackageMinus, etc. 🔥
+// 🔥 ÍCONOS COMPLETOS 🔥
 import { 
     Plus, Package, ShoppingCart, Search, 
     AlertTriangle, Loader2, FileSpreadsheet, Eye, Truck,
@@ -16,23 +16,10 @@ import {
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
-import { formatCurrency, calcularFechaReal } from '../utils/adminUtils';
+import { formatCurrency, formatearImagen, calcularFechaReal } from '../utils/adminUtils';
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
-
-const formatearImagen = (url) => {
-    if (!url) return 'https://placehold.co/150';
-    let urlLimpia = url;
-    if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
-        urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
-    }
-    if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
-        return urlLimpia;
-    }
-    const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
-    return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
-};
 
 const StatCard = ({ title, value, icon, color, subtitle }) => (
     <div className="bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm group hover:border-black transition-all duration-300">
@@ -44,7 +31,6 @@ const StatCard = ({ title, value, icon, color, subtitle }) => (
 );
 
 const AdminDashboard = () => {
-    // --- ESTADOS GLOBALES ---
     const [productos, setProductos] = useState([]);
     const [pedidos, setPedidos] = useState([]);
     const [categorias, setCategorias] = useState([]);
@@ -60,7 +46,6 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
     
-    // --- FILTROS ---
     const [searchTerm, setSearchTerm] = useState('');
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
@@ -69,7 +54,6 @@ const AdminDashboard = () => {
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('TODOS'); 
     const [mesFiltroContable, setMesFiltroContable] = useState('Todos');
 
-    // --- ESTADOS PARA MODALES ---
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showBajaModal, setShowBajaModal] = useState(false);
@@ -85,7 +69,6 @@ const AdminDashboard = () => {
     const [showAbonoModal, setShowAbonoModal] = useState(false);
     const [showCobroModal, setShowCobroModal] = useState(false);
     
-    // --- SELECCIONES ---
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
     const [productoEditando, setProductoEditando] = useState(null);
     const [productoAEliminar, setProductoAEliminar] = useState(null);
@@ -99,7 +82,6 @@ const AdminDashboard = () => {
     const [preview, setPreview] = useState(null);
     const [precioCalculado, setPrecioCalculado] = useState(0);
 
-    // --- FORMULARIOS ---
     const [nuevaRutaPersonalizada, setNuevaRutaPersonalizada] = useState('');
     const [nuevaRutaCiudad, setNuevaRutaCiudad] = useState('');
     const [nuevaRutaDia, setNuevaRutaDia] = useState('');
@@ -153,7 +135,6 @@ const AdminDashboard = () => {
         }
     }, [formulario.costo_compra, formulario.margen_ganancia, formulario.stock_adicional, formulario.costo_nuevo_lote, formulario.stock, formulario.precio, productoEditando]);
 
-    // --- MEMOS (ESTADÍSTICAS Y CÁLCULOS) ---
     const kpis = useMemo(() => {
         const hoy = new Date(); let ventasHoy = 0, ventasMes = 0, pendientes = 0;
         pedidos.forEach(p => {
@@ -254,8 +235,7 @@ const AdminDashboard = () => {
             }; 
         });
 
-        const hoy = new Date();
-        hoy.setHours(0, 0, 0, 0);
+        const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
 
         creditos.forEach(c => {
             const uid = parseInt(c.usuarioId || c.usuario_id || c.Usuario?.id);
@@ -319,97 +299,6 @@ const AdminDashboard = () => {
     }, [productos, searchTerm, filtroCategoria, filtroStockBajo]);
 
     // --- HANDLERS (FUNCIONES DE ACCIÓN) ---
-    const exportarManifiestoCarga = async () => {
-        const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
-        if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
-        const pedidosConInfoFecha = pedidosPendientes.map(p => ({
-            ...p, infoCalculada: calcularFechaReal(p.ruta, p.Usuario?.ciudad, p.direccion, rutasDinamicas, p.fecha, horaLimite)
-        }));
-        const pedidosConRutaProgramada = pedidosConInfoFecha.filter(p => p.infoCalculada.diaNombre !== "A CONVENIR");
-        if (pedidosConRutaProgramada.length === 0) return toast.error("Solo hay pedidos 'A CONVENIR'. Asígnales un día primero.");
-        pedidosConRutaProgramada.sort((a, b) => a.infoCalculada.fechaRaw - b.infoCalculada.fechaRaw);
-        const fechaProximaStr = pedidosConRutaProgramada[0].infoCalculada.fechaFormateada;
-        const pedidosParaExportar = pedidosConRutaProgramada.filter(p => p.infoCalculada.fechaFormateada === fechaProximaStr);
-        const loadId = toast.loading(`Empaquetando ruta de ${fechaProximaStr}...`);
-        const datosExcel = [];
-        try {
-            for (const ped of pedidosParaExportar) {
-                const info = ped.infoCalculada; const items = ped.Detalles || [];
-                for (const item of items) {
-                    datosExcel.push({
-                        "DÍA ASIGNADO": info.diaNombre.toUpperCase(), "FECHA EXACTA": info.fechaFormateada, "CLIENTE": ped.Usuario?.nombre || 'Consumidor Final',
-                        "CIUDAD DESTINO": ped.Usuario?.ciudad || 'N/A', "DIRECCIÓN EXACTA": ped.direccion || ped.Usuario?.direccion || 'N/A',
-                        "TELÉFONO": ped.Usuario?.telefono || 'N/A', "PEDIDO ID": `#${ped.id}`, "PRODUCTO": (item.Producto?.nombre || 'Producto sin nombre').toUpperCase(),
-                        "DESCRIPCIÓN": item.Producto?.descripcion || 'Sin descripción', "CANTIDAD": item.cantidad
-                    });
-                }
-                await API.put(`/pedidos/${ped.id}/estado`, { estado: 'Enviado' });
-            }
-            const ws = XLSX.utils.json_to_sheet(datosExcel); const wb = XLSX.utils.book_new(); 
-            XLSX.utils.book_append_sheet(wb, ws, "Manifiesto_Ruta"); XLSX.writeFile(wb, `RUTA_TRABAJO_${fechaProximaStr.replace(/[, ]+/g, '_').toUpperCase()}.xlsx`);
-            fetchDatos(); toast.success(`Ruta generada para el ${fechaProximaStr}`, { id: loadId });
-        } catch (err) { toast.error("Error procesando ruta", { id: loadId }); }
-    };
-
-    const exportarExcelInventario = () => {
-        const dataParaExportar = productosFiltrados.map(p => ({ ID: p.id, Nombre: p.nombre, Categoria: p.Categoria?.nombre || 'N/A', Costo_Compra: p.costo_compra, Margen: p.margen_ganancia, Precio_Final: p.precio, Stock: p.stock, Tope_Minimo: p.tope_stock || 10, Proveedor: p.proveedor || 'No especificado' }));
-        const ws = XLSX.utils.json_to_sheet(dataParaExportar); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Inventario"); XLSX.writeFile(wb, filtroStockBajo ? `Reporte_Inventario_Stock_Bajo.xlsx` : `Reporte_Inventario.xlsx`);
-    };
-
-    const cerrarModal = () => { setShowModal(false); setProductoEditando(null); setImagenArchivo(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 }); setPrecioCalculado(0); };
-    const handleImagenChange = (e) => { const file = e.target.files[0]; if (file) { setImagenArchivo(file); setPreview(URL.createObjectURL(file)); } };
-    const abrirModalEditar = (p) => { setProductoEditando(p); setFormulario({ nombre: p.nombre || '', precio: p.precio || '', stock: p.stock || 0, stock_adicional: '', precio_nuevo_lote: p.costo_compra || 0, categoriaId: p.categoriaId || p.categoria_id || '', descripcion: p.descripcion || '', proveedor: p.proveedor || '', costo_compra: p.costo_compra || 0, margen_ganancia: p.margen_ganancia || 0, tope_stock: p.tope_stock || 10 }); setPreview(formatearImagen(p.imagen_url)); setShowModal(true); };
-    const abrirModalBaja = (p) => { setProductoBaja(p); setFormBaja({ cantidad: 1, motivo: 'Dañado/Roto' }); setShowBajaModal(true); };
-
-    const handleGuardarProducto = async (e) => {
-        e.preventDefault(); setEnviando(true); const data = new FormData();
-        const stockExistente = parseInt(formulario.stock || 0); const stockNuevo = parseInt(formulario.stock_adicional || 0); const stockFinal = productoEditando ? (stockExistente + stockNuevo) : parseInt(formulario.stock || 0);
-        let costoFinalBD = parseFloat(formulario.costo_compra || 0);
-        if (productoEditando && stockNuevo > 0) { const costoNuevoLote = parseFloat(formulario.costo_nuevo_lote || 0); costoFinalBD = ((stockExistente * costoFinalBD) + (stockNuevo * costoNuevoLote)) / stockFinal; }
-        data.append('nombre', formulario.nombre); data.append('precio', precioCalculado.toFixed(2)); data.append('stock', stockFinal); data.append('categoriaId', formulario.categoriaId); data.append('descripcion', formulario.descripcion); data.append('proveedor', formulario.proveedor || 'No especificado'); data.append('costo_compra', costoFinalBD.toFixed(2)); data.append('margen_ganancia', parseFloat(formulario.margen_ganancia || 0)); data.append('tope_stock', parseInt(formulario.tope_stock || 10)); if (imagenArchivo) data.append('imagen', imagenArchivo);
-        try { if (productoEditando) { await API.put(`/productos/${productoEditando.id}`, data); } else { await API.post('/productos', data); } cerrarModal(); fetchDatos(); toast.success("Producto Guardado en Inventario"); } catch (err) { toast.error("Error al guardar"); } finally { setEnviando(false); }
-    };
-
-    const handleGuardarBaja = async (e) => {
-        e.preventDefault(); setEnviando(true);
-        try {
-            await API.put(`/productos/${productoBaja.id}/stock`, { cantidad: formBaja.cantidad, operacion: 'restar' });
-            const costoPerdida = parseFloat(productoBaja.costo_compra || 0) * parseInt(formBaja.cantidad);
-            if (costoPerdida > 0) {
-                await API.post('/contabilidad/gasto', { monto: costoPerdida, descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`, categoria: 'Mercancía', tipo: 'EGRESO', fecha: new Date().toISOString().split('T')[0] });
-            }
-            toast.success("Producto dado de baja. Pérdida registrada en contabilidad."); setShowBajaModal(false); setProductoBaja(null); fetchDatos();
-        } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la baja del producto."); } finally { setEnviando(false); }
-    };
-
-    const handleEliminar = async () => { try { await API.delete(`/productos/${productoAEliminar.id}`); setShowDeleteModal(false); fetchDatos(); toast.success("Producto Eliminado"); } catch (err) { toast.error("Error"); } };
-    const actualizarEstadoPedido = async (id, nuevoEstado) => { try { await API.put(`/pedidos/${id}/estado`, { estado: nuevoEstado }); fetchDatos(); toast.success("Estado Actualizado"); } catch (err) { toast.error("Error"); } };
-    const actualizarRutaPedido = async (id, nuevaRuta) => { try { await API.put(`/pedidos/${id}/ruta`, { ruta: nuevaRuta }); fetchDatos(); toast.success(`Ruta actualizada a ${nuevaRuta}`); } catch (err) { toast.error("Error al actualizar la ruta"); } };
-
-    const handleDevolucionProducto = async (pedidoId, item) => {
-        const qtyStr = window.prompt(`Reembolso / Devolución:\n\n¿Cuántas unidades de "${item.Producto?.nombre || item.nombre}" regresó el cliente?\n(Máximo disponible: ${item.cantidad})`, "1");
-        if (qtyStr === null) return; const qty = parseInt(qtyStr);
-        if (isNaN(qty) || qty <= 0 || qty > item.cantidad) return toast.error("Cantidad inválida ingresada.");
-        try {
-            setEnviando(true); await API.put(`/pedidos/${pedidoId}/devolucion`, { productoId: item.productoId || item.Producto?.id || item.producto_id, cantidadDevuelta: qty, precioUnitario: item.precioUnitario || item.precio });
-            toast.success("Devolución y Reembolso procesado con éxito"); setPedidoDetalle(null); fetchDatos();
-        } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la devolución."); } finally { setEnviando(false); }
-    };
-
-    const handleCrearUsuario = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/auth/registro', formUsuario); setShowUsuarioModal(false); fetchDatos(); toast.success("Cliente registrado"); setFormUsuario({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30 }); } catch (err) { toast.error("Error al crear cliente"); } finally { setEnviando(false); } };
-    const abrirModalEditarUsuario = (u) => { setFormEditUsuario({ id: u.id, nombre: u.nombre || '', cedula: u.cedula || '', email: u.email || '', telefono: u.telefono || '', ciudad: u.ciudad || '', direccion: u.direccion || '', rol: u.rol || 'CLIENTE', limite_credito: u.limite_credito || 0, dias_credito: u.dias_credito || 30 }); setShowEditUsuarioModal(true); };
-    const handleEditarUsuario = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${formEditUsuario.id}`, formEditUsuario); setShowEditUsuarioModal(false); fetchDatos(); toast.success("Datos actualizados"); } catch (err) { toast.error("Error al actualizar cliente"); } finally { setEnviando(false); } };
-    const handleRestablecerPassword = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${usuarioSeleccionado.id}/password`, { password: nuevaPassword }); setShowPasswordModal(false); setNuevaPassword(''); toast.success("Contraseña restablecida"); } catch (err) { toast.error("Error al cambiar contraseña"); } finally { setEnviando(false); } };
-    const handleEliminarUsuario = async () => { try { await API.delete(`/auth/admin/usuarios/${usuarioAEliminar.id}`); setUsuarioAEliminar(null); fetchDatos(); toast.success("Usuario eliminado"); } catch (err) { toast.error("Error al eliminar usuario"); } };
-    
-    const handleCrearRutaConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/pedidos/config/rutas', { ciudad: nuevaRutaCiudad, dia_ruta: nuevaRutaDia }); toast.success(`Reglas guardadas`); setNuevaRutaCiudad(''); setNuevaRutaDia(''); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
-    const handleEliminarRutaConfig = async (id) => { try { await API.delete(`/pedidos/config/rutas/${id}`); fetchDatos(); toast.success("Regla eliminada"); } catch (err) { toast.error("Error"); } };
-    const handleGuardarConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put('/auth/config/whatsapp', { whatsapp: whatsappTienda }); await API.put('/pedidos/config/horalimite', { hora: horaLimite }); toast.success("Ajustes guardados"); setShowConfigModal(false); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
-    
-    const abrirModalEditarTransaccion = (tx) => { setTransaccionSeleccionada(tx); setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: new Date(tx.fecha).toISOString().split('T')[0] }); setShowEditTransaccionModal(true); };
-    const handleGuardarTransaccion = async (e) => { e.preventDefault(); setEnviando(true); try { if (transaccionSeleccionada) { await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto); toast.success("Transacción actualizada"); } else { await API.post('/contabilidad/gasto', formGasto); toast.success("Transacción registrada"); } setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
-    const handleEliminarTransaccion = async () => { try { await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`); setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada"); } catch (err) { toast.error("Error"); } };
-
     const handleCrearCredito = async (e) => { 
         e.preventDefault(); 
         const cliente = usuarios.find(u => u.id === parseInt(formCredito.usuarioId));
@@ -492,19 +381,65 @@ const AdminDashboard = () => {
         } catch (error) { toast.error("Error al transferir factura", { id: loadingId }); }
     };
 
+    const handleGuardarProducto = async (e) => {
+        e.preventDefault(); setEnviando(true); const data = new FormData();
+        const stockExistente = parseInt(formulario.stock || 0); const stockNuevo = parseInt(formulario.stock_adicional || 0); const stockFinal = productoEditando ? (stockExistente + stockNuevo) : parseInt(formulario.stock || 0);
+        let costoFinalBD = parseFloat(formulario.costo_compra || 0);
+        if (productoEditando && stockNuevo > 0) { const costoNuevoLote = parseFloat(formulario.costo_nuevo_lote || 0); costoFinalBD = ((stockExistente * costoFinalBD) + (stockNuevo * costoNuevoLote)) / stockFinal; }
+        data.append('nombre', formulario.nombre); data.append('precio', precioCalculado.toFixed(2)); data.append('stock', stockFinal); data.append('categoriaId', formulario.categoriaId); data.append('descripcion', formulario.descripcion); data.append('proveedor', formulario.proveedor || 'No especificado'); data.append('costo_compra', costoFinalBD.toFixed(2)); data.append('margen_ganancia', parseFloat(formulario.margen_ganancia || 0)); data.append('tope_stock', parseInt(formulario.tope_stock || 10)); if (imagenArchivo) data.append('imagen', imagenArchivo);
+        try { if (productoEditando) { await API.put(`/productos/${productoEditando.id}`, data); } else { await API.post('/productos', data); } cerrarModal(); fetchDatos(); toast.success("Producto Guardado en Inventario"); } catch (err) { toast.error("Error al guardar"); } finally { setEnviando(false); }
+    };
+
+    const handleGuardarBaja = async (e) => {
+        e.preventDefault(); setEnviando(true);
+        try {
+            await API.put(`/productos/${productoBaja.id}/stock`, { cantidad: formBaja.cantidad, operacion: 'restar' });
+            const costoPerdida = parseFloat(productoBaja.costo_compra || 0) * parseInt(formBaja.cantidad);
+            if (costoPerdida > 0) { await API.post('/contabilidad/gasto', { monto: costoPerdida, descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`, categoria: 'Mercancía', tipo: 'EGRESO', fecha: new Date().toISOString().split('T')[0] }); }
+            toast.success("Producto dado de baja. Pérdida registrada en contabilidad."); setShowBajaModal(false); setProductoBaja(null); fetchDatos();
+        } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la baja del producto."); } finally { setEnviando(false); }
+    };
+
+    const handleEliminar = async () => { try { await API.delete(`/productos/${productoAEliminar.id}`); setShowDeleteModal(false); fetchDatos(); toast.success("Producto Eliminado"); } catch (err) { toast.error("Error"); } };
+    const actualizarEstadoPedido = async (id, nuevoEstado) => { try { await API.put(`/pedidos/${id}/estado`, { estado: nuevoEstado }); fetchDatos(); toast.success("Estado Actualizado"); } catch (err) { toast.error("Error"); } };
+    const actualizarRutaPedido = async (id, nuevaRuta) => { try { await API.put(`/pedidos/${id}/ruta`, { ruta: nuevaRuta }); fetchDatos(); toast.success(`Ruta actualizada a ${nuevaRuta}`); } catch (err) { toast.error("Error al actualizar la ruta"); } };
+    
+    const handleDevolucionProducto = async (pedidoId, item) => {
+        const qtyStr = window.prompt(`Reembolso / Devolución:\n\n¿Cuántas unidades de "${item.Producto?.nombre || item.nombre}" regresó el cliente?\n(Máximo disponible: ${item.cantidad})`, "1");
+        if (qtyStr === null) return; const qty = parseInt(qtyStr);
+        if (isNaN(qty) || qty <= 0 || qty > item.cantidad) return toast.error("Cantidad inválida ingresada.");
+        try {
+            setEnviando(true); await API.put(`/pedidos/${pedidoId}/devolucion`, { productoId: item.productoId || item.Producto?.id || item.producto_id, cantidadDevuelta: qty, precioUnitario: item.precioUnitario || item.precio });
+            toast.success("Devolución y Reembolso procesado con éxito"); setPedidoDetalle(null); fetchDatos();
+        } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la devolución."); } finally { setEnviando(false); }
+    };
+
+    const handleCrearUsuario = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/auth/registro', formUsuario); setShowUsuarioModal(false); fetchDatos(); toast.success("Cliente registrado"); setFormUsuario({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30 }); } catch (err) { toast.error("Error al crear cliente"); } finally { setEnviando(false); } };
+    const abrirModalEditarUsuario = (u) => { setFormEditUsuario({ id: u.id, nombre: u.nombre || '', cedula: u.cedula || '', email: u.email || '', telefono: u.telefono || '', ciudad: u.ciudad || '', direccion: u.direccion || '', rol: u.rol || 'CLIENTE', limite_credito: u.limite_credito || 0, dias_credito: u.dias_credito || 30 }); setShowEditUsuarioModal(true); };
+    const handleEditarUsuario = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${formEditUsuario.id}`, formEditUsuario); setShowEditUsuarioModal(false); fetchDatos(); toast.success("Datos actualizados"); } catch (err) { toast.error("Error al actualizar cliente"); } finally { setEnviando(false); } };
+    const handleRestablecerPassword = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${usuarioSeleccionado.id}/password`, { password: nuevaPassword }); setShowPasswordModal(false); setNuevaPassword(''); toast.success("Contraseña restablecida"); } catch (err) { toast.error("Error al cambiar contraseña"); } finally { setEnviando(false); } };
+    const handleEliminarUsuario = async () => { try { await API.delete(`/auth/admin/usuarios/${usuarioAEliminar.id}`); setUsuarioAEliminar(null); fetchDatos(); toast.success("Usuario eliminado"); } catch (err) { toast.error("Error al eliminar usuario"); } };
+    
+    const handleCrearRutaConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/pedidos/config/rutas', { ciudad: nuevaRutaCiudad, dia_ruta: nuevaRutaDia }); toast.success(`Reglas guardadas`); setNuevaRutaCiudad(''); setNuevaRutaDia(''); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
+    const handleEliminarRutaConfig = async (id) => { try { await API.delete(`/pedidos/config/rutas/${id}`); fetchDatos(); toast.success("Regla eliminada"); } catch (err) { toast.error("Error"); } };
+    const handleGuardarConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put('/auth/config/whatsapp', { whatsapp: whatsappTienda }); await API.put('/pedidos/config/horalimite', { hora: horaLimite }); toast.success("Ajustes guardados"); setShowConfigModal(false); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
+    
+    const abrirModalEditarTransaccion = (tx) => { setTransaccionSeleccionada(tx); setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: new Date(tx.fecha).toISOString().split('T')[0] }); setShowEditTransaccionModal(true); };
+    const handleGuardarTransaccion = async (e) => { e.preventDefault(); setEnviando(true); try { if (transaccionSeleccionada) { await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto); toast.success("Transacción actualizada"); } else { await API.post('/contabilidad/gasto', formGasto); toast.success("Transacción registrada"); } setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
+    const handleEliminarTransaccion = async () => { try { await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`); setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada"); } catch (err) { toast.error("Error"); } };
+
     // --- EMPAQUETADO PARA COMPONENTES HIJOS ---
     const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando };
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado };
     const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera };
-    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData };
+    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones };
 
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
 
     // --- RENDER DE VISTAS ---
     return (
         <div className="min-h-screen bg-gray-50 pb-20 px-4 md:px-8">
-            {/* Cabecera Principal */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-10 gap-4 pt-8">
                 <div>
                     <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter uppercase italic">HQ Dashboard</h1>
@@ -520,19 +455,18 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            {/* Cuadrícula de Estadísticas Permanentes */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
                 <StatCard title="Ventas Mes Actual" value={`$${formatCurrency(kpis.ventasMes)}`} subtitle={`Hoy: $${formatCurrency(kpis.ventasHoy)}`} icon={<DollarSign />} color="bg-green-100 text-green-600" />
                 <StatCard title="Pedidos Pendientes" value={kpis.pendientes} subtitle="Listos para ruta" icon={<Clock />} color="bg-amber-100 text-amber-600" />
                 <StatCard title="Total Pedidos" value={pedidos.length} subtitle="Histórico completo" icon={<ShoppingCart />} color="bg-blue-100 text-blue-600" />
                 <StatCard title="Clientes Registrados" value={usuarios.length} subtitle="En base de datos" icon={<Users />} color="bg-purple-100 text-purple-600" />
+                
                 <StatCard title="Total Productos" value={statsProductos.total} subtitle="En inventario" icon={<Package />} color="bg-indigo-100 text-indigo-600" />
                 <StatCard title="Stock Bajo" value={statsProductos.stockBajo} subtitle="Requieren atención" icon={<AlertTriangle />} color="bg-red-100 text-red-600" />
                 <StatCard title="Cuentas por Cobrar" value={`$${formatCurrency(statsCartera.porCobrar)}`} subtitle="Deuda pendiente total" icon={<Banknote />} color="bg-rose-100 text-rose-600" />
                 <StatCard title="Total Histórico Fiado" value={`$${formatCurrency(statsCartera.fiadoTotal)}`} subtitle="Lo que has fiado" icon={<FileText />} color="bg-orange-100 text-orange-600" />
             </div>
 
-            {/* Filtros y Navegación de Pestañas */}
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
                     {['reportes', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => (
@@ -550,8 +484,9 @@ const AdminDashboard = () => {
                     <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 md:gap-4 w-full md:w-auto">
                         <select value={filtroEstadoCartera} onChange={(e) => setFiltroEstadoCartera(e.target.value)} className="px-4 py-3 bg-white border border-gray-200 rounded-xl font-black uppercase text-[10px] outline-none shadow-sm cursor-pointer text-gray-600">
                             <option value="TODOS">Todos los Clientes</option>
-                            <option value="VIGENTE">Tienen Deuda (Mora)</option>
-                            <option value="PAGADO">Sin Deudas</option>
+                            <option value="VIGENTE">Con Deuda Activa</option>
+                            <option value="MORA">En Mora (Vencidos)</option>
+                            <option value="PAGADO">Sin Deudas (Pagados)</option>
                         </select>
                         <div className="relative flex-1 md:w-64"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar cliente o CC..." value={searchTermCartera || ''} onChange={(e) => setSearchTermCartera(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none shadow-sm" /></div>
                     </div>
@@ -566,9 +501,9 @@ const AdminDashboard = () => {
                             <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-[0.2em] border-b border-gray-100">
                                 <tr>
                                     <th className="px-4 py-4 md:px-8 md:py-6">Cliente (Deudor)</th>
-                                    <th className="px-4 py-4 md:px-8 md:py-6 text-center">Total Facturas</th>
-                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Crédito Acumulado</th>
-                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Saldo en Mora</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-center">Facturas Pendientes</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Límite / Cupo</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Saldo Deuda</th>
                                     <th className="px-4 py-4 md:px-8 md:py-6 text-right">Acción</th>
                                 </tr>
                             </thead>
@@ -626,7 +561,6 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* VISTAS NORMALES... */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -840,8 +774,9 @@ const AdminDashboard = () => {
                                 const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
                                 const items = ped.Detalles || ped.items || [];
                                 
-                                const yaEnCartera = creditos.some(c => c.descripcion && c.descripcion.includes(`#${ped.id}`));
-                                const yaEnFinanzas = transacciones.some(t => t.descripcion && t.descripcion.includes(`#${ped.id}`));
+                                // 🔥 FIX: Búsqueda estricta para evitar que un ID de pedido similar cause un falso positivo
+                                const yaEnCartera = creditos.some(c => c.descripcion === `Factura Pedido #${ped.id}`);
+                                const yaEnFinanzas = transacciones.some(t => t.pedidoId === ped.id || t.descripcion === `Pago de Contado - Pedido #${ped.id}` || t.descripcion === `Venta - Orden #${ped.id}`);
                                 const estaLiquidado = yaEnCartera || yaEnFinanzas;
 
                                 return (
@@ -866,9 +801,15 @@ const AdminDashboard = () => {
                                                     value={ped.estado || ''} 
                                                     onChange={(e) => {
                                                         if (e.target.value === 'Entregado') {
-                                                            if (estaLiquidado) actualizarEstadoPedido(ped.id, 'Entregado');
-                                                            else { setPedidoACobrar(ped); setShowCobroModal(true); }
-                                                        } else { actualizarEstadoPedido(ped.id, e.target.value); }
+                                                            if (estaLiquidado) {
+                                                                actualizarEstadoPedido(ped.id, 'Entregado');
+                                                            } else {
+                                                                setPedidoACobrar(ped);
+                                                                setShowCobroModal(true);
+                                                            }
+                                                        } else {
+                                                            actualizarEstadoPedido(ped.id, e.target.value);
+                                                        }
                                                     }} 
                                                     className="w-full border-none rounded-xl text-[9px] md:text-[10px] font-black uppercase p-2 md:p-3 outline-none bg-black text-white cursor-pointer mt-1"
                                                 >
@@ -922,7 +863,7 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* 🔥 MODALES 🔥 */}
+            {/* 🔥 Y AQUÍ LLAMAMOS A TODOS LOS MODALES 🔥 */}
             <AdminModals states={statesProps} forms={formsProps} setters={settersProps} handlers={handlersProps} data={dataProps} />
         </div>
     );
