@@ -160,7 +160,7 @@ const GestionCategorias = () => {
                   required 
                   type="text" 
                   className="w-full bg-gray-50 border-none rounded-2xl p-5 font-bold text-sm focus:ring-2 focus:ring-black outline-none transition-all uppercase placeholder:text-gray-300"
-                  placeholder="E.g. OUTERWEAR"
+                  placeholder="EJ: ELECTRÓNICA, ROPA, HOGAR..."
                   value={nombre} 
                   onChange={e => setNombre(e.target.value)} 
                 />
