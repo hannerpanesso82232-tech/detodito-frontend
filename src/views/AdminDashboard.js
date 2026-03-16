@@ -6,18 +6,33 @@ import { io } from "socket.io-client";
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
+// 🔥 AQUÍ ESTÁ LA CORRECCIÓN: Volví a agregar Edit, Trash2, Key, PackageMinus, etc. 🔥
 import { 
     Plus, Package, ShoppingCart, Search, 
     AlertTriangle, Loader2, FileSpreadsheet, Eye, Truck,
     CalendarDays, Activity, DollarSign, Clock, Users, Settings,
-    ArrowUpRight, ArrowDownRight, Wallet, Filter, Banknote, FileText, Receipt, Award
+    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
+    Receipt, Award, Edit, Trash2, PackageMinus, Key, CheckCircle2, ChevronRight, Briefcase, History
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
-import { formatCurrency, formatearImagen, calcularFechaReal } from '../utils/adminUtils';
+import { formatCurrency, calcularFechaReal } from '../utils/adminUtils';
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
+
+const formatearImagen = (url) => {
+    if (!url) return 'https://placehold.co/150';
+    let urlLimpia = url;
+    if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
+        urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
+    }
+    if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
+        return urlLimpia;
+    }
+    const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
+    return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
+};
 
 const StatCard = ({ title, value, icon, color, subtitle }) => (
     <div className="bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm group hover:border-black transition-all duration-300">
@@ -360,7 +375,9 @@ const AdminDashboard = () => {
         try {
             await API.put(`/productos/${productoBaja.id}/stock`, { cantidad: formBaja.cantidad, operacion: 'restar' });
             const costoPerdida = parseFloat(productoBaja.costo_compra || 0) * parseInt(formBaja.cantidad);
-            if (costoPerdida > 0) { await API.post('/contabilidad/gasto', { monto: costoPerdida, descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`, categoria: 'Mercancía', tipo: 'EGRESO', fecha: new Date().toISOString().split('T')[0] }); }
+            if (costoPerdida > 0) {
+                await API.post('/contabilidad/gasto', { monto: costoPerdida, descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`, categoria: 'Mercancía', tipo: 'EGRESO', fecha: new Date().toISOString().split('T')[0] });
+            }
             toast.success("Producto dado de baja. Pérdida registrada en contabilidad."); setShowBajaModal(false); setProductoBaja(null); fetchDatos();
         } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la baja del producto."); } finally { setEnviando(false); }
     };
@@ -533,9 +550,8 @@ const AdminDashboard = () => {
                     <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 md:gap-4 w-full md:w-auto">
                         <select value={filtroEstadoCartera} onChange={(e) => setFiltroEstadoCartera(e.target.value)} className="px-4 py-3 bg-white border border-gray-200 rounded-xl font-black uppercase text-[10px] outline-none shadow-sm cursor-pointer text-gray-600">
                             <option value="TODOS">Todos los Clientes</option>
-                            <option value="VIGENTE">Tienen Deuda Activa</option>
-                            <option value="MORA">En Mora (Vencidos)</option>
-                            <option value="PAGADO">Sin Deudas (Pagados)</option>
+                            <option value="VIGENTE">Tienen Deuda (Mora)</option>
+                            <option value="PAGADO">Sin Deudas</option>
                         </select>
                         <div className="relative flex-1 md:w-64"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar cliente o CC..." value={searchTermCartera || ''} onChange={(e) => setSearchTermCartera(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none shadow-sm" /></div>
                     </div>
@@ -550,9 +566,9 @@ const AdminDashboard = () => {
                             <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-[0.2em] border-b border-gray-100">
                                 <tr>
                                     <th className="px-4 py-4 md:px-8 md:py-6">Cliente (Deudor)</th>
-                                    <th className="px-4 py-4 md:px-8 md:py-6 text-center">Facturas Pendientes</th>
-                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Límite / Cupo</th>
-                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Saldo Deuda</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-center">Total Facturas</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Crédito Acumulado</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Saldo en Mora</th>
                                     <th className="px-4 py-4 md:px-8 md:py-6 text-right">Acción</th>
                                 </tr>
                             </thead>
@@ -892,7 +908,11 @@ const AdminDashboard = () => {
                                         </td>
                                         <td className="px-4 py-4 md:px-8 md:py-5"><p className="text-[9px] md:text-[10px] font-bold text-gray-600">{u.telefono || 'N/A'}</p><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mt-0.5">{u.ciudad || 'No definida'}</p></td>
                                         <td className="px-4 py-4 md:px-8 md:py-5 text-center"><span className={`text-[8px] md:text-[9px] font-black uppercase px-2 py-1 md:px-3 rounded-lg ${u.rol === 'ADMIN' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}`}>{u.rol}</span></td>
-                                        <td className="px-4 py-4 md:px-8 md:py-5 text-right flex justify-end gap-1 md:gap-2"><button onClick={() => abrirModalEditarUsuario(u)} className="p-2 md:p-2.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all"><Edit size={14} /></button><button onClick={() => { setUsuarioSeleccionado(u); setShowPasswordModal(true); }} className="p-2 md:p-2.5 bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white rounded-xl transition-all"><Key size={14} /></button><button onClick={() => setUsuarioAEliminar(u)} className="p-2 md:p-2.5 bg-red-50 text-red-500 hover:bg-red-600 hover:text-white rounded-xl transition-all"><Trash2 size={14} /></button></td>
+                                        <td className="px-4 py-4 md:px-8 md:py-5 text-right flex justify-end gap-1 md:gap-2">
+                                            <button onClick={() => abrirModalEditarUsuario(u)} className="p-2 md:p-2.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all"><Edit size={14} /></button>
+                                            <button onClick={() => { setUsuarioSeleccionado(u); setShowPasswordModal(true); }} className="p-2 md:p-2.5 bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white rounded-xl transition-all"><Key size={14} /></button>
+                                            <button onClick={() => setUsuarioAEliminar(u)} className="p-2 md:p-2.5 bg-red-50 text-red-500 hover:bg-red-600 hover:text-white rounded-xl transition-all"><Trash2 size={14} /></button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -902,7 +922,7 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* 🔥 Y AQUÍ LLAMAMOS A TODOS LOS MODALES EN 1 SOLA LÍNEA 🔥 */}
+            {/* 🔥 MODALES 🔥 */}
             <AdminModals states={statesProps} forms={formsProps} setters={settersProps} handlers={handlersProps} data={dataProps} />
         </div>
     );
