@@ -7,14 +7,13 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 import { 
-    Plus, Edit, Trash2, Package, ShoppingCart, Search, 
-    TrendingUp, AlertTriangle, X, Loader2, CheckCircle2,
-    Image as ImageIcon, FileSpreadsheet, Eye, Truck, Printer,
-    CalendarDays, Activity, DollarSign, Clock, Users, User, Key, Briefcase, Award, Calculator, Settings,
-    ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, ArrowLeftRight, PackageMinus, Banknote, FileText,
-    Receipt, History, ChevronRight
+    Plus, Package, ShoppingCart, Search, 
+    AlertTriangle, Loader2, FileSpreadsheet, Eye, Truck,
+    CalendarDays, Activity, DollarSign, Clock, Users, Settings,
+    ArrowUpRight, ArrowDownRight, Wallet, Filter, Banknote, FileText, Receipt, Award
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
+import AdminModals from '../components/admin/AdminModals';
 import { formatCurrency, formatearImagen, calcularFechaReal } from '../utils/adminUtils';
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
@@ -30,6 +29,7 @@ const StatCard = ({ title, value, icon, color, subtitle }) => (
 );
 
 const AdminDashboard = () => {
+    // --- ESTADOS GLOBALES ---
     const [productos, setProductos] = useState([]);
     const [pedidos, setPedidos] = useState([]);
     const [categorias, setCategorias] = useState([]);
@@ -45,6 +45,7 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
     
+    // --- FILTROS ---
     const [searchTerm, setSearchTerm] = useState('');
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
@@ -53,6 +54,7 @@ const AdminDashboard = () => {
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('TODOS'); 
     const [mesFiltroContable, setMesFiltroContable] = useState('Todos');
 
+    // --- ESTADOS PARA MODALES ---
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showBajaModal, setShowBajaModal] = useState(false);
@@ -68,6 +70,7 @@ const AdminDashboard = () => {
     const [showAbonoModal, setShowAbonoModal] = useState(false);
     const [showCobroModal, setShowCobroModal] = useState(false);
     
+    // --- SELECCIONES ---
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
     const [productoEditando, setProductoEditando] = useState(null);
     const [productoAEliminar, setProductoAEliminar] = useState(null);
@@ -81,12 +84,12 @@ const AdminDashboard = () => {
     const [preview, setPreview] = useState(null);
     const [precioCalculado, setPrecioCalculado] = useState(0);
 
+    // --- FORMULARIOS ---
     const [nuevaRutaPersonalizada, setNuevaRutaPersonalizada] = useState('');
     const [nuevaRutaCiudad, setNuevaRutaCiudad] = useState('');
     const [nuevaRutaDia, setNuevaRutaDia] = useState('');
     const [nuevaPassword, setNuevaPassword] = useState('');
     const [formulario, setFormulario] = useState({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 });
-    // 🔥 Añadimos límite y días a los formularios de usuario
     const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30 });
     const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30 });
     const [formGasto, setFormGasto] = useState({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' });
@@ -135,6 +138,7 @@ const AdminDashboard = () => {
         }
     }, [formulario.costo_compra, formulario.margen_ganancia, formulario.stock_adicional, formulario.costo_nuevo_lote, formulario.stock, formulario.precio, productoEditando]);
 
+    // --- MEMOS (ESTADÍSTICAS Y CÁLCULOS) ---
     const kpis = useMemo(() => {
         const hoy = new Date(); let ventasHoy = 0, ventasMes = 0, pendientes = 0;
         pedidos.forEach(p => {
@@ -223,10 +227,8 @@ const AdminDashboard = () => {
         });
     }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos]);
 
-    // 🔥 MOTOR AVANZADO DE CARTERA (AHORA INCLUYE MORA Y LÍMITES) 🔥
     const clientesCartera = useMemo(() => {
         const mapa = {};
-        
         usuarios.forEach(u => { 
             mapa[u.id] = { 
                 ...u, creditos: [], pedidos: [], 
@@ -241,26 +243,26 @@ const AdminDashboard = () => {
         hoy.setHours(0, 0, 0, 0);
 
         creditos.forEach(c => {
-            if (mapa[c.usuarioId]) {
-                mapa[c.usuarioId].creditos.push(c);
+            const uid = parseInt(c.usuarioId || c.usuario_id || c.Usuario?.id);
+            if (mapa[uid]) {
+                mapa[uid].creditos.push(c);
                 if (c.estado === 'VIGENTE') {
-                    mapa[c.usuarioId].totalDeuda += parseFloat(c.saldo);
-                    mapa[c.usuarioId].facturasPendientes += 1;
-                    
-                    // Comprobar si está vencida
+                    mapa[uid].totalDeuda += parseFloat(c.saldo);
+                    mapa[uid].facturasPendientes += 1;
                     if (c.fecha_vencimiento) {
                         const vencimiento = new Date(c.fecha_vencimiento);
                         vencimiento.setHours(0, 0, 0, 0);
-                        if (hoy > vencimiento) {
-                            mapa[c.usuarioId].tieneMora = true;
-                        }
+                        if (hoy > vencimiento) mapa[uid].tieneMora = true;
                     }
                 }
-                mapa[c.usuarioId].totalFiado += parseFloat(c.monto_total);
+                mapa[uid].totalFiado += parseFloat(c.monto_total);
             }
         });
         
-        pedidos.forEach(p => { if (mapa[p.usuarioId || p.usuario_id]) mapa[p.usuarioId || p.usuario_id].pedidos.push(p); });
+        pedidos.forEach(p => { 
+            const uid = parseInt(p.usuarioId || p.usuario_id);
+            if (mapa[uid]) mapa[uid].pedidos.push(p); 
+        });
         
         return Object.values(mapa).filter(c => c.creditos.length > 0 || c.pedidos.length > 0)
             .filter(c => {
@@ -301,7 +303,7 @@ const AdminDashboard = () => {
         });
     }, [productos, searchTerm, filtroCategoria, filtroStockBajo]);
 
-    // --- HANDLERS ---
+    // --- HANDLERS (FUNCIONES DE ACCIÓN) ---
     const exportarManifiestoCarga = async () => {
         const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
         if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
@@ -358,9 +360,7 @@ const AdminDashboard = () => {
         try {
             await API.put(`/productos/${productoBaja.id}/stock`, { cantidad: formBaja.cantidad, operacion: 'restar' });
             const costoPerdida = parseFloat(productoBaja.costo_compra || 0) * parseInt(formBaja.cantidad);
-            if (costoPerdida > 0) {
-                await API.post('/contabilidad/gasto', { monto: costoPerdida, descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`, categoria: 'Mercancía', tipo: 'EGRESO', fecha: new Date().toISOString().split('T')[0] });
-            }
+            if (costoPerdida > 0) { await API.post('/contabilidad/gasto', { monto: costoPerdida, descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`, categoria: 'Mercancía', tipo: 'EGRESO', fecha: new Date().toISOString().split('T')[0] }); }
             toast.success("Producto dado de baja. Pérdida registrada en contabilidad."); setShowBajaModal(false); setProductoBaja(null); fetchDatos();
         } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la baja del producto."); } finally { setEnviando(false); }
     };
@@ -393,10 +393,8 @@ const AdminDashboard = () => {
     const handleGuardarTransaccion = async (e) => { e.preventDefault(); setEnviando(true); try { if (transaccionSeleccionada) { await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto); toast.success("Transacción actualizada"); } else { await API.post('/contabilidad/gasto', formGasto); toast.success("Transacción registrada"); } setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
     const handleEliminarTransaccion = async () => { try { await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`); setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada"); } catch (err) { toast.error("Error"); } };
 
-    // 🔥 GESTIÓN DE CRÉDITOS Y COBROS INTELIGENTES 🔥
     const handleCrearCredito = async (e) => { 
         e.preventDefault(); 
-        
         const cliente = usuarios.find(u => u.id === parseInt(formCredito.usuarioId));
         const montoNuevo = parseFloat(formCredito.monto_total);
         const dataClienteCartera = clientesCartera.find(c => c.id === cliente?.id);
@@ -411,7 +409,7 @@ const AdminDashboard = () => {
 
         setEnviando(true); 
         try { 
-            const dias = cliente?.dias_credito || 30;
+            const dias = parseInt(cliente?.dias_credito || 30);
             const fechaVencimiento = new Date();
             fechaVencimiento.setDate(fechaVencimiento.getDate() + dias);
 
@@ -419,14 +417,13 @@ const AdminDashboard = () => {
             toast.success("Crédito registrado"); 
             setShowCreditoModal(false); setFormCredito({ usuarioId: '', monto_total: '', descripcion: '' }); 
             fetchDatos(); 
-        } catch (err) { toast.error("Error"); } finally { setEnviando(false); } 
+        } catch (err) { toast.error("Error al registrar crédito"); } finally { setEnviando(false); } 
     };
 
     const handleRegistrarAbono = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post(`/creditos/${creditoSeleccionado.id}/abono`, formAbono); toast.success("Abono registrado."); setShowAbonoModal(false); setCreditoSeleccionado(null); setFormAbono({ monto: '', nota: '' }); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
     
     const handleCobro = async (tipoPago) => {
-        const cliente = usuarios.find(u => u.id === (pedidoACobrar.usuarioId || pedidoACobrar.usuario_id));
-        
+        const cliente = usuarios.find(u => u.id === parseInt(pedidoACobrar.usuarioId || pedidoACobrar.usuario_id));
         if (tipoPago === 'CREDITO') {
             const dataClienteCartera = clientesCartera.find(c => c.id === cliente?.id);
             const deudaActual = dataClienteCartera ? dataClienteCartera.totalDeuda : 0;
@@ -442,15 +439,13 @@ const AdminDashboard = () => {
         setEnviando(true); const loadingId = toast.loading("Procesando liquidación de pedido...");
         try {
             await API.put(`/pedidos/${pedidoACobrar.id}/estado`, { estado: 'Entregado' });
-            
             if (tipoPago === 'CONTADO') {
                 await API.post('/contabilidad/gasto', { monto: pedidoACobrar.total, descripcion: `Pago de Contado - Pedido #${pedidoACobrar.id}`, categoria: 'Ventas Productos', tipo: 'INGRESO', fecha: new Date().toISOString().split('T')[0], pedidoId: pedidoACobrar.id });
                 toast.success("Pedido Entregado. Dinero registrado en finanzas.", { id: loadingId });
             } else if (tipoPago === 'CREDITO') {
-                const dias = cliente?.dias_credito || 30;
+                const dias = parseInt(cliente?.dias_credito || 30);
                 const fechaVencimiento = new Date();
                 fechaVencimiento.setDate(fechaVencimiento.getDate() + dias);
-
                 await API.post('/creditos', { usuarioId: cliente.id, monto_total: pedidoACobrar.total, descripcion: `Factura Pedido #${pedidoACobrar.id}`, fecha_vencimiento: fechaVencimiento.toISOString() });
                 toast.success("Pedido Entregado. Deuda creada en Cartera.", { id: loadingId });
             }
@@ -459,7 +454,7 @@ const AdminDashboard = () => {
     };
     
     const handlePasarPedidoACartera = async (pedido) => {
-        const cliente = usuarios.find(u => u.id === (pedido.usuarioId || pedido.usuario_id));
+        const cliente = usuarios.find(u => u.id === parseInt(pedido.usuarioId || pedido.usuario_id));
         const dataClienteCartera = clientesCartera.find(c => c.id === cliente?.id);
         const deudaActual = dataClienteCartera ? dataClienteCartera.totalDeuda : 0;
         const limite = parseFloat(cliente?.limite_credito || 0);
@@ -472,19 +467,27 @@ const AdminDashboard = () => {
 
         const loadingId = toast.loading("Convirtiendo pedido en deuda...");
         try {
-            const dias = cliente?.dias_credito || 30;
+            const dias = parseInt(cliente?.dias_credito || 30);
             const fechaVencimiento = new Date();
             fechaVencimiento.setDate(fechaVencimiento.getDate() + dias);
-
             await API.post('/creditos', { usuarioId: cliente.id, monto_total: pedido.total, descripcion: `Factura Pedido #${pedido.id}`, fecha_vencimiento: fechaVencimiento.toISOString() });
             toast.success("Factura agregada a cartera", { id: loadingId }); fetchDatos();
         } catch (error) { toast.error("Error al transferir factura", { id: loadingId }); }
     };
 
+    // --- EMPAQUETADO PARA COMPONENTES HIJOS ---
+    const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando };
+    const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
+    const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado };
+    const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera };
+    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData };
+
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
 
+    // --- RENDER DE VISTAS ---
     return (
         <div className="min-h-screen bg-gray-50 pb-20 px-4 md:px-8">
+            {/* Cabecera Principal */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-10 gap-4 pt-8">
                 <div>
                     <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter uppercase italic">HQ Dashboard</h1>
@@ -500,18 +503,19 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
+            {/* Cuadrícula de Estadísticas Permanentes */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
                 <StatCard title="Ventas Mes Actual" value={`$${formatCurrency(kpis.ventasMes)}`} subtitle={`Hoy: $${formatCurrency(kpis.ventasHoy)}`} icon={<DollarSign />} color="bg-green-100 text-green-600" />
                 <StatCard title="Pedidos Pendientes" value={kpis.pendientes} subtitle="Listos para ruta" icon={<Clock />} color="bg-amber-100 text-amber-600" />
                 <StatCard title="Total Pedidos" value={pedidos.length} subtitle="Histórico completo" icon={<ShoppingCart />} color="bg-blue-100 text-blue-600" />
                 <StatCard title="Clientes Registrados" value={usuarios.length} subtitle="En base de datos" icon={<Users />} color="bg-purple-100 text-purple-600" />
-                
                 <StatCard title="Total Productos" value={statsProductos.total} subtitle="En inventario" icon={<Package />} color="bg-indigo-100 text-indigo-600" />
                 <StatCard title="Stock Bajo" value={statsProductos.stockBajo} subtitle="Requieren atención" icon={<AlertTriangle />} color="bg-red-100 text-red-600" />
                 <StatCard title="Cuentas por Cobrar" value={`$${formatCurrency(statsCartera.porCobrar)}`} subtitle="Deuda pendiente total" icon={<Banknote />} color="bg-rose-100 text-rose-600" />
                 <StatCard title="Total Histórico Fiado" value={`$${formatCurrency(statsCartera.fiadoTotal)}`} subtitle="Lo que has fiado" icon={<FileText />} color="bg-orange-100 text-orange-600" />
             </div>
 
+            {/* Filtros y Navegación de Pestañas */}
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
                     {['reportes', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => (
@@ -529,9 +533,9 @@ const AdminDashboard = () => {
                     <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 md:gap-4 w-full md:w-auto">
                         <select value={filtroEstadoCartera} onChange={(e) => setFiltroEstadoCartera(e.target.value)} className="px-4 py-3 bg-white border border-gray-200 rounded-xl font-black uppercase text-[10px] outline-none shadow-sm cursor-pointer text-gray-600">
                             <option value="TODOS">Todos los Clientes</option>
-                            <option value="VIGENTE">Con Deuda Activa</option>
+                            <option value="VIGENTE">Tienen Deuda Activa</option>
                             <option value="MORA">En Mora (Vencidos)</option>
-                            <option value="PAGADO">Sin Deudas</option>
+                            <option value="PAGADO">Sin Deudas (Pagados)</option>
                         </select>
                         <div className="relative flex-1 md:w-64"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar cliente o CC..." value={searchTermCartera || ''} onChange={(e) => setSearchTermCartera(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none shadow-sm" /></div>
                     </div>
@@ -606,7 +610,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* VISTAS NORMALES */}
+                {/* VISTAS NORMALES... */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -898,269 +902,8 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* 🔥 MODAL ESTADO DE CUENTA (EL PANEL 360 DEL CLIENTE) 🔥 */}
-            {clienteEstadoCuenta && clienteActualData && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[180] flex items-center justify-center p-2 md:p-6 overflow-hidden">
-                    <div className="bg-gray-50 w-full max-w-6xl h-[95vh] md:h-[90vh] rounded-[2rem] md:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden relative animate-in zoom-in-95 duration-300">
-                        <div className="bg-white p-6 md:p-8 border-b border-gray-200 flex justify-between items-center z-10 shrink-0">
-                            <div>
-                                <h2 className="text-xl md:text-3xl font-black uppercase italic tracking-tighter flex items-center gap-3"><User className="text-blue-600" /> {clienteActualData.nombre}</h2>
-                                <p className="text-[9px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Estado de Cuenta Oficial</p>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <div className="hidden md:block text-right mr-4 border-r pr-8 border-gray-200">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-red-400">Deuda Total Activa</p>
-                                    <p className="text-2xl font-black italic tracking-tighter text-red-600">${formatCurrency(clienteActualData.totalDeuda)}</p>
-                                </div>
-                                <button onClick={() => setClienteEstadoCuenta(null)} className="p-3 md:p-4 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all active:scale-90"><X size={20}/></button>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-                            <div className="flex-1 border-r border-gray-200 flex flex-col overflow-hidden bg-white">
-                                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
-                                    <h3 className="font-black uppercase tracking-tighter text-lg md:text-xl flex items-center gap-2"><Banknote className="text-red-500" size={20}/> Deudas Activas</h3>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
-                                    <div className="md:hidden bg-red-50 border border-red-100 p-4 rounded-2xl mb-4 text-center">
-                                        <p className="text-[9px] font-black uppercase tracking-widest text-red-400">Deuda Total Activa</p>
-                                        <p className="text-3xl font-black italic tracking-tighter text-red-600">${formatCurrency(clienteActualData.totalDeuda)}</p>
-                                    </div>
-                                    {clienteActualData.creditos.length === 0 ? (
-                                        <p className="text-center text-gray-400 text-xs font-bold uppercase py-10">El cliente no tiene historial de deudas.</p>
-                                    ) : (
-                                        clienteActualData.creditos.map(c => {
-                                            const hoy = new Date(); hoy.setHours(0,0,0,0);
-                                            const vence = new Date(c.fecha_vencimiento); vence.setHours(0,0,0,0);
-                                            const estaEnMora = c.estado === 'VIGENTE' && hoy > vence;
-
-                                            return (
-                                            <div key={c.id} className={`p-5 rounded-2xl md:rounded-3xl border transition-all ${c.estado === 'VIGENTE' ? (estaEnMora ? 'bg-red-50 border-red-200 shadow-lg shadow-red-500/10' : 'bg-white border-blue-100 shadow-lg shadow-blue-500/5') : 'bg-gray-50 border-gray-100 opacity-60 hover:opacity-100'}`}>
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <div>
-                                                        <span className={`text-[8px] font-black uppercase px-2 py-1 rounded-md ${c.estado === 'VIGENTE' ? (estaEnMora ? 'bg-red-600 text-white animate-pulse' : 'bg-blue-50 text-blue-600') : 'bg-green-50 text-green-600'}`}>
-                                                            {c.estado === 'VIGENTE' ? (estaEnMora ? 'VENCIDO (EN MORA)' : 'AL DÍA') : 'PAGADO'}
-                                                        </span>
-                                                        <p className="font-black text-gray-900 text-sm md:text-base mt-2 line-clamp-1">{c.descripcion}</p>
-                                                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Creado: {new Date(c.fecha).toLocaleDateString()}</p>
-                                                        {c.estado === 'VIGENTE' && c.fecha_vencimiento && (
-                                                            <p className={`text-[8px] font-black uppercase mt-1.5 ${estaEnMora ? 'text-red-500' : 'text-blue-500'}`}>Vence: {new Date(c.fecha_vencimiento).toLocaleDateString()}</p>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest">Debe</p>
-                                                        <p className={`font-black italic tracking-tighter text-xl ${c.estado === 'VIGENTE' ? (estaEnMora ? 'text-red-600' : 'text-blue-600') : 'text-gray-400 line-through'}`}>${formatCurrency(c.saldo)}</p>
-                                                    </div>
-                                                </div>
-                                                {c.estado === 'VIGENTE' && (
-                                                    <button onClick={() => { setCreditoSeleccionado(c); setShowAbonoModal(true); }} className="w-full mt-2 py-3 bg-green-50 hover:bg-green-600 text-green-600 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 active:scale-95">
-                                                        <DollarSign size={14}/> Recibir Pago (Abono)
-                                                    </button>
-                                                )}
-                                            </div>
-                                        )})
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
-                                <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-white shrink-0">
-                                    <h3 className="font-black uppercase tracking-tighter text-lg md:text-xl flex items-center gap-2 text-gray-700"><History className="text-blue-500" size={20}/> Facturas (Pedidos)</h3>
-                                </div>
-                                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 custom-scrollbar">
-                                    {clienteActualData.pedidos.length === 0 ? (
-                                        <p className="text-center text-gray-400 text-xs font-bold uppercase py-10">El cliente no ha realizado pedidos aún.</p>
-                                    ) : (
-                                        clienteActualData.pedidos.slice().reverse().map(ped => {
-                                            const yaEnCartera = clienteActualData.creditos.some(c => c.descripcion && c.descripcion.includes(`#${ped.id}`));
-                                            const yaEnFinanzas = transacciones.some(t => t.descripcion && t.descripcion.includes(`#${ped.id}`));
-
-                                            return (
-                                                <div key={ped.id} className="bg-white p-5 rounded-2xl md:rounded-3xl border border-gray-100 shadow-sm flex flex-col sm:flex-row justify-between gap-4">
-                                                    <div>
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <span className="bg-gray-100 text-black px-2 py-1 rounded-md text-[9px] font-black uppercase italic">ID #{ped.id}</span>
-                                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{new Date(ped.fecha).toLocaleDateString()}</span>
-                                                        </div>
-                                                        <p className="text-xs font-bold text-gray-600 mb-1"><span className="font-black text-gray-800">{ped.Detalles?.length || 0}</span> artículos comprados</p>
-                                                        <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 w-fit px-2 py-1 rounded-md mt-2">Logística: {ped.estado}</p>
-                                                    </div>
-                                                    <div className="flex flex-col items-start sm:items-end justify-between border-t sm:border-t-0 sm:border-l border-gray-100 pt-3 sm:pt-0 sm:pl-4">
-                                                        <p className="font-black text-xl md:text-2xl italic tracking-tighter text-gray-900">${formatCurrency(ped.total)}</p>
-                                                        {yaEnCartera ? (
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-orange-500 flex items-center gap-1 mt-2"><CheckCircle2 size={12}/> Fiado (En Cartera)</span>
-                                                        ) : yaEnFinanzas ? (
-                                                            <span className="text-[9px] font-black uppercase tracking-widest text-green-500 flex items-center gap-1 mt-2"><CheckCircle2 size={12}/> Pagado de Contado</span>
-                                                        ) : (
-                                                            <button onClick={() => { setPedidoACobrar(ped); setShowCobroModal(true); setClienteEstadoCuenta(null); }} className="mt-2 py-2 px-4 bg-black text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all flex items-center gap-2 active:scale-95 whitespace-nowrap">
-                                                                Liquidar Factura <ChevronRight size={12}/>
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL: LIQUIDAR PEDIDO (CONTADO VS CREDITO) */}
-            {showCobroModal && pedidoACobrar && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[300] flex items-center justify-center p-4">
-                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => {setShowCobroModal(false); setPedidoACobrar(null);}} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={24} className="md:w-8 md:h-8"/></div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Liquidar Pedido</h3>
-                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Pedido #{pedidoACobrar.id} • ${formatCurrency(pedidoACobrar.total)}</p>
-                        
-                        <div className="space-y-3">
-                            <button onClick={() => handleCobro('CONTADO')} disabled={enviando} className="w-full p-4 border-2 border-green-500 bg-green-50 hover:bg-green-500 hover:text-white text-green-700 rounded-2xl transition-all font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 active:scale-95">
-                                {enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16} />} Pago de Contado (Finanzas)
-                            </button>
-                            <button onClick={() => handleCobro('CREDITO')} disabled={enviando} className="w-full p-4 border-2 border-orange-500 bg-orange-50 hover:bg-orange-500 hover:text-white text-orange-700 rounded-2xl transition-all font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 active:scale-95">
-                                {enviando ? <Loader2 className="animate-spin" size={16} /> : <Banknote size={16} />} Fiar (Mandar a Cartera)
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL: CREAR CRÉDITO (FIAR MANUAL) */}
-            {showCreditoModal && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
-                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => setShowCreditoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4"><Banknote size={24} className="md:w-8 md:h-8"/></div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Fiar a Cliente</h3>
-                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Registrar deuda manual</p>
-                        
-                        <form onSubmit={handleCrearCredito} className="space-y-4 md:space-y-5 text-left">
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Cliente Deudor</label>
-                                <select required className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-gray-900 outline-none focus:ring-2 focus:ring-black text-xs md:text-sm cursor-pointer" value={formCredito.usuarioId} onChange={e => setFormCredito({...formCredito, usuarioId: e.target.value})}>
-                                    <option value="" disabled>Selecciona un cliente</option>
-                                    {usuarios.map(u => (<option key={u.id} value={u.id}>{u.nombre} - CC: {u.cedula || 'N/A'}</option>))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Monto a Fiar ($)</label>
-                                <input required type="number" step="0.01" min="1" placeholder="Ej: 150000" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-black text-sm" value={formCredito.monto_total} onChange={e => setFormCredito({...formCredito, monto_total: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Concepto / Descripción</label>
-                                <input required type="text" placeholder="Ej: Mercancía de Noviembre" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-black text-xs md:text-sm" value={formCredito.descripcion} onChange={e => setFormCredito({...formCredito, descripcion: e.target.value})} />
-                            </div>
-                            <button disabled={enviando} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-black text-white hover:bg-blue-600 transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50">
-                                {enviando ? <Loader2 className="animate-spin" /> : 'Crear Crédito'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL: REGISTRAR ABONO (PAGO) */}
-            {showAbonoModal && creditoSeleccionado && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
-                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => setShowAbonoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><DollarSign size={24} className="md:w-8 md:h-8"/></div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Recibir Abono</h3>
-                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center line-clamp-1">{creditoSeleccionado.Usuario?.nombre}</p>
-                        
-                        <form onSubmit={handleRegistrarAbono} className="space-y-4 md:space-y-5 text-left">
-                            <div className="flex items-center justify-between bg-red-50 p-3 rounded-xl border border-red-100">
-                                <span className="text-[9px] md:text-[10px] font-black text-red-400 uppercase tracking-widest">Deuda Actual:</span>
-                                <span className="text-sm md:text-base font-black italic text-red-600">${formatCurrency(creditoSeleccionado.saldo)}</span>
-                            </div>
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">¿Cuánto pagó hoy?</label>
-                                <input required type="number" step="0.01" min="1" max={creditoSeleccionado.saldo} placeholder={`Máximo $${creditoSeleccionado.saldo}`} className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-green-500 text-sm text-green-700" value={formAbono.monto} onChange={e => setFormAbono({...formAbono, monto: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Nota (Opcional)</label>
-                                <input type="text" placeholder="Ej: Efectivo, Transferencia..." className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-green-500 text-xs md:text-sm" value={formAbono.nota} onChange={e => setFormAbono({...formAbono, nota: e.target.value})} />
-                            </div>
-                            <div className="bg-green-50 p-4 rounded-xl md:rounded-2xl border border-green-100 flex justify-between items-center mt-2">
-                                <div>
-                                    <p className="text-[8px] md:text-[9px] font-black text-green-600 uppercase">Impacto Contable</p>
-                                    <p className="text-[7px] md:text-[8px] font-bold text-green-500 uppercase">Se registrará como ingreso</p>
-                                </div>
-                                <p className="text-lg md:text-xl font-black text-green-600 italic">+${formatCurrency(formAbono.monto || 0)}</p>
-                            </div>
-                            <button disabled={enviando || parseFloat(formAbono.monto || 0) <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-green-600 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50 active:scale-95">
-                                {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Abono'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL EDITAR USUARIO (CON LÍMITES) */}
-            {showEditUsuarioModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white w-full max-w-2xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative animate-in zoom-in-95 duration-200">
-                        <button onClick={() => setShowEditUsuarioModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white"><X size={18}/></button>
-                        <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8 border-b border-gray-100 pb-4">
-                            <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center"><User size={20} className="md:w-6 md:h-6"/></div>
-                            <div><h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter">Editar Cliente</h2></div>
-                        </div>
-                        <form onSubmit={handleEditarUsuario} className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Nombre Completo</label><input required type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.nombre || ''} onChange={e => setFormEditUsuario({...formEditUsuario, nombre: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Cédula</label><input required type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.cedula || ''} onChange={e => setFormEditUsuario({...formEditUsuario, cedula: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Correo (Opcional)</label><input type="email" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.email || ''} onChange={e => setFormEditUsuario({...formEditUsuario, email: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Teléfono</label><input type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.telefono || ''} onChange={e => setFormEditUsuario({...formEditUsuario, telefono: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Ciudad</label><input type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.ciudad || ''} onChange={e => setFormEditUsuario({...formEditUsuario, ciudad: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Rol del Sistema</label>
-                                <select className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.rol || 'CLIENTE'} onChange={e => setFormEditUsuario({...formEditUsuario, rol: e.target.value})}>
-                                    <option value="CLIENTE">CLIENTE REGULAR</option><option value="ADMIN">ADMINISTRADOR</option><option value="COMPRAS">ENCARGADO DE COMPRAS</option>
-                                </select>
-                            </div>
-                            <div className="sm:col-span-2"><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Dirección Exacta</label><textarea rows="2" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 resize-none text-xs md:text-sm" value={formEditUsuario.direccion || ''} onChange={e => setFormEditUsuario({...formEditUsuario, direccion: e.target.value})} /></div>
-                            
-                            {/* 🔥 NUEVO: CONFIGURACIÓN DE CRÉDITO 🔥 */}
-                            <div className="sm:col-span-2 mt-4 bg-orange-50/50 p-4 rounded-2xl border border-orange-100 grid grid-cols-2 gap-4">
-                                <div className="col-span-2"><p className="text-[9px] font-black text-orange-600 uppercase tracking-widest flex items-center gap-2"><Banknote size={14}/> Configuración de Crédito</p></div>
-                                <div><label className="text-[8px] font-black uppercase text-gray-500 mb-1 ml-1">Límite de Crédito ($)</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-orange-500 text-xs shadow-sm" placeholder="0 = Sin Crédito" value={formEditUsuario.limite_credito} onChange={e => setFormEditUsuario({...formEditUsuario, limite_credito: e.target.value})} /></div>
-                                <div><label className="text-[8px] font-black uppercase text-gray-500 mb-1 ml-1">Días de Plazo para Pagar</label><input type="number" min="1" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-orange-500 text-xs shadow-sm" value={formEditUsuario.dias_credito} onChange={e => setFormEditUsuario({...formEditUsuario, dias_credito: e.target.value})} /></div>
-                            </div>
-
-                            <button disabled={enviando} className="sm:col-span-2 bg-blue-600 text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-black transition-all flex items-center justify-center mt-2 shadow-lg active:scale-95">{enviando ? <Loader2 className="animate-spin" /> : 'Guardar Cambios'}</button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL CREAR USUARIO (CON LÍMITES) */}
-            {showUsuarioModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
-                    <div className="bg-white w-full max-w-lg rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative my-auto animate-in zoom-in-95 duration-200">
-                        <button onClick={() => setShowUsuarioModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white"><X size={18}/></button>
-                        <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-4 md:mb-6">Crear Cliente</h2>
-                        <form onSubmit={handleCrearUsuario} className="space-y-3 md:space-y-4">
-                            <input required type="text" placeholder="Nombre completo" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.nombre || ''} onChange={e => setFormUsuario({...formUsuario, nombre: e.target.value})} />
-                            <input required type="text" placeholder="Número de Cédula" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.cedula || ''} onChange={e => setFormUsuario({...formUsuario, cedula: e.target.value})} />
-                            <input type="email" placeholder="Correo electrónico (Opcional)" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.email || ''} onChange={e => setFormUsuario({...formUsuario, email: e.target.value})} />
-                            <input required type="password" placeholder="Contraseña (mínimo 6 caracteres)" minLength="6" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.password || ''} onChange={e => setFormUsuario({...formUsuario, password: e.target.value})} />
-                            <div className="grid grid-cols-2 gap-3 md:gap-4"><input type="text" placeholder="Ciudad (Ej: Carepa)" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.ciudad || ''} onChange={e => setFormUsuario({...formUsuario, ciudad: e.target.value})} /><input type="text" placeholder="Teléfono" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.telefono || ''} onChange={e => setFormUsuario({...formUsuario, telefono: e.target.value})} /></div>
-                            <input type="text" placeholder="Dirección Exacta" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.direccion || ''} onChange={e => setFormUsuario({...formUsuario, direccion: e.target.value})} />
-                            
-                            <div className="mt-4 bg-orange-50 p-4 rounded-2xl border border-orange-100 grid grid-cols-2 gap-4">
-                                <div className="col-span-2"><p className="text-[9px] font-black text-orange-600 uppercase tracking-widest flex items-center gap-2"><Banknote size={14}/> Crédito Inicial</p></div>
-                                <div><label className="text-[8px] font-black uppercase text-gray-500 mb-1 ml-1">Límite ($)</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none text-xs shadow-sm" placeholder="0 = Contado" value={formUsuario.limite_credito} onChange={e => setFormUsuario({...formUsuario, limite_credito: e.target.value})} /></div>
-                                <div><label className="text-[8px] font-black uppercase text-gray-500 mb-1 ml-1">Plazo (Días)</label><input type="number" min="1" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none text-xs shadow-sm" value={formUsuario.dias_credito} onChange={e => setFormUsuario({...formUsuario, dias_credito: e.target.value})} /></div>
-                            </div>
-
-                            <button disabled={enviando} className="w-full mt-2 md:mt-4 bg-black text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-blue-600 transition-all flex items-center justify-center">
-                                {enviando ? <Loader2 className="animate-spin" /> : 'Registrar Cliente'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
+            {/* 🔥 Y AQUÍ LLAMAMOS A TODOS LOS MODALES EN 1 SOLA LÍNEA 🔥 */}
+            <AdminModals states={statesProps} forms={formsProps} setters={settersProps} handlers={handlersProps} data={dataProps} />
         </div>
     );
 };
