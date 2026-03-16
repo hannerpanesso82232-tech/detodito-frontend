@@ -9,11 +9,95 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
     const { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado } = setters;
     const { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera } = handlers;
     
-    // 🔥 CORRECCIÓN: Ahora desempaquetamos 'transacciones' correctamente 🔥
+    // Desempaquetamos los datos correctamente
     const { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones } = data;
 
     return (
         <>
+            {/* 🔥 MODAL: CREAR / EDITAR PRODUCTO (¡EL QUE FALTABA!) 🔥 */}
+            {showModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white w-full max-w-5xl rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row relative animate-in slide-in-from-bottom-4 duration-300 my-auto">
+                        <button onClick={cerrarModal} className="absolute top-4 right-4 md:top-6 md:right-6 z-10 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
+                        <div className="w-full md:w-1/3 bg-gray-50 p-6 md:p-10 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-100">
+                            <div className="w-32 h-32 md:w-full md:aspect-square bg-white rounded-2xl md:rounded-[2.5rem] shadow-inner border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden mb-4 md:mb-8">
+                                {preview ? <img src={preview} className="w-full h-full object-cover" alt="Preview" /> : <ImageIcon size={32} className="text-gray-200 md:w-12 md:h-12" />}
+                            </div>
+                            <label className="w-full text-center bg-black text-white px-4 py-3 md:px-6 md:py-5 rounded-xl md:rounded-2xl text-[9px] md:text-[10px] font-black uppercase cursor-pointer hover:bg-blue-600 transition-all shadow-xl">
+                                {preview ? 'CAMBIAR IMAGEN' : 'ADJUNTAR IMAGEN'}
+                                <input type="file" className="hidden" accept="image/*" onChange={handleImagenChange} />
+                            </label>
+                        </div>
+                        <form onSubmit={handleGuardarProducto} className="flex-1 p-6 md:p-10 grid grid-cols-2 gap-4 md:gap-5 max-h-[70vh] md:max-h-[85vh] overflow-y-auto custom-scrollbar">
+                            <h2 className="col-span-2 text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-2 md:mb-4">{productoEditando ? 'EDITAR PRODUCTO' : 'NUEVO PRODUCTO'}</h2>
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">NOMBRE</label>
+                                <input required type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-sm" value={formulario.nombre || ''} onChange={e => setFormulario({...formulario, nombre: e.target.value})} />
+                            </div>
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">PROVEEDOR / MARCA</label>
+                                <input type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-sm" value={formulario.proveedor || ''} onChange={e => setFormulario({...formulario, proveedor: e.target.value})} />
+                            </div>
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">CATEGORÍA</label>
+                                <select required className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-sm" value={formulario.categoriaId || ''} onChange={e => setFormulario({...formulario, categoriaId: e.target.value})}>
+                                    <option value="" disabled>SELECCIONAR</option>
+                                    {categorias.map(cat => <option key={cat.id} value={cat.id}>{cat.nombre.toUpperCase()}</option>)}
+                                </select>
+                            </div>
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">DESCRIPCIÓN</label>
+                                <textarea rows="1" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black resize-none text-sm" value={formulario.descripcion || ''} onChange={e => setFormulario({...formulario, descripcion: e.target.value})} />
+                            </div>
+
+                            <div className="col-span-2 bg-blue-50/50 p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-blue-100 mt-2 md:mt-4 space-y-4 md:space-y-5">
+                                <div className="flex items-center gap-3 mb-2 border-b border-blue-100 pb-3 md:pb-4">
+                                    <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 text-white rounded-lg md:rounded-xl flex items-center justify-center shadow-lg"><Calculator size={16} className="md:w-5 md:h-5" /></div>
+                                    <div>
+                                        <p className="text-xs md:text-sm font-black uppercase text-blue-900 tracking-tighter italic">Calculadora precio</p>
+                                        <p className="text-[8px] md:text-[9px] font-black text-blue-500 uppercase tracking-widest">Cálculo Automático</p>
+                                    </div>
+                                </div>
+                                {!productoEditando ? (
+                                    <div className="grid grid-cols-2 gap-3 md:gap-4">
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Costo de Compra (C/U)</label><input required type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-600 shadow-sm text-xs md:text-sm" value={formulario.costo_compra || ''} onChange={e => setFormulario({...formulario, costo_compra: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Margen de Ganancia (%)</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-orange-500 shadow-sm text-xs md:text-sm" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Cantidad (Stock)</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black shadow-sm text-xs md:text-sm" value={formulario.stock || ''} onChange={e => setFormulario({...formulario, stock: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Alerta Stock Bajo</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-red-500 shadow-sm text-xs md:text-sm" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} /></div>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-3 md:gap-4">
+                                        <div className="bg-gray-100 p-3 md:p-4 rounded-xl md:rounded-2xl"><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Costo Promedio</p><p className="font-bold text-gray-600 text-xs md:text-sm">${formatCurrency(productoEditando.costo_compra)}</p></div>
+                                        <div className="bg-gray-100 p-3 md:p-4 rounded-xl md:rounded-2xl"><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Stock Actual</p><p className="font-bold text-gray-600 text-xs md:text-sm">{formulario.stock} Uds</p></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">📦 ➕ Unidades Nuevas</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs md:text-sm" value={formulario.stock_adicional || ''} onChange={e => setFormulario({...formulario, stock_adicional: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">💰 Costo (C/U) Nuevo</label><input type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs md:text-sm" value={formulario.costo_nuevo_lote || ''} onChange={e => setFormulario({...formulario, costo_nuevo_lote: e.target.value})} /></div>
+                                        <div className="col-span-2 border-t border-dashed border-blue-200 pt-3 md:pt-4 mt-1 md:mt-2 flex gap-3 md:gap-4">
+                                            <div className="flex-1"><label className="text-[8px] md:text-[9px] font-black uppercase text-orange-600 mb-1">Margen (%)</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold text-orange-600 focus:ring-2 focus:ring-orange-500 shadow-sm outline-none text-xs md:text-sm" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} /></div>
+                                            <div className="flex-1"><label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Alerta Stock Bajo</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold text-red-600 focus:ring-2 focus:ring-red-500 shadow-sm outline-none text-xs md:text-sm" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} /></div>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="mt-3 md:mt-4 p-4 md:p-5 bg-black text-white rounded-xl md:rounded-2xl flex justify-between items-center shadow-2xl">
+                                    <div><p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-green-400">Precio de Venta</p><p className="text-2xl md:text-3xl font-black italic tracking-tighter">${formatCurrency(precioCalculado)}</p></div>
+                                    {productoEditando && parseInt(formulario.stock_adicional || 0) > 0 && (
+                                        <div className="text-right"><p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-400">Stock Final</p><p className="text-lg md:text-xl font-bold">{parseInt(formulario.stock || 0) + parseInt(formulario.stock_adicional || 0)} Uds</p></div>
+                                    )}
+                                </div>
+                            </div>
+                            {productoEditando && parseInt(formulario.stock_adicional || 0) === 0 && (
+                                <div className="col-span-2 mt-1 md:mt-2 p-3 md:p-4 bg-gray-50 rounded-xl md:rounded-2xl border border-gray-100 flex items-center justify-between">
+                                    <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 block mb-0.5 md:mb-1">¿Forzar cambio de precio manual?</label></div>
+                                    <input type="number" step="0.01" className="w-1/2 sm:w-1/3 bg-white border-none rounded-lg md:rounded-xl p-2 md:p-3 font-bold shadow-sm outline-none focus:ring-2 focus:ring-black text-xs md:text-sm" value={formulario.precio || ''} onChange={e => setFormulario({...formulario, precio: e.target.value})} placeholder="Precio exacto..." />
+                                </div>
+                            )}
+                            <button disabled={enviando || (precioCalculado <= 0 && !formulario.precio)} className={`col-span-2 mt-2 md:mt-4 text-white py-4 md:py-6 rounded-xl md:rounded-3xl font-black uppercase tracking-[0.2em] text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-2 md:gap-3 shadow-xl ${(precioCalculado <= 0 && !formulario.precio) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-black hover:scale-[1.02]'}`}>
+                                {enviando ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={16} className="md:w-5 md:h-5"/>} {productoEditando ? 'Guardar Cambios' : 'PUBLICAR PRODUCTO'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* 🔥 MODAL: ESTADO DE CUENTA CARTERA (Panel 360) 🔥 */}
             {clienteEstadoCuenta && clienteActualData && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[180] flex items-center justify-center p-2 md:p-6 overflow-hidden">
@@ -88,7 +172,6 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                         <p className="text-center text-gray-400 text-xs font-bold uppercase py-10">El cliente no ha realizado pedidos aún.</p>
                                     ) : (
                                         clienteActualData.pedidos.slice().reverse().map(ped => {
-                                            // 🔥 FIX ESTRICTO: Para evitar que un pedido liquidado se vuelva a liquidar
                                             const yaEnCartera = clienteActualData.creditos.some(c => c.descripcion === `Factura Pedido #${ped.id}`);
                                             const yaEnFinanzas = transacciones.some(t => t.pedidoId === ped.id || t.descripcion === `Pago de Contado - Pedido #${ped.id}` || t.descripcion === `Venta - Orden #${ped.id}`);
 
@@ -104,6 +187,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                                     </div>
                                                     <div className="flex flex-col items-start sm:items-end justify-between border-t sm:border-t-0 sm:border-l border-gray-100 pt-3 sm:pt-0 sm:pl-4">
                                                         <p className="font-black text-xl md:text-2xl italic tracking-tighter text-gray-900">${formatCurrency(ped.total)}</p>
+                                                        
                                                         {yaEnCartera ? (
                                                             <span className="text-[9px] font-black uppercase tracking-widest text-orange-500 flex items-center gap-1 mt-2"><CheckCircle2 size={12}/> Fiado (En Cartera)</span>
                                                         ) : yaEnFinanzas ? (
@@ -125,60 +209,15 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* MODALES TRANSACCIONES (LIBRO MAYOR) */}
-            {(showGastoModal || showEditTransaccionModal) && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center animate-in zoom-in-95 duration-200">
-                        <button onClick={() => {setShowGastoModal(false); setShowEditTransaccionModal(false);}} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={18}/></button>
-                        <div className={`w-12 h-12 md:w-16 md:h-16 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center mx-auto mb-4 md:mb-6 ${formGasto.tipo === 'INGRESO' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
-                            <DollarSign size={24} className="md:w-8 md:h-8"/>
-                        </div>
-                        <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 md:mb-2">{transaccionSeleccionada ? 'Editar Movimiento' : 'Registrar Movimiento'}</h2>
-                        <form onSubmit={handleGuardarTransaccion} className="space-y-3 md:space-y-4 text-left mt-4">
-                            <div className="flex gap-2 mb-2 md:mb-4">
-                                <button type="button" onClick={() => setFormGasto({...formGasto, tipo: 'INGRESO'})} className={`flex-1 py-2 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase transition-all ${formGasto.tipo === 'INGRESO' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Ingreso</button>
-                                <button type="button" onClick={() => setFormGasto({...formGasto, tipo: 'EGRESO'})} className={`flex-1 py-2 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase transition-all ${formGasto.tipo === 'EGRESO' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Egreso</button>
-                            </div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Monto ($)</label><input required type="number" step="0.01" min="0" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={formGasto.monto || ''} onChange={e => setFormGasto({...formGasto, monto: e.target.value})} /></div>
-                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Descripción</label><input required type="text" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={formGasto.descripcion || ''} onChange={e => setFormGasto({...formGasto, descripcion: e.target.value})} /></div>
-                            <div className="flex flex-col md:flex-row gap-2">
-                                <div className="flex-1">
-                                    <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Categoría</label>
-                                    <select className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formGasto.categoria || 'Logística'} onChange={e => setFormGasto({...formGasto, categoria: e.target.value})}>
-                                        <option value="Ventas Productos">Ventas Productos</option><option value="Logística">Logística</option><option value="Mercancía">Compra Mercancía</option><option value="Servicios">Servicios</option><option value="Nómina">Nómina</option><option value="Otros">Otros</option>
-                                    </select>
-                                </div>
-                                <div className="flex-1">
-                                    <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Fecha</label>
-                                    <input type="date" required className="w-full bg-white p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formGasto.fecha || new Date().toISOString().split('T')[0]} onChange={e => setFormGasto({...formGasto, fecha: e.target.value})} />
-                                </div>
-                            </div>
-                            <button disabled={enviando} className={`w-full text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all flex items-center justify-center mt-2 shadow-lg active:scale-95 ${formGasto.tipo === 'INGRESO' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>{enviando ? <Loader2 className="animate-spin" /> : 'Guardar Movimiento'}</button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {showDeleteTransaccionModal && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-                    <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="w-16 h-16 md:w-24 md:h-24 bg-red-50 text-red-500 rounded-2xl md:rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 md:mb-8"><AlertTriangle size={32} className="md:w-12 md:h-12"/></div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-2">¿Borrar Registro?</h3>
-                        <p className="text-gray-400 text-[9px] md:text-[10px] font-bold mb-8 md:mb-10 uppercase tracking-[0.2em]">Se eliminará de la contabilidad.</p>
-                        <div className="flex gap-3 md:gap-4">
-                            <button onClick={() => setShowDeleteTransaccionModal(false)} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-gray-100 hover:bg-gray-200 transition-all">Cancelar</button>
-                            <button onClick={handleEliminarTransaccion} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-red-600 text-white hover:bg-red-700 transition-all">Borrar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* MODAL: LIQUIDAR PEDIDO (CONTADO VS CREDITO) */}
             {showCobroModal && pedidoACobrar && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[300] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
                         <button onClick={() => {setShowCobroModal(false); setPedidoACobrar(null);}} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={24} className="md:w-8 md:h-8"/></div>
+                        
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <CheckCircle2 size={24} className="md:w-8 md:h-8"/>
+                        </div>
                         <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Liquidar Pedido</h3>
                         <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Pedido #{pedidoACobrar.id} • ${formatCurrency(pedidoACobrar.total)}</p>
                         
@@ -199,7 +238,10 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
                         <button onClick={() => setShowCreditoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4"><Banknote size={24} className="md:w-8 md:h-8"/></div>
+                        
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <Banknote size={24} className="md:w-8 md:h-8"/>
+                        </div>
                         <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Fiar a Cliente</h3>
                         <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center">Registrar deuda manual</p>
                         
@@ -256,7 +298,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 </div>
                                 <p className="text-lg md:text-xl font-black text-green-600 italic">+${formatCurrency(formAbono.monto || 0)}</p>
                             </div>
-                            <button disabled={enviando || parseFloat(formAbono.monto || 0) <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-green-600 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50 active:scale-95">
+                            <button disabled={enviando} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-green-600 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50 active:scale-95">
                                 {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Abono'}
                             </button>
                         </form>
@@ -286,7 +328,6 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                             </div>
                             <div className="sm:col-span-2"><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Dirección Exacta</label><textarea rows="2" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 resize-none text-xs md:text-sm" value={formEditUsuario.direccion || ''} onChange={e => setFormEditUsuario({...formEditUsuario, direccion: e.target.value})} /></div>
                             
-                            {/* 🔥 NUEVO: CONFIGURACIÓN DE CRÉDITO 🔥 */}
                             <div className="sm:col-span-2 mt-4 bg-orange-50/50 p-4 rounded-2xl border border-orange-100 grid grid-cols-2 gap-4">
                                 <div className="col-span-2"><p className="text-[9px] font-black text-orange-600 uppercase tracking-widest flex items-center gap-2"><Banknote size={14}/> Configuración de Crédito</p></div>
                                 <div><label className="text-[8px] font-black uppercase text-gray-500 mb-1 ml-1">Límite de Crédito ($)</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-orange-500 text-xs shadow-sm" placeholder="0 = Sin Crédito" value={formEditUsuario.limite_credito} onChange={e => setFormEditUsuario({...formEditUsuario, limite_credito: e.target.value})} /></div>
@@ -327,45 +368,6 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* MODAL: BAJA DE PRODUCTOS */}
-            {showBajaModal && productoBaja && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => setShowBajaModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4"><PackageMinus size={24} className="md:w-8 md:h-8"/></div>
-                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Dar de Baja</h3>
-                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center line-clamp-1">{productoBaja.nombre}</p>
-                        
-                        <form onSubmit={handleGuardarBaja} className="space-y-4 md:space-y-5">
-                            <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl">
-                                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">Stock Actual:</span>
-                                <span className="text-xs md:text-sm font-black text-gray-900">{productoBaja.stock} Uds</span>
-                            </div>
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">¿Cuántas unidades se dañaron?</label>
-                                <input required type="number" min="1" max={productoBaja.stock} className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-orange-500 text-sm" value={formBaja.cantidad} onChange={e => setFormBaja({...formBaja, cantidad: parseInt(e.target.value)})} />
-                            </div>
-                            <div>
-                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Motivo de la pérdida</label>
-                                <select className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-gray-700 outline-none focus:ring-2 focus:ring-orange-500 text-xs md:text-sm cursor-pointer" value={formBaja.motivo} onChange={e => setFormBaja({...formBaja, motivo: e.target.value})}>
-                                    <option value="Dañado/Roto">Dañado / Roto</option><option value="Defectuoso de Fábrica">Defectuoso de Fábrica</option><option value="Vencido/Caducado">Vencido / Caducado</option><option value="Pérdida/Robo">Pérdida / Robo</option>
-                                </select>
-                            </div>
-                            <div className="bg-orange-50 p-4 rounded-xl md:rounded-2xl border border-orange-100 flex justify-between items-center">
-                                <div>
-                                    <p className="text-[8px] md:text-[9px] font-black text-orange-600 uppercase">Pérdida Financiera</p>
-                                    <p className="text-[7px] md:text-[8px] font-bold text-orange-500">Se restará del libro mayor</p>
-                                </div>
-                                <p className="text-lg md:text-xl font-black text-orange-600 italic">-${formatCurrency((productoBaja.costo_compra || 0) * formBaja.cantidad)}</p>
-                            </div>
-                            <button disabled={enviando || productoBaja.stock <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-orange-500 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50">
-                                {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Baja'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            )}
-
             {/* RESTO DE LOS MODALES DE CONFIG Y BORRADO */}
             {showPasswordModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
@@ -388,10 +390,12 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-4xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative flex flex-col md:flex-row gap-6 md:gap-8 animate-in zoom-in-95 duration-200">
                         <button onClick={() => setShowConfigModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={18}/></button>
+                        
                         <div className="flex-1 border-b md:border-b-0 md:border-r border-gray-100 pb-6 md:pb-0 md:pr-8 text-center">
                             <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-500 rounded-xl md:rounded-[2rem] flex items-center justify-center mx-auto mb-4 md:mb-6"><Settings size={24} className="md:w-8 md:h-8"/></div>
                             <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 md:mb-2">Ajustes Generales</h2>
                             <p className="text-[8px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4 md:mb-6">Soporte y Límite de Pedidos</p>
+                            
                             <form onSubmit={handleGuardarConfig} className="space-y-4 md:space-y-5 text-left">
                                 <div className="bg-gray-50 p-4 md:p-5 rounded-2xl border border-gray-100">
                                     <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 block">Número de WhatsApp</label>
@@ -404,6 +408,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 <button disabled={enviando} className="w-full bg-black text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-green-500 transition-all shadow-lg active:scale-95">{enviando ? <Loader2 className="animate-spin mx-auto" /> : 'Guardar Ajustes'}</button>
                             </form>
                         </div>
+
                         <div className="flex-1 md:pl-4 mt-2 md:mt-0">
                             <div className="flex items-center gap-3 md:gap-4 mb-4 md:mb-6">
                                 <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 text-blue-500 rounded-xl md:rounded-2xl flex items-center justify-center"><Map size={20} className="md:w-6 md:h-6"/></div>
@@ -424,7 +429,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 <table className="w-full text-left">
                                     <thead><tr className="border-b border-gray-200"><th className="py-2 text-[8px] md:text-[9px] font-black text-gray-400 uppercase">Día</th><th className="py-2 text-[8px] md:text-[9px] font-black text-gray-400 uppercase">Ciudades</th><th></th></tr></thead>
                                     <tbody>
-                                        {data.rutasDinamicas.map(r => (
+                                        {rutasDinamicas.map(r => (
                                             <tr key={r.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50">
                                                 <td className="py-2 md:py-3 text-[9px] md:text-[10px] font-black text-blue-600 uppercase">{r.dia_ruta}</td>
                                                 <td className="py-2 md:py-3 text-[9px] md:text-[10px] font-bold text-gray-900 uppercase truncate max-w-[100px] md:max-w-[150px]">{r.ciudad}</td>
@@ -439,6 +444,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
+            {/* MODALES DE BORRADO DE USUARIO/PRODUCTO */}
             {usuarioAEliminar && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
                     <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
