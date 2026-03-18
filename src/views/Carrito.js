@@ -5,10 +5,12 @@ import API from '../services/api';
 import toast from 'react-hot-toast';
 import { 
     CheckCircle, Printer, ShoppingBag, X, 
-    CreditCard, Plus, Minus, Trash2, ArrowLeft, MapPin, CalendarClock, UserX, Banknote
+    CreditCard, Plus, Minus, Trash2, ArrowLeft, 
+    MapPin, CalendarClock, UserX, Banknote, DollarSign 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+// 🔥 CORRECCIÓN AGRESIVA: Limpieza de Localhost para imágenes 🔥
 const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/400x500?text=Sin+Imagen';
     
@@ -25,6 +27,7 @@ const formatearImagen = (url) => {
     return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
 };
 
+// 🔥 MOTOR MATEMÁTICO DE FECHAS DINÁMICAS (Con Hora Límite) 🔥
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
     
@@ -70,6 +73,7 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
 
     if (diasFaltantes < 0) diasFaltantes += 7;
 
+    // 🔥 LÓGICA DE HORA LÍMITE PARA EL CLIENTE 🔥
     if (diasFaltantes === 0) {
         diasFaltantes += 7;
     } else if (diasFaltantes === 1) {
@@ -86,7 +90,7 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
     fechaEntrega.setDate(fechaBase.getDate() + diasFaltantes);
 
     return {
-        ciudad: diaRuta,
+        ciudad: diaRuta, // Referencia rápida
         diaNombre: diaRuta,
         fechaFormateada: fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
         color: "text-green-600",
@@ -106,6 +110,7 @@ const Carrito = () => {
 
   const navigate = useNavigate();
   
+  // Estados de configuración descargados del servidor
   const [rutasDinamicas, setRutasDinamicas] = useState([]);
   const [horaLimite, setHoraLimite] = useState('20:00');
 
@@ -115,6 +120,7 @@ const Carrito = () => {
           if (dirPredeterminada) setDireccion(dirPredeterminada);
       }
 
+      // Cargar configuración de rutas y hora límite al abrir el carrito
       const cargarConfiguracion = async () => {
           try {
               const [resRutas, resHora] = await Promise.all([
@@ -132,6 +138,7 @@ const Carrito = () => {
 
   const infoEntrega = useMemo(() => {
       if (!direccion) return null;
+      // Usamos el súper motor para calcular la entrega en vivo mientras el cliente escribe su dirección
       return calcularFechaReal(null, '', direccion, rutasDinamicas, new Date(), horaLimite);
   }, [direccion, rutasDinamicas, horaLimite]);
 
