@@ -2,7 +2,7 @@ import React from 'react';
 import { 
     X, Loader2, CheckCircle2, Calculator, AlertTriangle, User, Key, Settings, 
     Map, Trash2, PackageMinus, Banknote, DollarSign, Image as ImageIcon, 
-    Printer, ArrowLeftRight, ChevronRight, History, Edit 
+    Printer, ArrowLeftRight, ChevronRight, History, Edit, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 import { formatCurrency, imprimirFacturaCliente } from '../../utils/adminUtils';
 
