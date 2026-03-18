@@ -12,7 +12,7 @@ import {
     CalendarDays, Activity, DollarSign, Clock, Users, Settings,
     ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
     Receipt, Award, Edit, Trash2, PackageMinus, Key, CheckCircle2, ChevronRight, Briefcase, History, X,
-    Lock, Unlock // Aseguramos que los íconos del candado estén importados
+    Lock, Unlock 
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
@@ -58,7 +58,9 @@ const AdminDashboard = () => {
     const [searchTermCartera, setSearchTermCartera] = useState(''); 
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('TODOS'); 
 
-    const [mesFiltroContable, setMesFiltroContable] = useState('Todos');
+    // 🔥 NUEVO: Filtros de Libro Mayor (Finanzas con Rango de Fechas) 🔥
+    const [fechaInicioFinanzas, setFechaInicioFinanzas] = useState('');
+    const [fechaFinFinanzas, setFechaFinFinanzas] = useState('');
     const [filtroClienteFinanzas, setFiltroClienteFinanzas] = useState('Todos');
     const [filtroTextoFinanzas, setFiltroTextoFinanzas] = useState('');
 
@@ -205,18 +207,44 @@ const AdminDashboard = () => {
         return Object.keys(conteo).map(nombre => ({ nombre, ...conteo[nombre] })).sort((a, b) => b.totalGastado - a.totalGastado).slice(0, 5);
     }, [pedidos]);
 
+    // 🔥 LÓGICA DE FILTRADO PARA EL LIBRO MAYOR (RANGO DE FECHAS) 🔥
     const transaccionesFiltradas = useMemo(() => {
         let filtradas = transacciones;
-        if (mesFiltroContable !== 'Todos') {
-            filtradas = filtradas.filter(tx => { 
-                const fechaTx = new Date(tx.fecha); 
-                return `${fechaTx.getFullYear()}-${String(fechaTx.getMonth() + 1).padStart(2, '0')}` === mesFiltroContable; 
+
+        // 1. Filtrar por Rango de Fechas
+        if (fechaInicioFinanzas || fechaFinFinanzas) {
+            filtradas = filtradas.filter(tx => {
+                const fechaTx = new Date(tx.fecha);
+                fechaTx.setHours(0, 0, 0, 0); // Normalizar a medianoche local
+                
+                let cumpleInicio = true;
+                let cumpleFin = true;
+
+                if (fechaInicioFinanzas) {
+                    const [year, month, day] = fechaInicioFinanzas.split('-').map(Number);
+                    const fInicio = new Date(year, month - 1, day);
+                    fInicio.setHours(0, 0, 0, 0);
+                    cumpleInicio = fechaTx >= fInicio;
+                }
+
+                if (fechaFinFinanzas) {
+                    const [year, month, day] = fechaFinFinanzas.split('-').map(Number);
+                    const fFin = new Date(year, month - 1, day);
+                    fFin.setHours(23, 59, 59, 999); // Hasta el último segundo del día
+                    cumpleFin = fechaTx <= fFin;
+                }
+
+                return cumpleInicio && cumpleFin;
             });
         }
+
+        // 2. Filtrar por Cliente
         if (filtroClienteFinanzas !== 'Todos') {
             const nombreCliente = filtroClienteFinanzas.toLowerCase();
             filtradas = filtradas.filter(tx => (tx.descripcion || '').toLowerCase().includes(nombreCliente));
         }
+
+        // 3. Filtrar por Factura o Texto
         if (filtroTextoFinanzas) {
             const term = filtroTextoFinanzas.toLowerCase();
             filtradas = filtradas.filter(tx => {
@@ -226,20 +254,15 @@ const AdminDashboard = () => {
                 return desc.includes(term) || cat.includes(term) || pedId.includes(term);
             });
         }
+
         return filtradas;
-    }, [transacciones, mesFiltroContable, filtroClienteFinanzas, filtroTextoFinanzas]);
+    }, [transacciones, fechaInicioFinanzas, fechaFinFinanzas, filtroClienteFinanzas, filtroTextoFinanzas]);
 
     const finanzasFiltradas = useMemo(() => {
         let ingresos = 0, egresos = 0;
         transaccionesFiltradas.forEach(tx => { if (tx.tipo === 'INGRESO') ingresos += parseFloat(tx.monto); if (tx.tipo === 'EGRESO') egresos += parseFloat(tx.monto); });
         return { ingresos, egresos, balance: ingresos - egresos, valorInventario: finanzas.valorInventario };
     }, [transaccionesFiltradas, finanzas.valorInventario]);
-
-    const opcionesMeses = useMemo(() => {
-        const meses = new Set();
-        transacciones.forEach(tx => { const d = new Date(tx.fecha); meses.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); });
-        return Array.from(meses).sort((a,b) => b.localeCompare(a));
-    }, [transacciones]);
 
     const pedidosFiltradosVisual = useMemo(() => {
         let filtrados = pedidos;
@@ -426,7 +449,6 @@ const AdminDashboard = () => {
     const handleRestablecerPassword = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${usuarioSeleccionado.id}/password`, { password: nuevaPassword }); setShowPasswordModal(false); setNuevaPassword(''); toast.success("Contraseña restablecida"); } catch (err) { toast.error("Error al cambiar contraseña"); } finally { setEnviando(false); } };
     const handleEliminarUsuario = async () => { try { await API.delete(`/auth/admin/usuarios/${usuarioAEliminar.id}`); setUsuarioAEliminar(null); fetchDatos(); toast.success("Usuario eliminado"); } catch (err) { toast.error("Error al eliminar usuario"); } };
     
-    // 🔥 FUNCIÓN PARA PRENDER O APAGAR EL CRÉDITO 🔥
     const handleToggleCredito = async (u) => {
         try {
             const res = await API.put(`/creditos/usuarios/${u.id}/toggle-credito`);
@@ -598,7 +620,6 @@ const AdminDashboard = () => {
             </div>
 
             <div className="animate-in fade-in duration-500">
-                {/* VISTA DE CARTERA */}
                 {tab === 'cartera' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
@@ -748,6 +769,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {/* 🔥 VISTA DE FINANZAS 🔥 */}
                 {tab === 'finanzas' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
@@ -781,12 +803,32 @@ const AdminDashboard = () => {
                                     ))}
                                 </select>
 
-                                <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl">
-                                    <Filter size={14} className="text-gray-400 ml-1"/>
-                                    <select value={mesFiltroContable} onChange={(e) => setMesFiltroContable(e.target.value)} className="bg-transparent border-none font-black text-[10px] md:text-xs p-1 outline-none cursor-pointer uppercase">
-                                        <option value="Todos">MES (TODOS)</option>
-                                        {opcionesMeses.map(mes => (<option key={mes} value={mes}>{mes}</option>))}
-                                    </select>
+                                {/* 🔥 NUEVO FILTRO POR RANGO DE FECHAS 🔥 */}
+                                <div className="flex flex-wrap items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200">
+                                    <Filter size={14} className="text-gray-400 ml-1 hidden sm:block"/>
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[9px] font-bold text-gray-400 uppercase ml-1">Desde:</span>
+                                        <input 
+                                            type="date" 
+                                            value={fechaInicioFinanzas}
+                                            onChange={(e) => setFechaInicioFinanzas(e.target.value)}
+                                            className="bg-transparent border-none font-black text-[9px] md:text-[10px] outline-none cursor-pointer uppercase text-gray-700 w-24"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-1 border-l border-gray-200 pl-2">
+                                        <span className="text-[9px] font-bold text-gray-400 uppercase">Hasta:</span>
+                                        <input 
+                                            type="date" 
+                                            value={fechaFinFinanzas}
+                                            onChange={(e) => setFechaFinFinanzas(e.target.value)}
+                                            className="bg-transparent border-none font-black text-[9px] md:text-[10px] outline-none cursor-pointer uppercase text-gray-700 w-24"
+                                        />
+                                    </div>
+                                    {(fechaInicioFinanzas || fechaFinFinanzas) && (
+                                        <button onClick={() => { setFechaInicioFinanzas(''); setFechaFinFinanzas(''); }} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white p-1 rounded-md transition-colors ml-1" title="Limpiar fechas">
+                                            <X size={12} />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -857,7 +899,6 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* VISTA DE PRODUCTOS */}
                 {tab === 'productos' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
@@ -1004,7 +1045,6 @@ const AdminDashboard = () => {
                                     <tr key={u.id} className="hover:bg-gray-50/50 transition-all">
                                         <td className="px-4 py-4 md:px-8 md:py-5"><p className="font-black text-gray-900 uppercase text-[10px] md:text-xs">{u.nombre}</p><p className="text-[9px] md:text-[10px] text-gray-500 font-bold">CC: {u.cedula || 'Sin cédula'}</p></td>
                                         
-                                        {/* 🔥 AQUI ESTÁ EL BOTÓN PARA BLOQUEAR EL CRÉDITO 🔥 */}
                                         <td className="px-4 py-4 md:px-8 md:py-5 text-center">
                                             {parseFloat(u.limite_credito) > 0 ? (
                                                 <div className="bg-green-50 text-green-600 px-3 py-1 rounded-lg inline-block text-left mb-2 w-full max-w-[120px]">
