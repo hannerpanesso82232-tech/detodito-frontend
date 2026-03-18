@@ -51,13 +51,17 @@ const AdminDashboard = () => {
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
     
-    // 🔥 NUEVOS ESTADOS DE FILTROS DE PEDIDOS 🔥
+    // Filtros de Pedidos
     const [filtroFechaPedidos, setFiltroFechaPedidos] = useState(''); 
     const [filtroTextoPedidos, setFiltroTextoPedidos] = useState(''); 
 
     const [searchTermCartera, setSearchTermCartera] = useState(''); 
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('TODOS'); 
+
+    // 🔥 NUEVO: Filtros de Libro Mayor (Finanzas) 🔥
     const [mesFiltroContable, setMesFiltroContable] = useState('Todos');
+    const [filtroClienteFinanzas, setFiltroClienteFinanzas] = useState('Todos');
+    const [filtroTextoFinanzas, setFiltroTextoFinanzas] = useState('');
 
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -121,7 +125,6 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         fetchDatos();
-        // 🔥 CORRECCIÓN DEL WEBSOCKET PARA EVITAR ERROR EN CONSOLA 🔥
         const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
         socket.on("nuevo_pedido_admin", (data) => {
             const audio = new Audio('/alert-notification.mp3'); audio.play().catch(() => {});
@@ -202,10 +205,37 @@ const AdminDashboard = () => {
         return Object.keys(conteo).map(nombre => ({ nombre, ...conteo[nombre] })).sort((a, b) => b.totalGastado - a.totalGastado).slice(0, 5);
     }, [pedidos]);
 
+    // 🔥 NUEVA LÓGICA DE FILTRADO PARA EL LIBRO MAYOR (FINANZAS) 🔥
     const transaccionesFiltradas = useMemo(() => {
-        if (mesFiltroContable === 'Todos') return transacciones;
-        return transacciones.filter(tx => { const fechaTx = new Date(tx.fecha); return `${fechaTx.getFullYear()}-${String(fechaTx.getMonth() + 1).padStart(2, '0')}` === mesFiltroContable; });
-    }, [transacciones, mesFiltroContable]);
+        let filtradas = transacciones;
+
+        // 1. Filtrar por Mes
+        if (mesFiltroContable !== 'Todos') {
+            filtradas = filtradas.filter(tx => { 
+                const fechaTx = new Date(tx.fecha); 
+                return `${fechaTx.getFullYear()}-${String(fechaTx.getMonth() + 1).padStart(2, '0')}` === mesFiltroContable; 
+            });
+        }
+
+        // 2. Filtrar por Cliente Específico (Revisando si el nombre está en la descripción)
+        if (filtroClienteFinanzas !== 'Todos') {
+            const nombreCliente = filtroClienteFinanzas.toLowerCase();
+            filtradas = filtradas.filter(tx => (tx.descripcion || '').toLowerCase().includes(nombreCliente));
+        }
+
+        // 3. Filtrar por Factura o Texto (Buscador manual)
+        if (filtroTextoFinanzas) {
+            const term = filtroTextoFinanzas.toLowerCase();
+            filtradas = filtradas.filter(tx => {
+                const desc = (tx.descripcion || '').toLowerCase();
+                const cat = (tx.categoria || '').toLowerCase();
+                const pedId = String(tx.pedidoId || '');
+                return desc.includes(term) || cat.includes(term) || pedId.includes(term);
+            });
+        }
+
+        return filtradas;
+    }, [transacciones, mesFiltroContable, filtroClienteFinanzas, filtroTextoFinanzas]);
 
     const finanzasFiltradas = useMemo(() => {
         let ingresos = 0, egresos = 0;
@@ -219,7 +249,6 @@ const AdminDashboard = () => {
         return Array.from(meses).sort((a,b) => b.localeCompare(a));
     }, [transacciones]);
 
-    // 🔥 CORRECCIÓN: FILTROS DE PEDIDOS MEJORADOS Y POR CIUDAD 🔥
     const pedidosFiltradosVisual = useMemo(() => {
         let filtrados = pedidos;
 
@@ -507,7 +536,7 @@ const AdminDashboard = () => {
         } catch (error) { toast.error("Error al transferir factura", { id: loadingId }); }
     };
 
-    // 🔥 AHORA SÍ: EMPAQUETAMOS TODAS LAS FUNCIONES HACIA LOS MODALES 🔥
+    // --- EMPAQUETAMOS TODAS LAS FUNCIONES HACIA LOS MODALES ---
     const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando };
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado };
@@ -639,6 +668,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {/* VISTAS NORMALES... */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -722,11 +752,51 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {/* 🔥 VISTA DE FINANZAS (AHORA CON FILTROS AVANZADOS) 🔥 */}
                 {tab === 'finanzas' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
-                            <div><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Panel Financiero</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Selecciona un mes para ver su rendimiento</p></div>
-                            <div className="flex items-center gap-3 w-full sm:w-auto"><Filter size={18} className="text-gray-400"/><select value={mesFiltroContable} onChange={(e) => setMesFiltroContable(e.target.value)} className="w-full sm:w-auto bg-gray-50 border-none font-black text-xs md:text-sm p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"><option value="Todos">HISTÓRICO COMPLETO</option>{opcionesMeses.map(mes => (<option key={mes} value={mes}>{mes}</option>))}</select></div>
+                            <div><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Panel Financiero</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Busca y filtra el Libro Mayor</p></div>
+                            
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                                {/* Nuevo Buscador de Factura/Descripción */}
+                                <div className="relative flex-1 sm:w-64">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Buscar #Factura, Detalle..." 
+                                        value={filtroTextoFinanzas}
+                                        onChange={(e) => setFiltroTextoFinanzas(e.target.value)}
+                                        className="w-full pl-8 pr-8 py-2 bg-gray-50 border-none rounded-xl text-[10px] md:text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500" 
+                                    />
+                                    {filtroTextoFinanzas && (
+                                        <button onClick={() => setFiltroTextoFinanzas('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500">
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Nuevo Filtro de Clientes */}
+                                <select 
+                                    value={filtroClienteFinanzas} 
+                                    onChange={(e) => setFiltroClienteFinanzas(e.target.value)} 
+                                    className="bg-gray-50 border-none font-bold text-[10px] md:text-xs p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer uppercase"
+                                >
+                                    <option value="Todos">TODOS LOS CLIENTES</option>
+                                    {usuarios.map(u => (
+                                        <option key={u.id} value={u.nombre}>{u.nombre}</option>
+                                    ))}
+                                </select>
+
+                                {/* Filtro de Mes Original */}
+                                <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl">
+                                    <Filter size={14} className="text-gray-400 ml-1"/>
+                                    <select value={mesFiltroContable} onChange={(e) => setMesFiltroContable(e.target.value)} className="bg-transparent border-none font-black text-[10px] md:text-xs p-1 outline-none cursor-pointer uppercase">
+                                        <option value="Todos">MES (TODOS)</option>
+                                        {opcionesMeses.map(mes => (<option key={mes} value={mes}>{mes}</option>))}
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                             <div className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-green-100 shadow-sm"><div className="w-10 h-10 md:w-12 md:h-12 bg-green-50 text-green-500 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6"><ArrowUpRight size={20} /></div><p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Ingresos (Ventas)</p><h3 className="text-3xl md:text-4xl font-black text-green-600 tracking-tighter italic truncate">${formatCurrency(finanzasFiltradas.ingresos)}</h3></div>
@@ -763,9 +833,9 @@ const AdminDashboard = () => {
                         </div>
 
                         <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
-                            <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-2">Libro Mayor</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 md:mb-8">Registro detallado del periodo {mesFiltroContable}</p>
+                            <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-2">Libro Mayor</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 md:mb-8">Registro detallado de transacciones</p>
                             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                                {transaccionesFiltradas.length === 0 && <p className="text-center py-10 text-gray-400 font-bold text-xs uppercase">No hay transacciones en este mes</p>}
+                                {transaccionesFiltradas.length === 0 && <p className="text-center py-10 text-gray-400 font-bold text-xs uppercase">No hay transacciones que coincidan con la búsqueda.</p>}
                                 {transaccionesFiltradas.map(tx => (
                                     <div key={tx.id} className="flex justify-between items-center p-4 md:p-5 rounded-2xl md:rounded-3xl border border-gray-50 hover:bg-gray-50 transition-colors group">
                                         <div className="flex items-center gap-3 md:gap-4">
@@ -776,7 +846,14 @@ const AdminDashboard = () => {
                                             <span className={`font-black text-sm md:text-lg italic ${tx.tipo === 'INGRESO' ? 'text-green-600' : 'text-red-600'}`}>{tx.tipo === 'INGRESO' ? '+' : '-'}${formatCurrency(tx.monto)}</span>
                                             {!tx.pedidoId && (
                                                 <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 flex gap-1 md:gap-2 transition-opacity">
-                                                    <button onClick={() => abrirModalEditarTransaccion(tx)} className="p-1.5 md:p-2 text-blue-500 hover:bg-blue-100 rounded-lg"><Edit size={14}/></button>
+                                                    <button onClick={() => {
+                                                        setTransaccionSeleccionada(tx);
+                                                        let fechaSegura = '';
+                                                        try { fechaSegura = tx.fecha ? new Date(tx.fecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]; } 
+                                                        catch(e) { fechaSegura = new Date().toISOString().split('T')[0]; }
+                                                        setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: fechaSegura }); 
+                                                        setShowEditTransaccionModal(true); 
+                                                    }} className="p-1.5 md:p-2 text-blue-500 hover:bg-blue-100 rounded-lg"><Edit size={14}/></button>
                                                     <button onClick={() => { setTransaccionSeleccionada(tx); setShowDeleteTransaccionModal(true); }} className="p-1.5 md:p-2 text-red-500 hover:bg-red-100 rounded-lg"><Trash2 size={14}/></button>
                                                 </div>
                                             )}
@@ -822,7 +899,6 @@ const AdminDashboard = () => {
                         <div className="flex flex-col sm:flex-row justify-between mb-4 items-stretch sm:items-center gap-3">
                             <h2 className="text-xl font-black uppercase italic tracking-tighter">Filtros de Búsqueda</h2>
                             
-                            {/* 🔥 NUEVOS FILTROS POTENCIADOS 🔥 */}
                             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                                 <div className="relative flex-1 sm:w-64">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
@@ -948,7 +1024,6 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* 🔥 AHORA SÍ, SE MANDAN TODAS LAS FUNCIONES HACIA LOS MODALES 🔥 */}
             <AdminModals states={statesProps} forms={formsProps} setters={settersProps} handlers={handlersProps} data={dataProps} />
         </div>
     );

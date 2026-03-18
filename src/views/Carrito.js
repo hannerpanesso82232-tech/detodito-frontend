@@ -5,11 +5,10 @@ import API from '../services/api';
 import toast from 'react-hot-toast';
 import { 
     CheckCircle, Printer, ShoppingBag, X, 
-    CreditCard, Plus, Minus, Trash2, ArrowLeft, MapPin, CalendarClock, UserX 
+    CreditCard, Plus, Minus, Trash2, ArrowLeft, MapPin, CalendarClock, UserX, Banknote
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-// 🔥 CORRECCIÓN AGRESIVA: Limpieza de Localhost para imágenes 🔥
 const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/400x500?text=Sin+Imagen';
     
@@ -26,7 +25,6 @@ const formatearImagen = (url) => {
     return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
 };
 
-// 🔥 MOTOR MATEMÁTICO DE FECHAS DINÁMICAS (Con Hora Límite) 🔥
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
     
@@ -72,7 +70,6 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
 
     if (diasFaltantes < 0) diasFaltantes += 7;
 
-    // 🔥 LÓGICA DE HORA LÍMITE PARA EL CLIENTE 🔥
     if (diasFaltantes === 0) {
         diasFaltantes += 7;
     } else if (diasFaltantes === 1) {
@@ -89,7 +86,7 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
     fechaEntrega.setDate(fechaBase.getDate() + diasFaltantes);
 
     return {
-        ciudad: diaRuta, // Referencia rápida
+        ciudad: diaRuta,
         diaNombre: diaRuta,
         fechaFormateada: fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
         color: "text-green-600",
@@ -103,9 +100,12 @@ const Carrito = () => {
   const [comprando, setComprando] = useState(false);
   const [factura, setFactura] = useState(null);
   const [direccion, setDireccion] = useState(''); 
+  
+  // 🔥 NUEVO ESTADO: Método de Pago 🔥
+  const [metodoPago, setMetodoPago] = useState('CONTADO'); // Por defecto Contado
+
   const navigate = useNavigate();
   
-  // Estados de configuración descargados del servidor
   const [rutasDinamicas, setRutasDinamicas] = useState([]);
   const [horaLimite, setHoraLimite] = useState('20:00');
 
@@ -115,7 +115,6 @@ const Carrito = () => {
           if (dirPredeterminada) setDireccion(dirPredeterminada);
       }
 
-      // Cargar configuración de rutas y hora límite al abrir el carrito
       const cargarConfiguracion = async () => {
           try {
               const [resRutas, resHora] = await Promise.all([
@@ -133,7 +132,6 @@ const Carrito = () => {
 
   const infoEntrega = useMemo(() => {
       if (!direccion) return null;
-      // Usamos el súper motor para calcular la entrega en vivo mientras el cliente escribe su dirección
       return calcularFechaReal(null, '', direccion, rutasDinamicas, new Date(), horaLimite);
   }, [direccion, rutasDinamicas, horaLimite]);
 
@@ -152,10 +150,13 @@ const Carrito = () => {
 
     try {
       const productosPedido = cart.map(p => ({ producto_id: p.id, cantidad: p.cantidad }));
+      
+      // 🔥 ENVIAMOS EL MÉTODO DE PAGO AL BACKEND 🔥
       const res = await API.post('/pedidos', { 
           productos: productosPedido,
           direccion: direccion,
-          ruta_sugerida: infoEntrega?.diaNombre ? infoEntrega.diaNombre : 'A Convenir'
+          ruta_sugerida: infoEntrega?.diaNombre ? infoEntrega.diaNombre : 'A Convenir',
+          metodo_pago: metodoPago 
       });
 
       if (res.status === 201 || res.status === 200) {
@@ -168,7 +169,8 @@ const Carrito = () => {
           total: total,
           direccionEnvio: direccion,
           entrega: infoEntrega?.fechaFormateada || 'A convenir',
-          fecha: new Date().toLocaleDateString()
+          fecha: new Date().toLocaleDateString(),
+          metodo_pago: metodoPago // Guardamos para mostrarlo en el recibo
         });
         
         clearCart();
@@ -208,7 +210,6 @@ const Carrito = () => {
               cart.map((item) => (
                 <div key={item.id} className="bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center gap-4 md:gap-6 group hover:shadow-md transition-shadow">
                   <div className="w-full sm:w-32 h-40 sm:h-32 bg-gray-50 rounded-xl md:rounded-[2rem] overflow-hidden flex-shrink-0">
-                    {/* 🔥 AQUÍ APLICAMOS LA MAGIA DE LA IMAGEN 🔥 */}
                     <img src={formatearImagen(item.imagen_url)} className="w-full h-full object-cover sm:group-hover:scale-110 transition-transform duration-500 bg-white" alt={item.nombre} />
                   </div>
                   <div className="flex-1 text-center sm:text-left w-full">
@@ -278,6 +279,32 @@ const Carrito = () => {
                   )}
               </div>
 
+              {/* 🔥 NUEVA SECCIÓN: MÉTODOS DE PAGO 🔥 */}
+              {user && cart.length > 0 && (
+                  <div className="mb-6">
+                      <label className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2 block">
+                          Forma de Pago
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                          <button 
+                              onClick={() => setMetodoPago('CONTADO')}
+                              className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 ${metodoPago === 'CONTADO' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200 hover:bg-gray-50'}`}
+                          >
+                              <DollarSign size={20} className={metodoPago === 'CONTADO' ? 'text-blue-600' : ''} />
+                              <span className="font-black uppercase text-[8px] md:text-[9px] tracking-widest">De Contado</span>
+                          </button>
+                          
+                          <button 
+                              onClick={() => setMetodoPago('CREDITO')}
+                              className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 ${metodoPago === 'CREDITO' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200 hover:bg-gray-50'}`}
+                          >
+                              <Banknote size={20} className={metodoPago === 'CREDITO' ? 'text-orange-500' : ''} />
+                              <span className="font-black uppercase text-[8px] md:text-[9px] tracking-widest">Fiar / Crédito</span>
+                          </button>
+                      </div>
+                  </div>
+              )}
+
               <button
                 onClick={handleFinalizarCompra}
                 disabled={comprando || cart.length === 0}
@@ -328,8 +355,11 @@ const Carrito = () => {
                   ))}
                 </div>
 
+                {/* 🔥 MOSTRAR SI FUE FIADO O DE CONTADO EN EL RECIBO 🔥 */}
                 <div className="bg-gray-50 p-4 md:p-6 rounded-xl md:rounded-[2rem] flex justify-between items-center mb-6 md:mb-8">
-                  <span className="text-gray-400 font-black uppercase text-[9px] md:text-[10px] tracking-widest max-w-[50%]">Pago Contra Entrega</span>
+                  <span className={`font-black uppercase text-[9px] md:text-[10px] tracking-widest max-w-[50%] ${factura.metodo_pago === 'CREDITO' ? 'text-orange-500' : 'text-gray-400'}`}>
+                      {factura.metodo_pago === 'CREDITO' ? 'A Crédito / Fiado' : 'Pago Contra Entrega'}
+                  </span>
                   <span className="text-2xl md:text-3xl font-black italic tracking-tighter text-gray-900 truncate">${factura.total.toLocaleString()}</span>
                 </div>
 

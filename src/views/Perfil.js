@@ -3,7 +3,7 @@ import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { 
     ShoppingBag, Heart, MapPin, User, ChevronRight, 
-    Package, Calendar, Settings, Save, X, Clock, Truck, CheckCircle, ShieldCheck, Lock, MessageCircle, CalendarClock
+    Package, Calendar, Settings, Save, X, Clock, Truck, CheckCircle, ShieldCheck, Lock, MessageCircle, CalendarClock, Wallet, Banknote, History
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -89,11 +89,17 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
     return fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 };
 
+const formatCurrency = (valor) => {
+    return Number(valor || 0).toLocaleString('es-CO');
+};
+
 const Perfil = () => {
     const [seccion, setSeccion] = useState('pedidos');
 
     const MenuItems = [
         { id: 'pedidos', label: 'Historial de Pedidos', icon: <ShoppingBag size={18}/> },
+        // 🔥 NUEVA PESTAÑA DE CARTERA 🔥
+        { id: 'cartera', label: 'Mi Cartera (Crédito)', icon: <Wallet size={18}/> }, 
         { id: 'datos', label: 'Mis Datos Personales', icon: <Settings size={18}/> },
         { id: 'favoritos', label: 'Mis Favoritos', icon: <Heart size={18}/> },
         { id: 'direcciones', label: 'Direcciones y Envío', icon: <MapPin size={18}/> },
@@ -134,6 +140,7 @@ const Perfil = () => {
             {/* Contenido Dinámico */}
             <div className="flex-1 bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl shadow-gray-100 border border-gray-100 min-h-[400px] md:min-h-[600px] relative overflow-hidden">
                 {seccion === 'pedidos' && <HistorialPedidos />}
+                {seccion === 'cartera' && <MiCartera />} {/* 🔥 LLAMAMOS AL NUEVO COMPONENTE 🔥 */}
                 {seccion === 'datos' && <InformacionPersonal />}
                 {seccion === 'favoritos' && <Favoritos />}
                 {seccion === 'direcciones' && <DireccionesPagos />}
@@ -143,6 +150,118 @@ const Perfil = () => {
 };
 
 // --- SUB-COMPONENTES ---
+
+// 🔥 NUEVO COMPONENTE: MI CARTERA (CRÉDITOS Y ABONOS) 🔥
+const MiCartera = () => {
+    const [infoCredito, setInfoCredito] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchCredito = async () => {
+            try {
+                const res = await API.get('/creditos/mi-cartera');
+                setInfoCredito(res.data);
+            } catch (error) {
+                toast.error("No pudimos cargar tu información de crédito.");
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchCredito();
+    }, []);
+
+    if (loading) return <div className="p-10 text-center font-black animate-pulse uppercase tracking-[0.2em] text-gray-300 text-xs">Cargando estado de cuenta...</div>;
+
+    if (!infoCredito) return null;
+
+    const cupoDisponible = infoCredito.limite_credito > 0 ? (infoCredito.limite_credito - infoCredito.deuda_total) : 0;
+
+    return (
+        <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+            <div className="border-l-4 md:border-l-8 border-orange-500 pl-4 md:pl-6 mb-6 md:mb-8">
+                <h1 className="text-3xl md:text-5xl font-black tracking-tighter uppercase italic text-gray-900">Mi Cartera</h1>
+                <p className="text-gray-400 text-[9px] md:text-xs font-bold tracking-[0.2em] uppercase mt-1">Estado de Cuenta y Cupo</p>
+            </div>
+
+            {/* Tarjetas de Resumen Financiero */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
+                <div className="bg-gray-50 border border-gray-100 p-5 rounded-2xl md:rounded-3xl">
+                    <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1 flex items-center gap-1.5"><ShieldCheck size={12}/> Cupo Aprobado</p>
+                    <h3 className="text-xl md:text-2xl font-black italic text-gray-900">${formatCurrency(infoCredito.limite_credito)}</h3>
+                    <p className="text-[8px] md:text-[9px] text-gray-400 font-bold uppercase mt-1">Plazo: {infoCredito.dias_credito} días</p>
+                </div>
+                
+                <div className="bg-orange-50 border border-orange-100 p-5 rounded-2xl md:rounded-3xl">
+                    <p className="text-[9px] md:text-[10px] font-black uppercase text-orange-600 tracking-widest mb-1 flex items-center gap-1.5"><Banknote size={12}/> Deuda Actual</p>
+                    <h3 className="text-xl md:text-2xl font-black italic text-orange-600">${formatCurrency(infoCredito.deuda_total)}</h3>
+                    {infoCredito.deuda_total > 0 && <p className="text-[8px] md:text-[9px] text-orange-500 font-bold uppercase mt-1">Pagar a tiempo evita mora</p>}
+                </div>
+
+                <div className="bg-blue-50 border border-blue-100 p-5 rounded-2xl md:rounded-3xl shadow-sm">
+                    <p className="text-[9px] md:text-[10px] font-black uppercase text-blue-600 tracking-widest mb-1 flex items-center gap-1.5"><Wallet size={12}/> Cupo Disponible</p>
+                    <h3 className="text-xl md:text-2xl font-black italic text-blue-600">${formatCurrency(cupoDisponible > 0 ? cupoDisponible : 0)}</h3>
+                </div>
+            </div>
+
+            {/* Lista de Deudas y Abonos */}
+            <div className="mt-8">
+                <h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter mb-4 text-gray-900 border-b pb-2">Historial de Deudas</h3>
+                
+                {infoCredito.historial_creditos.length === 0 ? (
+                    <div className="bg-gray-50 rounded-2xl p-8 text-center border border-dashed border-gray-200">
+                        <p className="text-gray-400 font-bold uppercase text-[10px]">No tienes historial de créditos o deudas.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {infoCredito.historial_creditos.map(cred => (
+                            <div key={cred.id} className="bg-white border border-gray-100 rounded-2xl md:rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                                {/* Cabecera de la deuda */}
+                                <div className={`p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${cred.estado === 'VIGENTE' ? 'bg-gray-50' : 'bg-green-50/50'}`}>
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className={`text-[8px] md:text-[9px] font-black uppercase px-2 py-1 rounded-md text-white ${cred.estado === 'VIGENTE' ? 'bg-orange-500' : 'bg-green-500'}`}>
+                                                {cred.estado}
+                                            </span>
+                                            <span className="text-[9px] md:text-[10px] font-bold text-gray-500 tracking-widest uppercase">
+                                                {new Date(cred.createdAt).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                        <p className="font-black text-gray-900 text-sm md:text-base leading-tight uppercase">{cred.descripcion}</p>
+                                    </div>
+                                    <div className="text-left sm:text-right">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Valor Original</p>
+                                        <p className="font-black italic text-gray-900 text-lg md:text-xl">${formatCurrency(cred.monto_total)}</p>
+                                        {cred.estado === 'VIGENTE' && (
+                                            <p className="text-[10px] md:text-xs font-black text-orange-600 mt-0.5">Saldo: ${formatCurrency(cred.saldo)}</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Tabla interna de abonos si existen */}
+                                {cred.Abonos && cred.Abonos.length > 0 && (
+                                    <div className="p-4 border-t border-gray-100 bg-white">
+                                        <p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 tracking-widest mb-2 flex items-center gap-1.5"><History size={10}/> Registro de Abonos</p>
+                                        <div className="space-y-2">
+                                            {cred.Abonos.map(abono => (
+                                                <div key={abono.id} className="flex justify-between items-center text-[10px] md:text-xs bg-gray-50 p-2 rounded-lg">
+                                                    <div>
+                                                        <span className="font-bold text-gray-600">{new Date(abono.createdAt).toLocaleDateString()}</span>
+                                                        {abono.nota && <span className="ml-2 text-gray-400 italic">- {abono.nota}</span>}
+                                                    </div>
+                                                    <span className="font-black text-green-600">+${formatCurrency(abono.monto)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 const HistorialPedidos = () => {
     const [pedidos, setPedidos] = useState([]);
@@ -414,7 +533,6 @@ const Favoritos = () => {
                 {favoritos.length === 0 && <p className="col-span-1 sm:col-span-2 text-gray-400 text-[10px] md:text-xs font-bold py-10 text-center">No tienes favoritos guardados.</p>}
                 {favoritos.map(f => (
                     <div key={f.id} className="flex items-center gap-3 md:gap-4 p-3 md:p-4 bg-gray-50 rounded-2xl md:rounded-3xl border border-gray-100 hover:border-black transition-colors">
-                        {/* 🔥 USAMOS LA FUNCIÓN DE FORMATEO CREADA ARRIBA 🔥 */}
                         <img 
                             src={formatearImagen(f.imagen_url)} 
                             alt={f.nombre} 
