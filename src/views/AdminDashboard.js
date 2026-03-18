@@ -11,7 +11,8 @@ import {
     AlertTriangle, Loader2, FileSpreadsheet, Eye, Truck,
     CalendarDays, Activity, DollarSign, Clock, Users, Settings,
     ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
-    Receipt, Award, Edit, Trash2, PackageMinus, Key, CheckCircle2, ChevronRight, Briefcase, History, X
+    Receipt, Award, Edit, Trash2, PackageMinus, Key, CheckCircle2, ChevronRight, Briefcase, History, X,
+    Lock, Unlock // Aseguramos que los íconos del candado estén importados
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
@@ -94,8 +95,8 @@ const AdminDashboard = () => {
     const [nuevaRutaDia, setNuevaRutaDia] = useState('');
     const [nuevaPassword, setNuevaPassword] = useState('');
     const [formulario, setFormulario] = useState({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 });
-    const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30 });
-    const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30 });
+    const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30, credito_activo: true });
+    const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30, credito_activo: true });
     const [formGasto, setFormGasto] = useState({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' });
     const [formBaja, setFormBaja] = useState({ cantidad: 1, motivo: 'Dañado/Roto' });
     const [formCredito, setFormCredito] = useState({ usuarioId: '', monto_total: '', descripcion: '' });
@@ -126,14 +127,8 @@ const AdminDashboard = () => {
         const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
         socket.on("nuevo_pedido_admin", (data) => {
             const audio = new Audio('/alert-notification.mp3'); audio.play().catch(() => {});
-            
-            // 🔥 AQUÍ AGREGAMOS EL MÉTODO DE PAGO AL TOAST 🔥
             const metodoTXT = data.metodo_pago === 'CREDITO' ? '💳 FIADO' : '💵 CONTADO';
-            toast(`📦 Nuevo Pedido [${metodoTXT}] de ${data.cliente || 'Cliente'}`, { 
-                icon: '🚀', 
-                style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } 
-            });
-            
+            toast(`📦 Nuevo Pedido [${metodoTXT}] de ${data.cliente || 'Cliente'}`, { icon: '🚀', style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } });
             fetchDatos();
         });
         socket.on('stockActualizado', (data) => { setProductos(prev => prev.map(p => p.id === parseInt(data.id) ? { ...p, stock: data.nuevoStock } : p)); });
@@ -149,6 +144,7 @@ const AdminDashboard = () => {
         }
     }, [formulario.costo_compra, formulario.margen_ganancia, formulario.stock_adicional, formulario.costo_nuevo_lote, formulario.stock, formulario.precio, productoEditando]);
 
+    // --- MEMOS ---
     const kpis = useMemo(() => {
         const hoy = new Date(); let ventasHoy = 0, ventasMes = 0, pendientes = 0;
         pedidos.forEach(p => {
@@ -430,6 +426,17 @@ const AdminDashboard = () => {
     const handleRestablecerPassword = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put(`/auth/admin/usuarios/${usuarioSeleccionado.id}/password`, { password: nuevaPassword }); setShowPasswordModal(false); setNuevaPassword(''); toast.success("Contraseña restablecida"); } catch (err) { toast.error("Error al cambiar contraseña"); } finally { setEnviando(false); } };
     const handleEliminarUsuario = async () => { try { await API.delete(`/auth/admin/usuarios/${usuarioAEliminar.id}`); setUsuarioAEliminar(null); fetchDatos(); toast.success("Usuario eliminado"); } catch (err) { toast.error("Error al eliminar usuario"); } };
     
+    // 🔥 FUNCIÓN PARA PRENDER O APAGAR EL CRÉDITO 🔥
+    const handleToggleCredito = async (u) => {
+        try {
+            const res = await API.put(`/creditos/usuarios/${u.id}/toggle-credito`);
+            toast.success(res.data.mensaje);
+            fetchDatos(); 
+        } catch (error) {
+            toast.error("Error al modificar el estado de crédito");
+        }
+    };
+
     const handleCrearRutaConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/pedidos/config/rutas', { ciudad: nuevaRutaCiudad, dia_ruta: nuevaRutaDia }); toast.success(`Reglas guardadas`); setNuevaRutaCiudad(''); setNuevaRutaDia(''); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
     const handleEliminarRutaConfig = async (id) => { try { await API.delete(`/pedidos/config/rutas/${id}`); fetchDatos(); toast.success("Regla eliminada"); } catch (err) { toast.error("Error"); } };
     const handleGuardarConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put('/auth/config/whatsapp', { whatsapp: whatsappTienda }); await API.put('/pedidos/config/horalimite', { hora: horaLimite }); toast.success("Ajustes guardados"); setShowConfigModal(false); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
@@ -527,7 +534,6 @@ const AdminDashboard = () => {
         } catch (error) { toast.error("Error al transferir factura", { id: loadingId }); }
     };
 
-    // --- EMPAQUETAMOS TODAS LAS FUNCIONES HACIA LOS MODALES ---
     const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando };
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado };
@@ -851,7 +857,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* 🔥 VISTA DE PEDIDOS (CON LA ETIQUETA DE MÉTODO DE PAGO AÑADIDA) 🔥 */}
+                {/* VISTA DE PRODUCTOS */}
                 {tab === 'productos' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
@@ -881,6 +887,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {/* VISTA DE PEDIDOS */}
                 {tab === 'pedidos' && (
                     <>
                         <div className="flex flex-col sm:flex-row justify-between mb-4 items-stretch sm:items-center gap-3">
@@ -938,7 +945,6 @@ const AdminDashboard = () => {
                                         <div>
                                             <div className="absolute top-0 left-0 w-full bg-black py-1.5 md:py-2 text-center border-b"><span className="text-[8px] md:text-[9px] font-black text-white uppercase tracking-widest flex items-center justify-center gap-2"><Truck size={10} /> RUTA: {infoRuta.diaNombre.toUpperCase()}</span></div>
                                             
-                                            {/* 🔥 ETIQUETA MÉTODO PAGO 🔥 */}
                                             <div className="flex justify-between items-start mb-4 mt-6">
                                                 <div className="flex flex-col gap-2">
                                                     <span className="text-[8px] md:text-[9px] font-black bg-gray-100 text-black px-3 py-1.5 md:px-4 md:py-2 rounded-full uppercase italic border tracking-tighter w-fit">ID #{ped.id}</span>
@@ -986,6 +992,7 @@ const AdminDashboard = () => {
                     </>
                 )}
 
+                {/* VISTA DE CLIENTES (ADMIN DE USUARIOS) */}
                 {tab === 'clientes' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[600px]">
@@ -996,16 +1003,26 @@ const AdminDashboard = () => {
                                 {usuarios.map(u => (
                                     <tr key={u.id} className="hover:bg-gray-50/50 transition-all">
                                         <td className="px-4 py-4 md:px-8 md:py-5"><p className="font-black text-gray-900 uppercase text-[10px] md:text-xs">{u.nombre}</p><p className="text-[9px] md:text-[10px] text-gray-500 font-bold">CC: {u.cedula || 'Sin cédula'}</p></td>
+                                        
+                                        {/* 🔥 AQUI ESTÁ EL BOTÓN PARA BLOQUEAR EL CRÉDITO 🔥 */}
                                         <td className="px-4 py-4 md:px-8 md:py-5 text-center">
                                             {parseFloat(u.limite_credito) > 0 ? (
-                                                <div className="bg-green-50 text-green-600 px-3 py-1 rounded-lg inline-block text-left">
+                                                <div className="bg-green-50 text-green-600 px-3 py-1 rounded-lg inline-block text-left mb-2 w-full max-w-[120px]">
                                                     <p className="text-[9px] font-black uppercase tracking-widest">Límite: ${formatCurrency(u.limite_credito)}</p>
                                                     <p className="text-[8px] font-bold uppercase mt-0.5">{u.dias_credito} Días plazo</p>
                                                 </div>
                                             ) : (
-                                                <span className="bg-gray-100 text-gray-400 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">Estricto Contado</span>
+                                                <span className="bg-gray-100 text-gray-400 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest block mb-2 w-fit mx-auto">Estricto Contado</span>
                                             )}
+
+                                            <button 
+                                                onClick={() => handleToggleCredito(u)}
+                                                className={`mx-auto w-full max-w-[120px] py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 ${u.credito_activo !== false ? 'bg-black text-white hover:bg-red-600' : 'bg-red-100 text-red-600 hover:bg-green-500 hover:text-white'}`}
+                                            >
+                                                {u.credito_activo !== false ? <><Unlock size={10}/> Crédito Activo</> : <><Lock size={10}/> Suspendido</>}
+                                            </button>
                                         </td>
+                                        
                                         <td className="px-4 py-4 md:px-8 md:py-5"><p className="text-[9px] md:text-[10px] font-bold text-gray-600">{u.telefono || 'N/A'}</p><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mt-0.5">{u.ciudad || 'No definida'}</p></td>
                                         <td className="px-4 py-4 md:px-8 md:py-5 text-center"><span className={`text-[8px] md:text-[9px] font-black uppercase px-2 py-1 md:px-3 rounded-lg ${u.rol === 'ADMIN' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}`}>{u.rol}</span></td>
                                         <td className="px-4 py-4 md:px-8 md:py-5 text-right flex justify-end gap-1 md:gap-2">

@@ -105,12 +105,13 @@ const Carrito = () => {
   const [factura, setFactura] = useState(null);
   const [direccion, setDireccion] = useState(''); 
   
-  // 🔥 NUEVO ESTADO: Método de Pago 🔥
-  const [metodoPago, setMetodoPago] = useState('CONTADO'); // Por defecto Contado
+  // Métodos y permisos de pago
+  const [metodoPago, setMetodoPago] = useState('CONTADO');
+  const [infoCredito, setInfoCredito] = useState(null); // 🔥 NUEVO ESTADO PARA VERIFICAR CRÉDITO
 
   const navigate = useNavigate();
   
-  // Estados de configuración descargados del servidor
+  // Estados de configuración
   const [rutasDinamicas, setRutasDinamicas] = useState([]);
   const [horaLimite, setHoraLimite] = useState('20:00');
 
@@ -120,15 +121,31 @@ const Carrito = () => {
           if (dirPredeterminada) setDireccion(dirPredeterminada);
       }
 
-      // Cargar configuración de rutas y hora límite al abrir el carrito
+      // Cargar configuración de rutas, hora límite y EL CUPO DEL CLIENTE
       const cargarConfiguracion = async () => {
           try {
-              const [resRutas, resHora] = await Promise.all([
+              const peticiones = [
                   API.get('/pedidos/config/rutas').catch(() => ({ data: [] })),
                   API.get('/pedidos/config/horalimite').catch(() => ({ data: { hora: '20:00' } }))
-              ]);
-              setRutasDinamicas(resRutas.data || []);
-              setHoraLimite(resHora.data.hora || '20:00');
+              ];
+
+              if (user) {
+                  const token = localStorage.getItem('token');
+                  peticiones.push(
+                      API.get('/creditos/mi-cartera', {
+                          headers: token ? { Authorization: `Bearer ${token}` } : {}
+                      }).catch(() => ({ data: null }))
+                  );
+              }
+
+              const resultados = await Promise.all(peticiones);
+              
+              setRutasDinamicas(resultados[0].data || []);
+              setHoraLimite(resultados[1].data.hora || '20:00');
+              
+              if (user && resultados[2] && resultados[2].data) {
+                  setInfoCredito(resultados[2].data);
+              }
           } catch (error) {
               console.error("Error cargando configuración logística");
           }
@@ -138,7 +155,6 @@ const Carrito = () => {
 
   const infoEntrega = useMemo(() => {
       if (!direccion) return null;
-      // Usamos el súper motor para calcular la entrega en vivo mientras el cliente escribe su dirección
       return calcularFechaReal(null, '', direccion, rutasDinamicas, new Date(), horaLimite);
   }, [direccion, rutasDinamicas, horaLimite]);
 
@@ -158,7 +174,6 @@ const Carrito = () => {
     try {
       const productosPedido = cart.map(p => ({ producto_id: p.id, cantidad: p.cantidad }));
       
-      // 🔥 ENVIAMOS EL MÉTODO DE PAGO AL BACKEND 🔥
       const res = await API.post('/pedidos', { 
           productos: productosPedido,
           direccion: direccion,
@@ -177,7 +192,7 @@ const Carrito = () => {
           direccionEnvio: direccion,
           entrega: infoEntrega?.fechaFormateada || 'A convenir',
           fecha: new Date().toLocaleDateString(),
-          metodo_pago: metodoPago // Guardamos para mostrarlo en el recibo
+          metodo_pago: metodoPago 
         });
         
         clearCart();
@@ -286,29 +301,37 @@ const Carrito = () => {
                   )}
               </div>
 
-              {/* 🔥 NUEVA SECCIÓN: MÉTODOS DE PAGO 🔥 */}
+              {/* 🔥 SECCIÓN DINÁMICA: MÉTODOS DE PAGO 🔥 */}
               {user && cart.length > 0 && (
                   <div className="mb-6">
                       <label className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2 block">
                           Forma de Pago
                       </label>
-                      <div className="grid grid-cols-2 gap-2">
-                          <button 
-                              onClick={() => setMetodoPago('CONTADO')}
-                              className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 ${metodoPago === 'CONTADO' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200 hover:bg-gray-50'}`}
-                          >
-                              <DollarSign size={20} className={metodoPago === 'CONTADO' ? 'text-blue-600' : ''} />
-                              <span className="font-black uppercase text-[8px] md:text-[9px] tracking-widest">De Contado</span>
-                          </button>
-                          
-                          <button 
-                              onClick={() => setMetodoPago('CREDITO')}
-                              className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 ${metodoPago === 'CREDITO' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200 hover:bg-gray-50'}`}
-                          >
-                              <Banknote size={20} className={metodoPago === 'CREDITO' ? 'text-orange-500' : ''} />
-                              <span className="font-black uppercase text-[8px] md:text-[9px] tracking-widest">Fiar / Crédito</span>
-                          </button>
-                      </div>
+                      {infoCredito && parseFloat(infoCredito.limite_credito || 0) > 0 ? (
+                          <div className="grid grid-cols-2 gap-2">
+                              <button 
+                                  onClick={() => setMetodoPago('CONTADO')}
+                                  className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 ${metodoPago === 'CONTADO' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200 hover:bg-gray-50'}`}
+                              >
+                                  <DollarSign size={20} className={metodoPago === 'CONTADO' ? 'text-blue-600' : ''} />
+                                  <span className="font-black uppercase text-[8px] md:text-[9px] tracking-widest">De Contado</span>
+                              </button>
+                              
+                              <button 
+                                  onClick={() => setMetodoPago('CREDITO')}
+                                  className={`p-3 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all flex flex-col items-center justify-center gap-2 ${metodoPago === 'CREDITO' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200 hover:bg-gray-50'}`}
+                              >
+                                  <Banknote size={20} className={metodoPago === 'CREDITO' ? 'text-orange-500' : ''} />
+                                  <span className="font-black uppercase text-[8px] md:text-[9px] tracking-widest">Fiar / Crédito</span>
+                              </button>
+                          </div>
+                      ) : (
+                          // Si no tiene límite de crédito, se le bloquea la opción de fiar
+                          <div className="p-3 md:p-4 rounded-xl md:rounded-2xl border border-gray-200 bg-gray-50 flex flex-col items-center justify-center gap-2 cursor-not-allowed">
+                              <DollarSign size={20} className="text-gray-400" />
+                              <span className="font-black uppercase text-[8px] md:text-[9px] tracking-widest text-gray-500">Pago Contra Entrega (Contado)</span>
+                          </div>
+                      )}
                   </div>
               )}
 
@@ -362,7 +385,6 @@ const Carrito = () => {
                   ))}
                 </div>
 
-                {/* 🔥 MOSTRAR SI FUE FIADO O DE CONTADO EN EL RECIBO 🔥 */}
                 <div className="bg-gray-50 p-4 md:p-6 rounded-xl md:rounded-[2rem] flex justify-between items-center mb-6 md:mb-8">
                   <span className={`font-black uppercase text-[9px] md:text-[10px] tracking-widest max-w-[50%] ${factura.metodo_pago === 'CREDITO' ? 'text-orange-500' : 'text-gray-400'}`}>
                       {factura.metodo_pago === 'CREDITO' ? 'A Crédito / Fiado' : 'Pago Contra Entrega'}
