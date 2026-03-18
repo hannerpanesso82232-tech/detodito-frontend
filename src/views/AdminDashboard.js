@@ -51,14 +51,12 @@ const AdminDashboard = () => {
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
     
-    // Filtros de Pedidos
     const [filtroFechaPedidos, setFiltroFechaPedidos] = useState(''); 
     const [filtroTextoPedidos, setFiltroTextoPedidos] = useState(''); 
 
     const [searchTermCartera, setSearchTermCartera] = useState(''); 
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('TODOS'); 
 
-    // 🔥 NUEVO: Filtros de Libro Mayor (Finanzas) 🔥
     const [mesFiltroContable, setMesFiltroContable] = useState('Todos');
     const [filtroClienteFinanzas, setFiltroClienteFinanzas] = useState('Todos');
     const [filtroTextoFinanzas, setFiltroTextoFinanzas] = useState('');
@@ -128,7 +126,14 @@ const AdminDashboard = () => {
         const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
         socket.on("nuevo_pedido_admin", (data) => {
             const audio = new Audio('/alert-notification.mp3'); audio.play().catch(() => {});
-            toast(`📦 Nuevo Pedido de ${data.cliente || 'Cliente'}`, { icon: '🚀', style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } });
+            
+            // 🔥 AQUÍ AGREGAMOS EL MÉTODO DE PAGO AL TOAST 🔥
+            const metodoTXT = data.metodo_pago === 'CREDITO' ? '💳 FIADO' : '💵 CONTADO';
+            toast(`📦 Nuevo Pedido [${metodoTXT}] de ${data.cliente || 'Cliente'}`, { 
+                icon: '🚀', 
+                style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } 
+            });
+            
             fetchDatos();
         });
         socket.on('stockActualizado', (data) => { setProductos(prev => prev.map(p => p.id === parseInt(data.id) ? { ...p, stock: data.nuevoStock } : p)); });
@@ -144,7 +149,6 @@ const AdminDashboard = () => {
         }
     }, [formulario.costo_compra, formulario.margen_ganancia, formulario.stock_adicional, formulario.costo_nuevo_lote, formulario.stock, formulario.precio, productoEditando]);
 
-    // --- MEMOS ---
     const kpis = useMemo(() => {
         const hoy = new Date(); let ventasHoy = 0, ventasMes = 0, pendientes = 0;
         pedidos.forEach(p => {
@@ -205,25 +209,18 @@ const AdminDashboard = () => {
         return Object.keys(conteo).map(nombre => ({ nombre, ...conteo[nombre] })).sort((a, b) => b.totalGastado - a.totalGastado).slice(0, 5);
     }, [pedidos]);
 
-    // 🔥 NUEVA LÓGICA DE FILTRADO PARA EL LIBRO MAYOR (FINANZAS) 🔥
     const transaccionesFiltradas = useMemo(() => {
         let filtradas = transacciones;
-
-        // 1. Filtrar por Mes
         if (mesFiltroContable !== 'Todos') {
             filtradas = filtradas.filter(tx => { 
                 const fechaTx = new Date(tx.fecha); 
                 return `${fechaTx.getFullYear()}-${String(fechaTx.getMonth() + 1).padStart(2, '0')}` === mesFiltroContable; 
             });
         }
-
-        // 2. Filtrar por Cliente Específico (Revisando si el nombre está en la descripción)
         if (filtroClienteFinanzas !== 'Todos') {
             const nombreCliente = filtroClienteFinanzas.toLowerCase();
             filtradas = filtradas.filter(tx => (tx.descripcion || '').toLowerCase().includes(nombreCliente));
         }
-
-        // 3. Filtrar por Factura o Texto (Buscador manual)
         if (filtroTextoFinanzas) {
             const term = filtroTextoFinanzas.toLowerCase();
             filtradas = filtradas.filter(tx => {
@@ -233,7 +230,6 @@ const AdminDashboard = () => {
                 return desc.includes(term) || cat.includes(term) || pedId.includes(term);
             });
         }
-
         return filtradas;
     }, [transacciones, mesFiltroContable, filtroClienteFinanzas, filtroTextoFinanzas]);
 
@@ -251,7 +247,6 @@ const AdminDashboard = () => {
 
     const pedidosFiltradosVisual = useMemo(() => {
         let filtrados = pedidos;
-
         if (filtroTextoPedidos) {
             const termino = filtroTextoPedidos.toLowerCase();
             filtrados = filtrados.filter(ped => {
@@ -262,7 +257,6 @@ const AdminDashboard = () => {
                 return ciudad.includes(termino) || direccion.includes(termino) || nombre.includes(termino) || idString.includes(termino);
             });
         }
-
         if (filtroFechaPedidos) {
             const [year, month, day] = filtroFechaPedidos.split('-').map(Number);
             const targetDate = new Date(year, month - 1, day);
@@ -271,14 +265,11 @@ const AdminDashboard = () => {
             filtrados = filtrados.filter(ped => {
                 const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
                 if (!infoRuta.fechaRaw) return false;
-                
                 const pedDate = new Date(infoRuta.fechaRaw);
                 pedDate.setHours(0,0,0,0);
-                
                 return pedDate.getTime() === targetDate.getTime();
             });
         }
-
         return filtrados;
     }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos, filtroTextoPedidos]);
 
@@ -668,7 +659,6 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* VISTAS NORMALES... */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -752,14 +742,12 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* 🔥 VISTA DE FINANZAS (AHORA CON FILTROS AVANZADOS) 🔥 */}
                 {tab === 'finanzas' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
                             <div><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Panel Financiero</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Busca y filtra el Libro Mayor</p></div>
                             
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-                                {/* Nuevo Buscador de Factura/Descripción */}
                                 <div className="relative flex-1 sm:w-64">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                                     <input 
@@ -776,7 +764,6 @@ const AdminDashboard = () => {
                                     )}
                                 </div>
 
-                                {/* Nuevo Filtro de Clientes */}
                                 <select 
                                     value={filtroClienteFinanzas} 
                                     onChange={(e) => setFiltroClienteFinanzas(e.target.value)} 
@@ -788,7 +775,6 @@ const AdminDashboard = () => {
                                     ))}
                                 </select>
 
-                                {/* Filtro de Mes Original */}
                                 <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl">
                                     <Filter size={14} className="text-gray-400 ml-1"/>
                                     <select value={mesFiltroContable} onChange={(e) => setMesFiltroContable(e.target.value)} className="bg-transparent border-none font-black text-[10px] md:text-xs p-1 outline-none cursor-pointer uppercase">
@@ -865,6 +851,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {/* 🔥 VISTA DE PEDIDOS (CON LA ETIQUETA DE MÉTODO DE PAGO AÑADIDA) 🔥 */}
                 {tab === 'productos' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
@@ -950,7 +937,18 @@ const AdminDashboard = () => {
                                     <div key={ped.id} className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden flex flex-col justify-between">
                                         <div>
                                             <div className="absolute top-0 left-0 w-full bg-black py-1.5 md:py-2 text-center border-b"><span className="text-[8px] md:text-[9px] font-black text-white uppercase tracking-widest flex items-center justify-center gap-2"><Truck size={10} /> RUTA: {infoRuta.diaNombre.toUpperCase()}</span></div>
-                                            <div className="flex justify-between items-start mb-4 mt-6"><span className="text-[8px] md:text-[9px] font-black bg-gray-100 text-black px-3 py-1.5 md:px-4 md:py-2 rounded-full uppercase italic border tracking-tighter">ID #{ped.id}</span><button onClick={() => setPedidoDetalle(ped)} className="p-2 md:p-3 bg-gray-50 group-hover:bg-black group-hover:text-white rounded-xl md:rounded-2xl transition-all"><Eye size={14} /></button></div>
+                                            
+                                            {/* 🔥 ETIQUETA MÉTODO PAGO 🔥 */}
+                                            <div className="flex justify-between items-start mb-4 mt-6">
+                                                <div className="flex flex-col gap-2">
+                                                    <span className="text-[8px] md:text-[9px] font-black bg-gray-100 text-black px-3 py-1.5 md:px-4 md:py-2 rounded-full uppercase italic border tracking-tighter w-fit">ID #{ped.id}</span>
+                                                    <span className={`text-[8px] md:text-[9px] font-black px-3 py-1.5 md:px-4 md:py-2 rounded-full uppercase italic border tracking-tighter w-fit flex items-center gap-1 ${ped.metodo_pago === 'CREDITO' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-green-100 text-green-700 border-green-200'}`}>
+                                                        {ped.metodo_pago === 'CREDITO' ? <><Banknote size={10}/> FIADO (CRÉDITO)</> : <><DollarSign size={10}/> DE CONTADO</>}
+                                                    </span>
+                                                </div>
+                                                <button onClick={() => setPedidoDetalle(ped)} className="p-2 md:p-3 bg-gray-50 group-hover:bg-black group-hover:text-white rounded-xl md:rounded-2xl transition-all"><Eye size={14} /></button>
+                                            </div>
+                                            
                                             <div className="mb-4 border-b border-gray-50 pb-4"><p className="text-[9px] md:text-[10px] font-black uppercase text-blue-600 mb-1 tracking-widest">{ped.Usuario?.nombre || 'CLIENTE DIRECTO'}</p><p className="text-[10px] md:text-[11px] font-bold text-gray-700 leading-tight">📍 {ped.direccion || ped.Usuario?.direccion || 'Sin dirección'}</p><p className="text-[8px] md:text-[9px] font-black text-gray-400 mt-1 uppercase">Ciudad: {ped.Usuario?.ciudad || 'No especificada'}</p><p className="text-[8px] md:text-[9px] font-bold text-orange-500 mt-2 bg-orange-50 p-1.5 md:p-2 rounded-lg inline-block">📆 Llegará el: {infoRuta.fechaFormateada}</p></div>
                                             <div className="mb-6"><p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Contenido:</p><ul className="text-[9px] md:text-[10px] font-bold text-gray-600 space-y-1 mb-4">{items.slice(0, 3).map((item, idx) => (<li key={idx} className="truncate">• {item.cantidad}x {item.Producto?.nombre || item.nombre}</li>))}{items.length > 3 && <li className="text-blue-500">+ {items.length - 3} artículos más</li>}</ul><h4 className="text-2xl md:text-3xl font-black text-gray-900 italic tracking-tighter">${formatCurrency(ped.total)}</h4></div>
                                         </div>
