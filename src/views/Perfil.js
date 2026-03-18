@@ -1,40 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext'; 
 import { 
     ShoppingBag, Heart, MapPin, User, ChevronRight, 
-    Package, Calendar, Settings, Save, X, Clock, Truck, CheckCircle, ShieldCheck, Lock, MessageCircle, CalendarClock, Wallet, Banknote, History
+    Package, Calendar, Settings, Save, X, Clock, Truck, CheckCircle, ShieldCheck, 
+    Lock, MessageCircle, CalendarClock, Wallet, Banknote, History, ShoppingCart
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// 🔥 CORRECCIÓN AGRESIVA PARA IMÁGENES 🔥
 const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/150';
-    
-    let urlLimpia = url;
-    // Si la BD guardó la ruta local antigua, se la quitamos a la fuerza
-    if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
-        urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
-    }
-
-    // Si es un enlace de internet seguro real, lo dejamos pasar
+    let urlLimpia = url.replace(/http:\/\/localhost:(3000|5000)/g, '');
     if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
         return urlLimpia;
     }
-    
-    // Usamos la URL de la API de las variables de entorno
     const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
     return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
 };
 
-// Motor de fechas dinámicas
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
     
     if (!diaRuta || diaRuta.toUpperCase() === "A CONVENIR") {
         const textoCliente = `${ciudadCliente || ''} ${direccionCliente || ''}`.toUpperCase();
         let matchEncontrado = null;
-
         for (const ruta of rutasDB) {
             const palabrasClave = (ruta.ciudad || '').toUpperCase().split(',').map(c => c.trim());
             if (palabrasClave.some(palabra => palabra !== '' && textoCliente.includes(palabra))) {
@@ -42,7 +32,6 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
                 break;
             }
         }
-
         if (!matchEncontrado) {
             const MAPA_RUTAS_DEFECTO = {
                 "CHIGORODO": "Lunes", "CAREPA": "Lunes", "MUTATA": "Martes", "PAVARANDO": "Martes",
@@ -62,7 +51,6 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
 
     const mapDias = { "DOMINGO": 0, "LUNES": 1, "MARTES": 2, "MIÉRCOLES": 3, "MIERCOLES": 3, "JUEVES": 4, "VIERNES": 5, "SÁBADO": 6, "SABADO": 6 };
     const diaDestino = mapDias[diaRuta.toUpperCase()];
-    
     if (diaDestino === undefined) return diaRuta;
 
     const fechaBase = fechaCreacionStr ? new Date(fechaCreacionStr) : new Date();
@@ -70,35 +58,26 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
     let diasFaltantes = diaDestino - diaActual;
 
     if (diasFaltantes < 0) diasFaltantes += 7;
-
-    if (diasFaltantes === 0) {
-        diasFaltantes += 7;
-    } else if (diasFaltantes === 1) {
+    if (diasFaltantes === 0) diasFaltantes += 7;
+    else if (diasFaltantes === 1) {
         const [limiteHora, limiteMinuto] = horaLimite.split(':').map(Number);
-        const horaPedido = fechaBase.getHours();
-        const minutoPedido = fechaBase.getMinutes();
-
-        if (horaPedido > limiteHora || (horaPedido === limiteHora && minutoPedido >= limiteMinuto)) {
+        if (fechaBase.getHours() > limiteHora || (fechaBase.getHours() === limiteHora && fechaBase.getMinutes() >= limiteMinuto)) {
             diasFaltantes += 7;
         }
     }
 
     const fechaEntrega = new Date(fechaBase);
     fechaEntrega.setDate(fechaBase.getDate() + diasFaltantes);
-
     return fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 };
 
-const formatCurrency = (valor) => {
-    return Number(valor || 0).toLocaleString('es-CO');
-};
+const formatCurrency = (valor) => Number(valor || 0).toLocaleString('es-CO');
 
 const Perfil = () => {
     const [seccion, setSeccion] = useState('pedidos');
 
     const MenuItems = [
         { id: 'pedidos', label: 'Historial de Pedidos', icon: <ShoppingBag size={18}/> },
-        // 🔥 NUEVA PESTAÑA DE CARTERA 🔥
         { id: 'cartera', label: 'Mi Cartera (Crédito)', icon: <Wallet size={18}/> }, 
         { id: 'datos', label: 'Mis Datos Personales', icon: <Settings size={18}/> },
         { id: 'favoritos', label: 'Mis Favoritos', icon: <Heart size={18}/> },
@@ -107,7 +86,6 @@ const Perfil = () => {
 
     return (
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-6 md:gap-8 p-4 md:p-6 mt-10 md:mt-20 animate-in fade-in duration-500">
-            {/* Sidebar del Menú */}
             <div className="w-full md:w-64 md:shrink-0 space-y-2">
                 <div className="hidden md:block mb-8 p-4 bg-blue-50 rounded-2xl border border-blue-100">
                     <h2 className="text-xl font-black text-blue-900 flex items-center gap-2 uppercase tracking-tighter">
@@ -137,10 +115,9 @@ const Perfil = () => {
                 </nav>
             </div>
 
-            {/* Contenido Dinámico */}
             <div className="flex-1 bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl shadow-gray-100 border border-gray-100 min-h-[400px] md:min-h-[600px] relative overflow-hidden">
                 {seccion === 'pedidos' && <HistorialPedidos />}
-                {seccion === 'cartera' && <MiCartera />} {/* 🔥 LLAMAMOS AL NUEVO COMPONENTE 🔥 */}
+                {seccion === 'cartera' && <MiCartera />} 
                 {seccion === 'datos' && <InformacionPersonal />}
                 {seccion === 'favoritos' && <Favoritos />}
                 {seccion === 'direcciones' && <DireccionesPagos />}
@@ -151,18 +128,25 @@ const Perfil = () => {
 
 // --- SUB-COMPONENTES ---
 
-// 🔥 NUEVO COMPONENTE: MI CARTERA (CRÉDITOS Y ABONOS) 🔥
 const MiCartera = () => {
     const [infoCredito, setInfoCredito] = useState(null);
     const [loading, setLoading] = useState(true);
+    
+    // 🔥 ESTADO PARA LAS PESTAÑAS INTERNAS DE CARTERA 🔥
+    const [tabCartera, setTabCartera] = useState('deudas'); // 'deudas' | 'pagos'
 
     useEffect(() => {
         const fetchCredito = async () => {
             try {
-                const res = await API.get('/creditos/mi-cartera');
+                // Forzamos el envío del token por si falla el interceptor global
+                const token = localStorage.getItem('token');
+                const res = await API.get('/creditos/mi-cartera', {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
                 setInfoCredito(res.data);
             } catch (error) {
-                toast.error("No pudimos cargar tu información de crédito.");
+                console.error("Error cargando cartera:", error.response?.data || error.message);
+                toast.error(error.response?.data?.error || "No pudimos cargar tu información de crédito.");
             } finally {
                 setLoading(false);
             }
@@ -171,8 +155,7 @@ const MiCartera = () => {
     }, []);
 
     if (loading) return <div className="p-10 text-center font-black animate-pulse uppercase tracking-[0.2em] text-gray-300 text-xs">Cargando estado de cuenta...</div>;
-
-    if (!infoCredito) return null;
+    if (!infoCredito) return <div className="p-10 text-center font-black uppercase text-gray-400 text-xs">Ocurrió un error al cargar los datos.</div>;
 
     const cupoDisponible = infoCredito.limite_credito > 0 ? (infoCredito.limite_credito - infoCredito.deuda_total) : 0;
 
@@ -180,10 +163,9 @@ const MiCartera = () => {
         <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
             <div className="border-l-4 md:border-l-8 border-orange-500 pl-4 md:pl-6 mb-6 md:mb-8">
                 <h1 className="text-3xl md:text-5xl font-black tracking-tighter uppercase italic text-gray-900">Mi Cartera</h1>
-                <p className="text-gray-400 text-[9px] md:text-xs font-bold tracking-[0.2em] uppercase mt-1">Estado de Cuenta y Cupo</p>
+                <p className="text-gray-400 text-[9px] md:text-xs font-bold tracking-[0.2em] uppercase mt-1">Gestión de cupo y pagos</p>
             </div>
 
-            {/* Tarjetas de Resumen Financiero */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
                 <div className="bg-gray-50 border border-gray-100 p-5 rounded-2xl md:rounded-3xl">
                     <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1 flex items-center gap-1.5"><ShieldCheck size={12}/> Cupo Aprobado</p>
@@ -203,20 +185,33 @@ const MiCartera = () => {
                 </div>
             </div>
 
-            {/* Lista de Deudas y Abonos */}
             <div className="mt-8">
-                <h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter mb-4 text-gray-900 border-b pb-2">Historial de Deudas</h3>
-                
-                {infoCredito.historial_creditos.length === 0 ? (
-                    <div className="bg-gray-50 rounded-2xl p-8 text-center border border-dashed border-gray-200">
-                        <p className="text-gray-400 font-bold uppercase text-[10px]">No tienes historial de créditos o deudas.</p>
-                    </div>
-                ) : (
+                {/* Navegación Interna */}
+                <div className="flex gap-4 border-b border-gray-200 mb-6">
+                    <button 
+                        onClick={() => setTabCartera('deudas')} 
+                        className={`pb-3 font-black uppercase text-[10px] md:text-xs tracking-widest transition-colors ${tabCartera === 'deudas' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        Mis Deudas
+                    </button>
+                    <button 
+                        onClick={() => setTabCartera('pagos')} 
+                        className={`pb-3 font-black uppercase text-[10px] md:text-xs tracking-widest transition-colors ${tabCartera === 'pagos' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                        Historial de Pagos
+                    </button>
+                </div>
+
+                {/* Vistas Dinámicas */}
+                {tabCartera === 'deudas' ? (
                     <div className="space-y-4">
-                        {infoCredito.historial_creditos.map(cred => (
-                            <div key={cred.id} className="bg-white border border-gray-100 rounded-2xl md:rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                                {/* Cabecera de la deuda */}
-                                <div className={`p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${cred.estado === 'VIGENTE' ? 'bg-gray-50' : 'bg-green-50/50'}`}>
+                        {(!infoCredito.historial_creditos || infoCredito.historial_creditos.length === 0) ? (
+                            <div className="bg-gray-50 rounded-2xl p-8 text-center border border-dashed border-gray-200">
+                                <p className="text-gray-400 font-bold uppercase text-[10px]">No tienes créditos registrados.</p>
+                            </div>
+                        ) : (
+                            infoCredito.historial_creditos.map(cred => (
+                                <div key={cred.id} className={`p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl md:rounded-3xl border transition-all ${cred.estado === 'VIGENTE' ? 'bg-white shadow-sm border-gray-200 hover:border-orange-300' : 'bg-green-50/50 border-green-100 hover:border-green-300'}`}>
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className={`text-[8px] md:text-[9px] font-black uppercase px-2 py-1 rounded-md text-white ${cred.estado === 'VIGENTE' ? 'bg-orange-500' : 'bg-green-500'}`}>
@@ -229,33 +224,41 @@ const MiCartera = () => {
                                         <p className="font-black text-gray-900 text-sm md:text-base leading-tight uppercase">{cred.descripcion}</p>
                                     </div>
                                     <div className="text-left sm:text-right">
-                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Valor Original</p>
-                                        <p className="font-black italic text-gray-900 text-lg md:text-xl">${formatCurrency(cred.monto_total)}</p>
-                                        {cred.estado === 'VIGENTE' && (
-                                            <p className="text-[10px] md:text-xs font-black text-orange-600 mt-0.5">Saldo: ${formatCurrency(cred.saldo)}</p>
-                                        )}
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Valor Original: ${formatCurrency(cred.monto_total)}</p>
+                                        <p className={`font-black italic text-lg md:text-xl mt-1 ${cred.estado === 'VIGENTE' ? 'text-orange-600' : 'text-green-600'}`}>
+                                            {cred.estado === 'VIGENTE' ? `Saldo: $${formatCurrency(cred.saldo)}` : 'Saldado'}
+                                        </p>
                                     </div>
                                 </div>
-
-                                {/* Tabla interna de abonos si existen */}
-                                {cred.Abonos && cred.Abonos.length > 0 && (
-                                    <div className="p-4 border-t border-gray-100 bg-white">
-                                        <p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 tracking-widest mb-2 flex items-center gap-1.5"><History size={10}/> Registro de Abonos</p>
-                                        <div className="space-y-2">
-                                            {cred.Abonos.map(abono => (
-                                                <div key={abono.id} className="flex justify-between items-center text-[10px] md:text-xs bg-gray-50 p-2 rounded-lg">
-                                                    <div>
-                                                        <span className="font-bold text-gray-600">{new Date(abono.createdAt).toLocaleDateString()}</span>
-                                                        {abono.nota && <span className="ml-2 text-gray-400 italic">- {abono.nota}</span>}
-                                                    </div>
-                                                    <span className="font-black text-green-600">+${formatCurrency(abono.monto)}</span>
-                                                </div>
-                                            ))}
+                            ))
+                        )}
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {(!infoCredito.historial_pagos || infoCredito.historial_pagos.length === 0) ? (
+                            <div className="bg-gray-50 rounded-2xl p-8 text-center border border-dashed border-gray-200">
+                                <p className="text-gray-400 font-bold uppercase text-[10px]">Aún no has realizado abonos o pagos.</p>
+                            </div>
+                        ) : (
+                            infoCredito.historial_pagos.map(pago => (
+                                <div key={pago.id} className="p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-gray-100 rounded-2xl shadow-sm hover:border-green-200 transition-colors gap-3">
+                                    <div className="flex items-start sm:items-center gap-4">
+                                        <div className="w-10 h-10 bg-green-50 text-green-500 rounded-xl flex items-center justify-center shrink-0">
+                                            <CheckCircle size={18} />
+                                        </div>
+                                        <div>
+                                            <p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-tight line-clamp-1">{pago.credito_descripcion}</p>
+                                            <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase mt-0.5 tracking-widest">
+                                                {new Date(pago.fecha).toLocaleDateString()} {pago.nota && `• ${pago.nota}`}
+                                            </p>
                                         </div>
                                     </div>
-                                )}
-                            </div>
-                        ))}
+                                    <span className="font-black italic text-green-600 text-lg md:text-xl sm:text-right shrink-0">
+                                        +${formatCurrency(pago.monto)}
+                                    </span>
+                                </div>
+                            ))
+                        )}
                     </div>
                 )}
             </div>
@@ -515,6 +518,9 @@ const InformacionPersonal = () => {
 const Favoritos = () => {
     const [favoritos, setFavoritos] = useState([]);
     const [loading, setLoading] = useState(true);
+    
+    // 🔥 IMPORTAMOS EL HOOK DEL CARRITO 🔥
+    const { addToCart } = useCart();
 
     useEffect(() => {
         const cargarFavoritos = async () => {
@@ -523,6 +529,19 @@ const Favoritos = () => {
         };
         cargarFavoritos();
     }, []);
+
+    // 🔥 FUNCIÓN PARA AÑADIR AL CARRITO 🔥
+    const handleAgregarAlCarrito = (producto) => {
+        addToCart({
+            id: producto.id,
+            nombre: producto.nombre,
+            precio: producto.precio,
+            imagen_url: producto.imagen_url,
+            Categoria: producto.Categoria || { nombre: 'General' },
+            cantidad: 1
+        });
+        toast.success("¡Añadido al carrito!", { icon: '🛒' });
+    };
 
     if (loading) return <div className="p-10 md:p-20 text-center font-black text-gray-300 animate-pulse uppercase text-xs md:text-sm">Cargando...</div>;
 
@@ -538,10 +557,19 @@ const Favoritos = () => {
                             alt={f.nombre} 
                             className="w-12 h-12 md:w-16 md:h-16 rounded-lg md:rounded-xl object-cover shrink-0" 
                         />
-                        <div className="overflow-hidden">
+                        <div className="overflow-hidden flex-1">
                             <h4 className="font-black text-[10px] md:text-xs uppercase truncate">{f.nombre}</h4>
                             <p className="text-blue-600 font-black text-xs md:text-sm mt-0.5">${parseFloat(f.precio || 0).toLocaleString()}</p>
                         </div>
+                        
+                        {/* 🔥 BOTÓN DE CARRITO AÑADIDO 🔥 */}
+                        <button 
+                            onClick={() => handleAgregarAlCarrito(f)}
+                            className="p-2 md:p-3 bg-black text-white rounded-xl hover:bg-blue-600 transition-colors shadow-md active:scale-95 shrink-0"
+                            title="Añadir al carrito"
+                        >
+                            <ShoppingCart size={16} />
+                        </button>
                     </div>
                 ))}
             </div>
@@ -623,19 +651,5 @@ const DireccionesPagos = () => {
         </div>
     );
 };
-
-const StatusStep = ({ icon, label, active, completed }) => (
-    <div className="relative z-10 flex flex-col items-center gap-2 md:gap-3 bg-white px-2">
-      <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl flex items-center justify-center transition-all duration-700 ${
-        completed ? 'bg-green-500 text-white' : 
-        active ? 'bg-blue-600 text-white scale-110 md:scale-125 shadow-lg shadow-blue-200' : 'bg-white text-gray-300 border-2 border-gray-100'
-      }`}>
-        {icon}
-      </div>
-      <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-widest text-center mt-1 ${active ? 'text-gray-900' : 'text-gray-300'}`}>
-        {label}
-      </span>
-    </div>
-  );
 
 export default Perfil;
