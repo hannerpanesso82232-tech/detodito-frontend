@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext'; 
 import { 
     ShoppingBag, Heart, MapPin, User, ChevronRight, 
-    Package, Calendar, Settings, Save, X, Clock, Truck, CheckCircle, ShieldCheck, 
-    Lock, MessageCircle, CalendarClock, Wallet, Banknote, History, ShoppingCart
+    Settings, Save, X, Clock, Truck, CheckCircle, ShieldCheck, 
+    Lock, MessageCircle, CalendarClock, Wallet, Banknote, History, ShoppingCart, Package
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -131,14 +131,11 @@ const Perfil = () => {
 const MiCartera = () => {
     const [infoCredito, setInfoCredito] = useState(null);
     const [loading, setLoading] = useState(true);
-    
-    // 🔥 ESTADO PARA LAS PESTAÑAS INTERNAS DE CARTERA 🔥
     const [tabCartera, setTabCartera] = useState('deudas'); // 'deudas' | 'pagos'
 
     useEffect(() => {
         const fetchCredito = async () => {
             try {
-                // Forzamos el envío del token por si falla el interceptor global
                 const token = localStorage.getItem('token');
                 const res = await API.get('/creditos/mi-cartera', {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -186,7 +183,6 @@ const MiCartera = () => {
             </div>
 
             <div className="mt-8">
-                {/* Navegación Interna */}
                 <div className="flex gap-4 border-b border-gray-200 mb-6">
                     <button 
                         onClick={() => setTabCartera('deudas')} 
@@ -202,7 +198,6 @@ const MiCartera = () => {
                     </button>
                 </div>
 
-                {/* Vistas Dinámicas */}
                 {tabCartera === 'deudas' ? (
                     <div className="space-y-4">
                         {(!infoCredito.historial_creditos || infoCredito.historial_creditos.length === 0) ? (
@@ -530,16 +525,27 @@ const Favoritos = () => {
         cargarFavoritos();
     }, []);
 
-    // 🔥 FUNCIÓN PARA AÑADIR AL CARRITO 🔥
+    // 🔥 FUNCIÓN PARA AÑADIR AL CARRITO CORREGIDA 🔥
     const handleAgregarAlCarrito = (producto) => {
+        // Asegurarnos de que el backend haya enviado el stock, si es <= 0 bloqueamos.
+        // Si por alguna razón el stock no viene (undefined), asumiremos que hay para no romper la app,
+        // pero preferiblemente tu backend en /favoritos debería enviar el stock.
+        if (producto.stock !== undefined && producto.stock <= 0) {
+            toast.error("Este producto se encuentra agotado.", { icon: '⚠️' });
+            return; // Cortamos la ejecución aquí
+        }
+
         addToCart({
             id: producto.id,
             nombre: producto.nombre,
             precio: producto.precio,
             imagen_url: producto.imagen_url,
             Categoria: producto.Categoria || { nombre: 'General' },
+            stock: producto.stock, // 🔥 ESTO FALTABA PARA QUE EL CARRITO NO TE RECHACE 🔥
+            tope_stock: producto.tope_stock,
             cantidad: 1
         });
+        
         toast.success("¡Añadido al carrito!", { icon: '🛒' });
     };
 
@@ -562,7 +568,6 @@ const Favoritos = () => {
                             <p className="text-blue-600 font-black text-xs md:text-sm mt-0.5">${parseFloat(f.precio || 0).toLocaleString()}</p>
                         </div>
                         
-                        {/* 🔥 BOTÓN DE CARRITO AÑADIDO 🔥 */}
                         <button 
                             onClick={() => handleAgregarAlCarrito(f)}
                             className="p-2 md:p-3 bg-black text-white rounded-xl hover:bg-blue-600 transition-colors shadow-md active:scale-95 shrink-0"
