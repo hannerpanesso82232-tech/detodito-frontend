@@ -1,24 +1,61 @@
 import React from 'react';
-import { X, Loader2, CheckCircle2, Calculator, AlertTriangle, User, Key, Settings, Map, Trash2, PackageMinus, Banknote, DollarSign, Image as ImageIcon, Printer, ArrowLeftRight, CalendarDays, ChevronRight, History, Edit } from 'lucide-react';
+import { 
+    X, Loader2, CheckCircle2, Calculator, AlertTriangle, User, Key, Settings, 
+    Map, Trash2, PackageMinus, Banknote, DollarSign, Image as ImageIcon, 
+    Printer, ArrowLeftRight, ChevronRight, History, Edit 
+} from 'lucide-react';
 import { formatCurrency, imprimirFacturaCliente } from '../../utils/adminUtils';
 
 const AdminModals = ({ states, forms, setters, handlers, data }) => {
     // 1. Extraemos los estados
-    const { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando } = states;
-    const { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono } = forms;
-    const { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado } = setters;
-    const { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera } = handlers;
+    const { 
+        showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, 
+        transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, 
+        showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, 
+        showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, 
+        usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, 
+        pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, 
+        clienteEstadoCuenta, enviando 
+    } = states;
     
-    // Desempaquetamos los datos correctamente
-    const { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones } = data;
+    const { 
+        formBaja, formGasto, formulario, formEditUsuario, formUsuario, 
+        nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, 
+        formCredito, formAbono 
+    } = forms;
+    
+    const { 
+        setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, 
+        setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, 
+        setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, 
+        setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, 
+        setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, 
+        setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, 
+        setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, 
+        setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado 
+    } = setters;
+    
+    const { 
+        handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, 
+        handleDevolucionProducto, handleGuardarProducto, handleImagenChange, 
+        handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, 
+        handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, 
+        handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, 
+        handleRegistrarAbono 
+    } = handlers;
+    
+    // Desempaquetamos los datos
+    const { categorias, usuarios, rutasDinamicas, clienteActualData, transacciones } = data;
 
     return (
         <>
-            {/* 🔥 MODAL: CREAR / EDITAR PRODUCTO (¡EL QUE FALTABA!) 🔥 */}
+            {/* 1. MODAL: CREAR / EDITAR PRODUCTO */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-5xl rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row relative animate-in slide-in-from-bottom-4 duration-300 my-auto">
-                        <button onClick={cerrarModal} className="absolute top-4 right-4 md:top-6 md:right-6 z-10 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
+                        <button onClick={cerrarModal} className="absolute top-4 right-4 md:top-6 md:right-6 z-10 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
+                            <X size={16}/>
+                        </button>
                         <div className="w-full md:w-1/3 bg-gray-50 p-6 md:p-10 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-100">
                             <div className="w-32 h-32 md:w-full md:aspect-square bg-white rounded-2xl md:rounded-[2.5rem] shadow-inner border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden mb-4 md:mb-8">
                                 {preview ? <img src={preview} className="w-full h-full object-cover" alt="Preview" /> : <ImageIcon size={32} className="text-gray-200 md:w-12 md:h-12" />}
@@ -98,7 +135,90 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* MODAL: ESTADO DE CUENTA CARTERA (Panel 360) */}
+            {/* 2. MODAL: BAJA DE PRODUCTOS */}
+            {showBajaModal && productoBaja && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
+                        <button onClick={() => setShowBajaModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
+                            <X size={16}/>
+                        </button>
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-orange-50 text-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <PackageMinus size={24} className="md:w-8 md:h-8"/>
+                        </div>
+                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Dar de Baja</h3>
+                        <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center line-clamp-1">{productoBaja.nombre}</p>
+                        
+                        <form onSubmit={handleGuardarBaja} className="space-y-4 md:space-y-5">
+                            <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl">
+                                <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">Stock Actual:</span>
+                                <span className="text-xs md:text-sm font-black text-gray-900">{productoBaja.stock} Uds</span>
+                            </div>
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">¿Cuántas unidades se dañaron?</label>
+                                <input required type="number" min="1" max={productoBaja.stock} className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-black outline-none focus:ring-2 focus:ring-orange-500 text-sm" value={formBaja.cantidad} onChange={e => setFormBaja({...formBaja, cantidad: parseInt(e.target.value)})} />
+                            </div>
+                            <div>
+                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Motivo de la pérdida</label>
+                                <select className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-gray-700 outline-none focus:ring-2 focus:ring-orange-500 text-xs md:text-sm cursor-pointer" value={formBaja.motivo} onChange={e => setFormBaja({...formBaja, motivo: e.target.value})}>
+                                    <option value="Dañado/Roto">Dañado / Roto</option>
+                                    <option value="Defectuoso de Fábrica">Defectuoso de Fábrica</option>
+                                    <option value="Vencido/Caducado">Vencido / Caducado</option>
+                                    <option value="Pérdida/Robo">Pérdida / Robo</option>
+                                </select>
+                            </div>
+                            <div className="bg-orange-50 p-4 rounded-xl md:rounded-2xl border border-orange-100 flex justify-between items-center">
+                                <div>
+                                    <p className="text-[8px] md:text-[9px] font-black text-orange-600 uppercase">Pérdida Financiera</p>
+                                    <p className="text-[7px] md:text-[8px] font-bold text-orange-500">Se restará del libro mayor</p>
+                                </div>
+                                <p className="text-lg md:text-xl font-black text-orange-600 italic">-${formatCurrency((productoBaja.costo_compra || 0) * formBaja.cantidad)}</p>
+                            </div>
+                            <button disabled={enviando || productoBaja.stock <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-orange-500 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50">
+                                {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Baja'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* 3. MODAL: DETALLE DE PEDIDO (OJITO) */}
+            {pedidoDetalle && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative animate-in zoom-in duration-200">
+                        <button onClick={() => setPedidoDetalle(null)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
+                            <X size={18}/>
+                        </button>
+                        <div className="flex justify-between items-center border-b border-gray-100 pb-4 mb-6 md:mb-8 pr-10 md:pr-12">
+                            <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter">Detalle Pedido</h2>
+                            <button onClick={() => imprimirFacturaCliente(pedidoDetalle, data.rutasDinamicas, forms.horaLimite)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 md:gap-2 transition-all shadow-lg active:scale-95">
+                                <Printer size={14}/> PDF
+                            </button>
+                        </div>
+                        <div className="space-y-3 md:space-y-4 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                            {(pedidoDetalle.Detalles || pedidoDetalle.items || []).map((item, idx) => (
+                                <div key={idx} className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 p-4 md:p-5 rounded-[1rem] md:rounded-[1.5rem] border border-gray-100 gap-3 sm:gap-0">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] md:text-[10px] font-black uppercase text-gray-900">{item.Producto?.nombre || item.nombre || 'Item'}</span>
+                                        <span className="text-[9px] font-bold text-gray-400 mt-1">Cant: {item.cantidad} x ${formatCurrency(item.precioUnitario || item.precio)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 md:gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                                        <span className="font-black text-sm md:text-sm italic text-blue-600">${formatCurrency(item.cantidad * parseFloat(item.precioUnitario || item.precio || 0))}</span>
+                                        <button onClick={() => handleDevolucionProducto(pedidoDetalle.id, item)} className="bg-red-100 text-red-600 p-1.5 md:p-2 rounded-lg hover:bg-red-200 transition-colors flex items-center gap-1 text-[8px] md:text-[10px] font-bold uppercase" title="Procesar Devolución">
+                                            <ArrowLeftRight size={12} className="md:w-3 md:h-3"/> <span className="sm:hidden">Devolver</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t-2 border-dashed border-gray-100 flex justify-between items-center">
+                            <span className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 tracking-widest">Total Cliente</span>
+                            <span className="text-3xl md:text-4xl font-black italic tracking-tighter text-black">${formatCurrency(pedidoDetalle.total)}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 4. MODAL: ESTADO DE CUENTA CARTERA (Panel 360) */}
             {clienteEstadoCuenta && clienteActualData && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[180] flex items-center justify-center p-2 md:p-6 overflow-hidden">
                     <div className="bg-gray-50 w-full max-w-6xl h-[95vh] md:h-[90vh] rounded-[2rem] md:rounded-[3rem] shadow-2xl flex flex-col overflow-hidden relative animate-in zoom-in-95 duration-300">
@@ -112,7 +232,9 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                     <p className="text-[9px] font-black uppercase tracking-widest text-red-400">Deuda Total Activa</p>
                                     <p className="text-2xl font-black italic tracking-tighter text-red-600">${formatCurrency(clienteActualData.totalDeuda)}</p>
                                 </div>
-                                <button onClick={() => setClienteEstadoCuenta(null)} className="p-3 md:p-4 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all active:scale-90"><X size={20}/></button>
+                                <button onClick={() => setClienteEstadoCuenta(null)} className="p-3 md:p-4 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all active:scale-90">
+                                    <X size={20}/>
+                                </button>
                             </div>
                         </div>
 
@@ -209,12 +331,13 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* MODAL: LIQUIDAR PEDIDO (CONTADO VS CREDITO) */}
+            {/* 5. MODAL: LIQUIDAR PEDIDO (CONTADO VS CREDITO) */}
             {showCobroModal && pedidoACobrar && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[300] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => {setShowCobroModal(false); setPedidoACobrar(null);}} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        
+                        <button onClick={() => {setShowCobroModal(false); setPedidoACobrar(null);}} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
+                            <X size={16}/>
+                        </button>
                         <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                             <CheckCircle2 size={24} className="md:w-8 md:h-8"/>
                         </div>
@@ -223,7 +346,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                         
                         <div className="space-y-3">
                             <button onClick={() => handleCobro('CONTADO')} disabled={enviando} className="w-full p-4 border-2 border-green-500 bg-green-50 hover:bg-green-500 hover:text-white text-green-700 rounded-2xl transition-all font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 active:scale-95">
-                                {enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16} />} Pago de Contado (Finanzas)
+                                {enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16} />} Pago de Contado
                             </button>
                             <button onClick={() => handleCobro('CREDITO')} disabled={enviando} className="w-full p-4 border-2 border-orange-500 bg-orange-50 hover:bg-orange-500 hover:text-white text-orange-700 rounded-2xl transition-all font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 active:scale-95">
                                 {enviando ? <Loader2 className="animate-spin" size={16} /> : <Banknote size={16} />} Fiar (Mandar a Cartera)
@@ -233,12 +356,13 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* MODAL: CREAR CRÉDITO (FIAR MANUAL) */}
+            {/* 6. MODAL: CREAR CRÉDITO (FIAR MANUAL) */}
             {showCreditoModal && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => setShowCreditoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        
+                        <button onClick={() => setShowCreditoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
+                            <X size={16}/>
+                        </button>
                         <div className="w-12 h-12 md:w-16 md:h-16 bg-gray-900 text-white rounded-2xl flex items-center justify-center mx-auto mb-4">
                             <Banknote size={24} className="md:w-8 md:h-8"/>
                         </div>
@@ -269,12 +393,16 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* MODAL: REGISTRAR ABONO (PAGO) */}
+            {/* 7. MODAL: REGISTRAR ABONO (PAGO) */}
             {showAbonoModal && creditoSeleccionado && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
-                        <button onClick={() => setShowAbonoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
-                        <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><DollarSign size={24} className="md:w-8 md:h-8"/></div>
+                        <button onClick={() => setShowAbonoModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
+                            <X size={16}/>
+                        </button>
+                        <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <DollarSign size={24} className="md:w-8 md:h-8"/>
+                        </div>
                         <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Recibir Abono</h3>
                         <p className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 text-center line-clamp-1">{creditoSeleccionado.Usuario?.nombre}</p>
                         
@@ -298,7 +426,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 </div>
                                 <p className="text-lg md:text-xl font-black text-green-600 italic">+${formatCurrency(formAbono.monto || 0)}</p>
                             </div>
-                            <button disabled={enviando} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-green-600 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50 active:scale-95">
+                            <button disabled={enviando || parseFloat(formAbono.monto || 0) <= 0} className="w-full py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] tracking-widest bg-green-600 text-white hover:bg-black transition-all flex justify-center items-center mt-2 shadow-lg disabled:opacity-50 active:scale-95">
                                 {enviando ? <Loader2 className="animate-spin" /> : 'Confirmar Abono'}
                             </button>
                         </form>
@@ -306,11 +434,67 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* MODAL EDITAR USUARIO (CON LÍMITES) */}
+            {/* 8. MODALES TRANSACCIONES */}
+            {(showGastoModal || showEditTransaccionModal) && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center animate-in zoom-in-95 duration-200">
+                        <button onClick={() => {setShowGastoModal(false); setShowEditTransaccionModal(false);}} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
+                            <X size={18}/>
+                        </button>
+                        <div className={`w-12 h-12 md:w-16 md:h-16 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center mx-auto mb-4 md:mb-6 ${formGasto.tipo === 'INGRESO' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>
+                            {formGasto.tipo === 'INGRESO' ? <ArrowUpRight size={24} className="md:w-8 md:h-8"/> : <ArrowDownRight size={24} className="md:w-8 md:h-8"/>}
+                        </div>
+                        <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 md:mb-2">{transaccionSeleccionada ? 'Editar Movimiento' : 'Registrar Movimiento'}</h2>
+                        <form onSubmit={handleGuardarTransaccion} className="space-y-3 md:space-y-4 text-left mt-4">
+                            <div className="flex gap-2 mb-2 md:mb-4">
+                                <button type="button" onClick={() => setFormGasto({...formGasto, tipo: 'INGRESO'})} className={`flex-1 py-2 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase transition-all ${formGasto.tipo === 'INGRESO' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Ingreso</button>
+                                <button type="button" onClick={() => setFormGasto({...formGasto, tipo: 'EGRESO'})} className={`flex-1 py-2 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase transition-all ${formGasto.tipo === 'EGRESO' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>Egreso</button>
+                            </div>
+                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Monto ($)</label><input required type="number" step="0.01" min="0" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={formGasto.monto || ''} onChange={e => setFormGasto({...formGasto, monto: e.target.value})} /></div>
+                            <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Descripción</label><input required type="text" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-sm" value={formGasto.descripcion || ''} onChange={e => setFormGasto({...formGasto, descripcion: e.target.value})} /></div>
+                            <div className="flex flex-col md:flex-row gap-2">
+                                <div className="flex-1">
+                                    <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Categoría</label>
+                                    <select className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formGasto.categoria || 'Logística'} onChange={e => setFormGasto({...formGasto, categoria: e.target.value})}>
+                                        <option value="Ventas Productos">Ventas Productos</option><option value="Logística">Logística</option><option value="Mercancía">Compra Mercancía</option><option value="Servicios">Servicios</option><option value="Nómina">Nómina</option><option value="Otros">Otros</option>
+                                    </select>
+                                </div>
+                                <div className="flex-1">
+                                    <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-2">Fecha</label>
+                                    <input type="date" required className="w-full bg-white p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formGasto.fecha || new Date().toISOString().split('T')[0]} onChange={e => setFormGasto({...formGasto, fecha: e.target.value})} />
+                                </div>
+                            </div>
+                            <button disabled={enviando} className={`w-full text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] transition-all flex items-center justify-center mt-2 shadow-lg active:scale-95 ${formGasto.tipo === 'INGRESO' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
+                                {enviando ? <Loader2 className="animate-spin" /> : 'Guardar Movimiento'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {showDeleteTransaccionModal && (
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                    <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 md:w-24 md:h-24 bg-red-50 text-red-500 rounded-2xl md:rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 md:mb-8">
+                            <AlertTriangle size={32} className="md:w-12 md:h-12"/>
+                        </div>
+                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-2">¿Borrar Registro?</h3>
+                        <p className="text-gray-400 text-[9px] md:text-[10px] font-bold mb-8 md:mb-10 uppercase tracking-[0.2em]">Se eliminará de la contabilidad.</p>
+                        <div className="flex gap-3 md:gap-4">
+                            <button onClick={() => setShowDeleteTransaccionModal(false)} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-gray-100 hover:bg-gray-200 transition-all">Cancelar</button>
+                            <button onClick={handleEliminarTransaccion} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-red-600 text-white hover:bg-red-700 transition-all">Borrar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 9. MODAL EDITAR USUARIO (CON LÍMITES) */}
             {showEditUsuarioModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-2xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative animate-in zoom-in-95 duration-200">
-                        <button onClick={() => setShowEditUsuarioModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white"><X size={18}/></button>
+                        <button onClick={() => setShowEditUsuarioModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white">
+                            <X size={18}/>
+                        </button>
                         <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-8 border-b border-gray-100 pb-4">
                             <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-50 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center"><User size={20} className="md:w-6 md:h-6"/></div>
                             <div><h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter">Editar Cliente</h2></div>
@@ -334,17 +518,21 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 <div><label className="text-[8px] font-black uppercase text-gray-500 mb-1 ml-1">Días de Plazo para Pagar</label><input type="number" min="1" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-orange-500 text-xs shadow-sm" value={formEditUsuario.dias_credito} onChange={e => setFormEditUsuario({...formEditUsuario, dias_credito: e.target.value})} /></div>
                             </div>
 
-                            <button disabled={enviando} className="sm:col-span-2 bg-blue-600 text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-black transition-all flex items-center justify-center mt-2 shadow-lg active:scale-95">{enviando ? <Loader2 className="animate-spin" /> : 'Guardar Cambios'}</button>
+                            <button disabled={enviando} className="sm:col-span-2 bg-blue-600 text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-black transition-all flex items-center justify-center mt-2 shadow-lg active:scale-95">
+                                {enviando ? <Loader2 className="animate-spin" /> : 'Guardar Cambios'}
+                            </button>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* MODAL CREAR USUARIO (CON LÍMITES) */}
+            {/* 10. MODAL CREAR USUARIO (CON LÍMITES) */}
             {showUsuarioModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-lg rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative my-auto animate-in zoom-in-95 duration-200">
-                        <button onClick={() => setShowUsuarioModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white"><X size={18}/></button>
+                        <button onClick={() => setShowUsuarioModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white">
+                            <X size={18}/>
+                        </button>
                         <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-4 md:mb-6">Crear Cliente</h2>
                         <form onSubmit={handleCrearUsuario} className="space-y-3 md:space-y-4">
                             <input required type="text" placeholder="Nombre completo" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.nombre || ''} onChange={e => setFormUsuario({...formUsuario, nombre: e.target.value})} />
@@ -368,11 +556,13 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* RESTO DE LOS MODALES DE CONFIG Y BORRADO */}
+            {/* 11. RESTO DE MODALES DE CONFIGURACIÓN Y ELIMINACIÓN */}
             {showPasswordModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center">
-                        <button onClick={() => setShowPasswordModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white"><X size={18}/></button>
+                        <button onClick={() => setShowPasswordModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white">
+                            <X size={18}/>
+                        </button>
                         <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-50 text-blue-600 rounded-[1.5rem] md:rounded-[2rem] flex items-center justify-center mx-auto mb-4 md:mb-6"><Key size={24} className="md:w-8 md:h-8"/></div>
                         <h2 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-1 md:mb-2">Restablecer Clave</h2>
                         <p className="text-[8px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-4 md:mb-6">Para: {usuarioSeleccionado?.nombre}</p>
@@ -386,10 +576,13 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
+            {/* 12. Ajustes */}
             {showConfigModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-4xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative flex flex-col md:flex-row gap-6 md:gap-8 animate-in zoom-in-95 duration-200">
-                        <button onClick={() => setShowConfigModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={18}/></button>
+                        <button onClick={() => setShowConfigModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
+                            <X size={18}/>
+                        </button>
                         
                         <div className="flex-1 border-b md:border-b-0 md:border-r border-gray-100 pb-6 md:pb-0 md:pr-8 text-center">
                             <div className="w-12 h-12 md:w-16 md:h-16 bg-green-50 text-green-500 rounded-xl md:rounded-[2rem] flex items-center justify-center mx-auto mb-4 md:mb-6"><Settings size={24} className="md:w-8 md:h-8"/></div>
@@ -405,7 +598,9 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                     <label className="text-[8px] md:text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1 block">Corte Diario de Rutas</label>
                                     <input required type="time" className="w-full bg-white p-3 rounded-xl font-black text-blue-900 text-sm md:text-base outline-none focus:ring-2 focus:ring-blue-600 transition-all shadow-sm cursor-pointer" value={horaLimite} onChange={e => setHoraLimite(e.target.value)} />
                                 </div>
-                                <button disabled={enviando} className="w-full bg-black text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-green-500 transition-all shadow-lg active:scale-95">{enviando ? <Loader2 className="animate-spin mx-auto" /> : 'Guardar Ajustes'}</button>
+                                <button disabled={enviando} className="w-full bg-black text-white py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase tracking-widest text-[9px] md:text-[10px] hover:bg-green-500 transition-all shadow-lg active:scale-95">
+                                    {enviando ? <Loader2 className="animate-spin mx-auto" /> : 'Guardar Ajustes'}
+                                </button>
                             </form>
                         </div>
 
@@ -444,7 +639,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
-            {/* MODALES DE BORRADO DE USUARIO/PRODUCTO */}
+            {/* 13. Eliminar Usuario */}
             {usuarioAEliminar && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
                     <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
@@ -459,6 +654,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 </div>
             )}
 
+            {/* 14. Eliminar Producto */}
             {showDeleteModal && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
                     <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">

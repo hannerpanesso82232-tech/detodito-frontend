@@ -51,10 +51,10 @@ const AdminDashboard = () => {
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
     
-    // 🔥 CORRECCIÓN: Filtros de Pedidos Agregados 🔥
+    // 🔥 NUEVOS ESTADOS DE FILTROS DE PEDIDOS 🔥
     const [filtroFechaPedidos, setFiltroFechaPedidos] = useState(''); 
     const [filtroTextoPedidos, setFiltroTextoPedidos] = useState(''); 
-    
+
     const [searchTermCartera, setSearchTermCartera] = useState(''); 
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('TODOS'); 
     const [mesFiltroContable, setMesFiltroContable] = useState('Todos');
@@ -121,7 +121,8 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         fetchDatos();
-        const socket = io(SOCKET_URL);
+        // 🔥 CORRECCIÓN DEL WEBSOCKET PARA EVITAR ERROR EN CONSOLA 🔥
+        const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
         socket.on("nuevo_pedido_admin", (data) => {
             const audio = new Audio('/alert-notification.mp3'); audio.play().catch(() => {});
             toast(`📦 Nuevo Pedido de ${data.cliente || 'Cliente'}`, { icon: '🚀', style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } });
@@ -140,6 +141,7 @@ const AdminDashboard = () => {
         }
     }, [formulario.costo_compra, formulario.margen_ganancia, formulario.stock_adicional, formulario.costo_nuevo_lote, formulario.stock, formulario.precio, productoEditando]);
 
+    // --- MEMOS ---
     const kpis = useMemo(() => {
         const hoy = new Date(); let ventasHoy = 0, ventasMes = 0, pendientes = 0;
         pedidos.forEach(p => {
@@ -217,7 +219,7 @@ const AdminDashboard = () => {
         return Array.from(meses).sort((a,b) => b.localeCompare(a));
     }, [transacciones]);
 
-    // 🔥 FILTROS DE PEDIDO SÚPER ROBUSTOS (CIUDAD Y FECHA) 🔥
+    // 🔥 CORRECCIÓN: FILTROS DE PEDIDOS MEJORADOS Y POR CIUDAD 🔥
     const pedidosFiltradosVisual = useMemo(() => {
         let filtrados = pedidos;
 
@@ -420,7 +422,6 @@ const AdminDashboard = () => {
         setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: fechaSegura }); 
         setShowEditTransaccionModal(true); 
     };
-    
     const handleGuardarTransaccion = async (e) => { e.preventDefault(); setEnviando(true); try { if (transaccionSeleccionada) { await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto); toast.success("Transacción actualizada"); } else { await API.post('/contabilidad/gasto', formGasto); toast.success("Transacción registrada"); } setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
     const handleEliminarTransaccion = async () => { try { await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`); setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada"); } catch (err) { toast.error("Error"); } };
 
@@ -506,7 +507,7 @@ const AdminDashboard = () => {
         } catch (error) { toast.error("Error al transferir factura", { id: loadingId }); }
     };
 
-    // --- EMPAQUETADO PARA COMPONENTES HIJOS ---
+    // 🔥 AHORA SÍ: EMPAQUETAMOS TODAS LAS FUNCIONES HACIA LOS MODALES 🔥
     const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando };
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado };
@@ -518,7 +519,6 @@ const AdminDashboard = () => {
     // --- RENDER DE VISTAS ---
     return (
         <div className="min-h-screen bg-gray-50 pb-20 px-4 md:px-8">
-            {/* Cabecera Principal */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-10 gap-4 pt-8">
                 <div>
                     <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter uppercase italic">HQ Dashboard</h1>
@@ -534,7 +534,6 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            {/* Cuadrícula de Estadísticas Permanentes */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
                 <StatCard title="Ventas Mes Actual" value={`$${formatCurrency(kpis.ventasMes)}`} subtitle={`Hoy: $${formatCurrency(kpis.ventasHoy)}`} icon={<DollarSign />} color="bg-green-100 text-green-600" />
                 <StatCard title="Pedidos Pendientes" value={kpis.pendientes} subtitle="Listos para ruta" icon={<Clock />} color="bg-amber-100 text-amber-600" />
@@ -546,7 +545,6 @@ const AdminDashboard = () => {
                 <StatCard title="Total Histórico Fiado" value={`$${formatCurrency(statsCartera.fiadoTotal)}`} subtitle="Lo que has fiado" icon={<FileText />} color="bg-orange-100 text-orange-600" />
             </div>
 
-            {/* Filtros y Navegación de Pestañas */}
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
                     {['reportes', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => (
@@ -564,7 +562,7 @@ const AdminDashboard = () => {
                     <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 md:gap-4 w-full md:w-auto">
                         <select value={filtroEstadoCartera} onChange={(e) => setFiltroEstadoCartera(e.target.value)} className="px-4 py-3 bg-white border border-gray-200 rounded-xl font-black uppercase text-[10px] outline-none shadow-sm cursor-pointer text-gray-600">
                             <option value="TODOS">Todos los Clientes</option>
-                            <option value="VIGENTE">Tienen Deuda Activa</option>
+                            <option value="VIGENTE">Con Deuda Activa</option>
                             <option value="MORA">En Mora (Vencidos)</option>
                             <option value="PAGADO">Sin Deudas (Pagados)</option>
                         </select>
@@ -950,7 +948,7 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* 🔥 Y AQUÍ LLAMAMOS A TODOS LOS MODALES 🔥 */}
+            {/* 🔥 AHORA SÍ, SE MANDAN TODAS LAS FUNCIONES HACIA LOS MODALES 🔥 */}
             <AdminModals states={statesProps} forms={formsProps} setters={settersProps} handlers={handlersProps} data={dataProps} />
         </div>
     );
