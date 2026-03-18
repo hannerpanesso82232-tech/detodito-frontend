@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import API from '../services/api';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { io } from "socket.io-client";
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area
@@ -11,14 +13,65 @@ import {
     AlertTriangle, Loader2, FileSpreadsheet, Eye, Truck,
     CalendarDays, Activity, DollarSign, Clock, Users, Settings,
     ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
-    Receipt, Award, Edit, Trash2, PackageMinus, Key, CheckCircle2, ChevronRight, Briefcase, History
+    Receipt, Award, Edit, Trash2, PackageMinus, Key, CheckCircle2, ChevronRight, Briefcase, History,
+    User as UserIcon, ArrowLeftRight, Printer, Image as ImageIcon, X, Calculator
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
-import AdminModals from '../components/admin/AdminModals';
-import { formatCurrency, formatearImagen, calcularFechaReal } from '../utils/adminUtils';
 
+// --- CONFIGURACIÓN BASE ---
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
+
+// --- UTILIDADES INTEGRADAS (Para evitar importar de fuera) ---
+const formatCurrency = (valor) => Number(valor || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const formatearImagen = (url) => {
+    if (!url) return 'https://placehold.co/150';
+    let urlLimpia = url.replace(/http:\/\/localhost:(3000|5000)/g, '');
+    if (urlLimpia.startsWith('http')) return urlLimpia;
+    return `${process.env.REACT_APP_API_URL || "http://localhost:3000"}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
+};
+
+const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
+    let diaRuta = rutaGuardada;
+    const fechaMaxima = new Date(8640000000000000); 
+    
+    if (!diaRuta || diaRuta.toUpperCase() === "A CONVENIR") {
+        const textoCliente = `${ciudadCliente || ''} ${direccionCliente || ''}`.toUpperCase();
+        let matchEncontrado = null;
+        for (const ruta of rutasDB) {
+            if (textoCliente.includes(ruta.ciudad.toUpperCase())) { matchEncontrado = ruta.dia_ruta; break; }
+        }
+        if (!matchEncontrado) {
+            const MAPA_RUTAS_DEFECTO = { "CHIGORODO": "Lunes", "CAREPA": "Lunes", "MUTATA": "Martes", "PAVARANDO": "Martes", "BAJIRA": "Miércoles", "PLAYA ROJA": "Miércoles", "APARTADO": "Jueves", "TURBO": "Jueves", "NECOCLI": "Viernes", "ARBOLETES": "Viernes" };
+            for (const [ciudadMap, diaMap] of Object.entries(MAPA_RUTAS_DEFECTO)) {
+                if (textoCliente.includes(ciudadMap)) { matchEncontrado = diaMap; break; }
+            }
+        }
+        diaRuta = matchEncontrado || "A CONVENIR";
+    }
+
+    if (diaRuta.toUpperCase() === "A CONVENIR") return { diaNombre: "A CONVENIR", fechaFormateada: "Por coordinar con cliente", fechaRaw: fechaMaxima };
+
+    const mapDias = { "DOMINGO": 0, "LUNES": 1, "MARTES": 2, "MIÉRCOLES": 3, "MIERCOLES": 3, "JUEVES": 4, "VIERNES": 5, "SÁBADO": 6, "SABADO": 6 };
+    const diaDestino = mapDias[diaRuta.toUpperCase()];
+    if (diaDestino === undefined) return { diaNombre: diaRuta, fechaFormateada: diaRuta, fechaRaw: fechaMaxima };
+
+    const fechaBase = fechaCreacionStr ? new Date(fechaCreacionStr) : new Date();
+    const diaActual = fechaBase.getDay(); 
+    let diasFaltantes = diaDestino - diaActual;
+
+    if (diasFaltantes < 0) diasFaltantes += 7; 
+    if (diasFaltantes === 0) diasFaltantes += 7; 
+    else if (diasFaltantes === 1) {
+        const [limiteHora, limiteMinuto] = horaLimite.split(':').map(Number);
+        if (fechaBase.getHours() > limiteHora || (fechaBase.getHours() === limiteHora && fechaBase.getMinutes() >= limiteMinuto)) diasFaltantes += 7; 
+    }
+
+    const fechaEntrega = new Date(fechaBase);
+    fechaEntrega.setDate(fechaBase.getDate() + diasFaltantes);
+    fechaEntrega.setHours(0, 0, 0, 0); 
+    return { diaNombre: diaRuta, fechaFormateada: fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' }), fechaRaw: fechaEntrega };
+};
 
 const StatCard = ({ title, value, icon, color, subtitle }) => (
     <div className="bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm group hover:border-black transition-all duration-300">
@@ -51,15 +104,15 @@ const AdminDashboard = () => {
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
     
-    // 🔥 NUEVO: FILTROS DE PEDIDOS 🔥
+    // 🔥 NUEVO: FILTROS DE PEDIDOS SÚPER REFORZADOS 🔥
     const [filtroFechaPedidos, setFiltroFechaPedidos] = useState(''); 
-    const [filtroTextoPedidos, setFiltroTextoPedidos] = useState(''); 
-
+    const [filtroCiudadPedidos, setFiltroCiudadPedidos] = useState(''); 
+    
     const [searchTermCartera, setSearchTermCartera] = useState(''); 
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('TODOS'); 
     const [mesFiltroContable, setMesFiltroContable] = useState('Todos');
 
-    // --- ESTADOS MODALES ---
+    // --- ESTADOS MODALES (AHORA TODO EN UN SOLO LUGAR) ---
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showBajaModal, setShowBajaModal] = useState(false);
@@ -102,6 +155,7 @@ const AdminDashboard = () => {
 
     const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...rutasDinamicas.map(r => r.dia_ruta)])];
 
+    // --- CARGA DE DATOS ---
     const fetchDatos = useCallback(async () => {
         try {
             const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos] = await Promise.all([
@@ -141,6 +195,7 @@ const AdminDashboard = () => {
         }
     }, [formulario.costo_compra, formulario.margen_ganancia, formulario.stock_adicional, formulario.costo_nuevo_lote, formulario.stock, formulario.precio, productoEditando]);
 
+    // --- MEMOS ---
     const kpis = useMemo(() => {
         const hoy = new Date(); let ventasHoy = 0, ventasMes = 0, pendientes = 0;
         pedidos.forEach(p => {
@@ -218,41 +273,39 @@ const AdminDashboard = () => {
         return Array.from(meses).sort((a,b) => b.localeCompare(a));
     }, [transacciones]);
 
-    // 🔥 FILTROS DE PEDIDOS SUPER REFORZADOS 🔥
+    // 🔥 FILTROS DE PEDIDOS CORREGIDOS 🔥
     const pedidosFiltradosVisual = useMemo(() => {
         let filtrados = pedidos;
 
-        // 1. Filtrar por Ciudad/Texto
-        if (filtroTextoPedidos) {
-            const term = filtroTextoPedidos.toLowerCase();
+        if (filtroCiudadPedidos) {
+            const termino = filtroCiudadPedidos.toLowerCase();
             filtrados = filtrados.filter(ped => {
                 const ciudad = (ped.Usuario?.ciudad || '').toLowerCase();
+                const direccion = (ped.direccion || ped.Usuario?.direccion || '').toLowerCase();
                 const nombre = (ped.Usuario?.nombre || ped.cliente || '').toLowerCase();
-                const dir = (ped.direccion || ped.Usuario?.direccion || '').toLowerCase();
                 const idString = String(ped.id);
-                return ciudad.includes(term) || nombre.includes(term) || dir.includes(term) || idString.includes(term);
+                return ciudad.includes(termino) || direccion.includes(termino) || nombre.includes(termino) || idString.includes(termino);
             });
         }
 
-        // 2. Filtrar por Fecha
         if (filtroFechaPedidos) {
-            const [year, month, day] = filtroFechaPedidos.split('-').map(Number);
-            const targetDate = new Date(year, month - 1, day);
-            targetDate.setHours(0, 0, 0, 0); 
-            
             filtrados = filtrados.filter(ped => {
                 const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
                 if (!infoRuta.fechaRaw) return false;
                 
-                const pedDate = new Date(infoRuta.fechaRaw);
-                pedDate.setHours(0,0,0,0);
+                const d = new Date(infoRuta.fechaRaw);
+                if (isNaN(d.getTime()) || d.getTime() > 8000000000000000) return false;
                 
-                return pedDate.getTime() === targetDate.getTime();
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const pedDateStr = `${y}-${m}-${day}`;
+                
+                return pedDateStr === filtroFechaPedidos;
             });
         }
-
         return filtrados;
-    }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos, filtroTextoPedidos]);
+    }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos, filtroCiudadPedidos]);
 
     const clientesCartera = useMemo(() => {
         const mapa = {};
@@ -329,7 +382,7 @@ const AdminDashboard = () => {
         });
     }, [productos, searchTerm, filtroCategoria, filtroStockBajo]);
 
-    // --- HANDLERS (LAS FUNCIONES QUE ESTABAN DESCONECTADAS) ---
+    // --- HANDLERS (FUNCIONES DE ACCIÓN) ---
     const exportarManifiestoCarga = async () => {
         const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
         if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
@@ -370,7 +423,6 @@ const AdminDashboard = () => {
     const cerrarModal = () => { setShowModal(false); setProductoEditando(null); setImagenArchivo(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 }); setPrecioCalculado(0); };
     const handleImagenChange = (e) => { const file = e.target.files[0]; if (file) { setImagenArchivo(file); setPreview(URL.createObjectURL(file)); } };
     
-    // 🔥 FUNCIONES CONECTADAS AL AdminModals 🔥
     const abrirModalEditar = (p) => { setProductoEditando(p); setFormulario({ nombre: p.nombre || '', precio: p.precio || '', stock: p.stock || 0, stock_adicional: '', precio_nuevo_lote: p.costo_compra || 0, categoriaId: p.categoriaId || p.categoria_id || '', descripcion: p.descripcion || '', proveedor: p.proveedor || '', costo_compra: p.costo_compra || 0, margen_ganancia: p.margen_ganancia || 0, tope_stock: p.tope_stock || 10 }); setPreview(formatearImagen(p.imagen_url)); setShowModal(true); };
     const abrirModalBaja = (p) => { setProductoBaja(p); setFormBaja({ cantidad: 1, motivo: 'Dañado/Roto' }); setShowBajaModal(true); };
 
@@ -388,7 +440,9 @@ const AdminDashboard = () => {
         try {
             await API.put(`/productos/${productoBaja.id}/stock`, { cantidad: formBaja.cantidad, operacion: 'restar' });
             const costoPerdida = parseFloat(productoBaja.costo_compra || 0) * parseInt(formBaja.cantidad);
-            if (costoPerdida > 0) { await API.post('/contabilidad/gasto', { monto: costoPerdida, descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`, categoria: 'Mercancía', tipo: 'EGRESO', fecha: new Date().toISOString().split('T')[0] }); }
+            if (costoPerdida > 0) {
+                await API.post('/contabilidad/gasto', { monto: costoPerdida, descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`, categoria: 'Mercancía', tipo: 'EGRESO', fecha: new Date().toISOString().split('T')[0] });
+            }
             toast.success("Producto dado de baja. Pérdida registrada en contabilidad."); setShowBajaModal(false); setProductoBaja(null); fetchDatos();
         } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la baja del producto."); } finally { setEnviando(false); }
     };
@@ -417,7 +471,18 @@ const AdminDashboard = () => {
     const handleEliminarRutaConfig = async (id) => { try { await API.delete(`/pedidos/config/rutas/${id}`); fetchDatos(); toast.success("Regla eliminada"); } catch (err) { toast.error("Error"); } };
     const handleGuardarConfig = async (e) => { e.preventDefault(); setEnviando(true); try { await API.put('/auth/config/whatsapp', { whatsapp: whatsappTienda }); await API.put('/pedidos/config/horalimite', { hora: horaLimite }); toast.success("Ajustes guardados"); setShowConfigModal(false); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
     
-    const abrirModalEditarTransaccion = (tx) => { setTransaccionSeleccionada(tx); setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: new Date(tx.fecha).toISOString().split('T')[0] }); setShowEditTransaccionModal(true); };
+    const abrirModalEditarTransaccion = (tx) => { 
+        setTransaccionSeleccionada(tx); 
+        let fechaSegura = '';
+        try {
+            fechaSegura = tx.fecha ? new Date(tx.fecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        } catch(e) {
+            fechaSegura = new Date().toISOString().split('T')[0];
+        }
+        setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: fechaSegura }); 
+        setShowEditTransaccionModal(true); 
+    };
+    
     const handleGuardarTransaccion = async (e) => { e.preventDefault(); setEnviando(true); try { if (transaccionSeleccionada) { await API.put(`/contabilidad/transacciones/${transaccionSeleccionada.id}`, formGasto); toast.success("Transacción actualizada"); } else { await API.post('/contabilidad/gasto', formGasto); toast.success("Transacción registrada"); } setShowGastoModal(false); setShowEditTransaccionModal(false); setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); fetchDatos(); } catch (err) { toast.error("Error"); } finally { setEnviando(false); } };
     const handleEliminarTransaccion = async () => { try { await API.delete(`/contabilidad/transacciones/${transaccionSeleccionada.id}`); setShowDeleteTransaccionModal(false); setTransaccionSeleccionada(null); fetchDatos(); toast.success("Transacción eliminada"); } catch (err) { toast.error("Error"); } };
 
@@ -503,18 +568,12 @@ const AdminDashboard = () => {
         } catch (error) { toast.error("Error al transferir factura", { id: loadingId }); }
     };
 
-    // --- EMPAQUETADO PARA COMPONENTES HIJOS ---
-    const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando };
-    const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
-    const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado };
-    const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera };
-    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones };
-
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
 
     // --- RENDER DE VISTAS ---
     return (
         <div className="min-h-screen bg-gray-50 pb-20 px-4 md:px-8">
+            {/* Cabecera Principal */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-10 gap-4 pt-8">
                 <div>
                     <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter uppercase italic">HQ Dashboard</h1>
@@ -530,6 +589,7 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
+            {/* Cuadrícula de Estadísticas Permanentes */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
                 <StatCard title="Ventas Mes Actual" value={`$${formatCurrency(kpis.ventasMes)}`} subtitle={`Hoy: $${formatCurrency(kpis.ventasHoy)}`} icon={<DollarSign />} color="bg-green-100 text-green-600" />
                 <StatCard title="Pedidos Pendientes" value={kpis.pendientes} subtitle="Listos para ruta" icon={<Clock />} color="bg-amber-100 text-amber-600" />
@@ -541,6 +601,7 @@ const AdminDashboard = () => {
                 <StatCard title="Total Histórico Fiado" value={`$${formatCurrency(statsCartera.fiadoTotal)}`} subtitle="Lo que has fiado" icon={<FileText />} color="bg-orange-100 text-orange-600" />
             </div>
 
+            {/* Filtros y Navegación de Pestañas */}
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
                     {['reportes', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => (
@@ -1063,6 +1124,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+            {/* MODAL: LIQUIDAR PEDIDO (CONTADO VS CREDITO) */}
             {showCobroModal && pedidoACobrar && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[300] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
@@ -1086,6 +1148,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+            {/* MODAL: CREAR CRÉDITO (FIAR MANUAL) */}
             {showCreditoModal && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
@@ -1151,6 +1214,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+            {/* MODAL: REGISTRAR ABONO (PAGO) */}
             {showAbonoModal && creditoSeleccionado && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[250] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
@@ -1181,7 +1245,7 @@ const AdminDashboard = () => {
 
                             <div>
                                 <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1 block ml-2">Nota (Opcional)</label>
-                                <input type="text" placeholder="Ej: Efectivo, Transferencia..." className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-green-500 text-xs md:text-sm" value={formAbono.nota} onChange={e => setFormAbono({...formAbono, nota: e.target.value})} />
+                                <input type="text" placeholder="Ej: Efectivo, Transferencia Bancolombia..." className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold outline-none focus:ring-2 focus:ring-green-500 text-xs md:text-sm" value={formAbono.nota} onChange={e => setFormAbono({...formAbono, nota: e.target.value})} />
                             </div>
 
                             <div className="bg-green-50 p-4 rounded-xl md:rounded-2xl border border-green-100 flex justify-between items-center mt-2">
@@ -1200,6 +1264,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+            {/* MODAL: BAJA DE PRODUCTOS */}
             {showBajaModal && productoBaja && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
                     <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200 relative">
@@ -1248,6 +1313,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+            {/* MODALES TRANSACCIONES */}
             {(showGastoModal || showEditTransaccionModal) && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-sm rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative text-center animate-in zoom-in-95 duration-200">
@@ -1306,6 +1372,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+            {/* MODAL DETALLE PEDIDO (OJITO) */}
             {pedidoDetalle && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-lg rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative animate-in zoom-in duration-200">
@@ -1350,6 +1417,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+            {/* MODAL CREAR / EDITAR PRODUCTO */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-5xl rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row relative animate-in slide-in-from-bottom-4 duration-300 my-auto">
@@ -1445,7 +1513,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* MODAL EDITAR USUARIO */}
+            {/* MODAL EDITAR USUARIO (CON LÍMITES) */}
             {showEditUsuarioModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-2xl rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative animate-in zoom-in-95 duration-200">
@@ -1485,7 +1553,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* MODAL CREAR USUARIO */}
+            {/* MODAL CREAR USUARIO (CON LÍMITES) */}
             {showUsuarioModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[150] flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-white w-full max-w-lg rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl relative my-auto animate-in zoom-in-95 duration-200">
@@ -1617,6 +1685,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+            {/* MODALES DE BORRADO DE USUARIO/PRODUCTO */}
             {usuarioAEliminar && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
                     <div className="bg-white p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
