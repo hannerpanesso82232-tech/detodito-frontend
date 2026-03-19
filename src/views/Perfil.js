@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext'; 
 import { 
     ShoppingBag, Heart, MapPin, User, ChevronRight, 
-    Package, Calendar, Settings, Save, X, Clock, Truck, CheckCircle, ShieldCheck, 
-    Lock, MessageCircle, CalendarClock, Wallet, Banknote, History, ShoppingCart
+    Settings, Save, X, Clock, Truck, CheckCircle, ShieldCheck, 
+    Lock, MessageCircle, CalendarClock, Wallet, Banknote, History, ShoppingCart, Package, AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -19,9 +19,21 @@ const formatearImagen = (url) => {
     return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
 };
 
+// 🔥 EL SÚPER MOTOR EN EL PERFIL DEL CLIENTE 🔥
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
+
+    // 1. ¿El Admin modificó la fecha con una exacta? (YYYY-MM-DD)
+    if (diaRuta && /^\d{4}-\d{2}-\d{2}$/.test(diaRuta)) {
+        const fechaExacta = new Date(diaRuta);
+        fechaExacta.setMinutes(fechaExacta.getMinutes() + fechaExacta.getTimezoneOffset());
+        return {
+            fechaTexto: fechaExacta.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+            reprogramado: true
+        };
+    }
     
+    // 2. Lógica Clásica
     if (!diaRuta || diaRuta.toUpperCase() === "A CONVENIR") {
         const textoCliente = `${ciudadCliente || ''} ${direccionCliente || ''}`.toUpperCase();
         let matchEncontrado = null;
@@ -47,11 +59,13 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
         diaRuta = matchEncontrado || "A CONVENIR";
     }
 
-    if (diaRuta.toUpperCase() === "A CONVENIR") return "A coordinar con logística";
+    if (diaRuta.toUpperCase() === "A CONVENIR") {
+        return { fechaTexto: "A coordinar con logística", reprogramado: false };
+    }
 
     const mapDias = { "DOMINGO": 0, "LUNES": 1, "MARTES": 2, "MIÉRCOLES": 3, "MIERCOLES": 3, "JUEVES": 4, "VIERNES": 5, "SÁBADO": 6, "SABADO": 6 };
     const diaDestino = mapDias[diaRuta.toUpperCase()];
-    if (diaDestino === undefined) return diaRuta;
+    if (diaDestino === undefined) return { fechaTexto: diaRuta, reprogramado: false };
 
     const fechaBase = fechaCreacionStr ? new Date(fechaCreacionStr) : new Date();
     const diaActual = fechaBase.getDay(); 
@@ -68,7 +82,11 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
 
     const fechaEntrega = new Date(fechaBase);
     fechaEntrega.setDate(fechaBase.getDate() + diasFaltantes);
-    return fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    
+    return {
+        fechaTexto: fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+        reprogramado: false
+    };
 };
 
 const formatCurrency = (valor) => Number(valor || 0).toLocaleString('es-CO');
@@ -131,7 +149,7 @@ const Perfil = () => {
 const MiCartera = () => {
     const [infoCredito, setInfoCredito] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [tabCartera, setTabCartera] = useState('deudas'); // 'deudas' | 'pagos'
+    const [tabCartera, setTabCartera] = useState('deudas');
 
     useEffect(() => {
         const fetchCredito = async () => {
@@ -163,6 +181,16 @@ const MiCartera = () => {
                 <p className="text-gray-400 text-[9px] md:text-xs font-bold tracking-[0.2em] uppercase mt-1">Gestión de cupo y pagos</p>
             </div>
 
+            {infoCredito.credito_activo === false && (
+                <div className="bg-red-50 border border-red-200 p-4 rounded-2xl flex items-start gap-3">
+                    <Lock className="text-red-500 shrink-0 mt-0.5" size={20} />
+                    <div>
+                        <p className="text-xs font-black text-red-700 uppercase tracking-tight">Crédito Suspendido</p>
+                        <p className="text-[10px] md:text-xs text-red-600 mt-1">Tu cuenta actualmente no tiene permitido realizar compras a crédito. Por favor, ponte al día o comunícate con administración.</p>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
                 <div className="bg-gray-50 border border-gray-100 p-5 rounded-2xl md:rounded-3xl">
                     <p className="text-[9px] md:text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1 flex items-center gap-1.5"><ShieldCheck size={12}/> Cupo Aprobado</p>
@@ -183,23 +211,11 @@ const MiCartera = () => {
             </div>
 
             <div className="mt-8">
-                {/* Navegación Interna */}
                 <div className="flex gap-4 border-b border-gray-200 mb-6">
-                    <button 
-                        onClick={() => setTabCartera('deudas')} 
-                        className={`pb-3 font-black uppercase text-[10px] md:text-xs tracking-widest transition-colors ${tabCartera === 'deudas' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                        Mis Deudas
-                    </button>
-                    <button 
-                        onClick={() => setTabCartera('pagos')} 
-                        className={`pb-3 font-black uppercase text-[10px] md:text-xs tracking-widest transition-colors ${tabCartera === 'pagos' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}
-                    >
-                        Historial de Pagos
-                    </button>
+                    <button onClick={() => setTabCartera('deudas')} className={`pb-3 font-black uppercase text-[10px] md:text-xs tracking-widest transition-colors ${tabCartera === 'deudas' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}>Mis Deudas</button>
+                    <button onClick={() => setTabCartera('pagos')} className={`pb-3 font-black uppercase text-[10px] md:text-xs tracking-widest transition-colors ${tabCartera === 'pagos' ? 'border-b-2 border-black text-black' : 'text-gray-400 hover:text-gray-600'}`}>Historial de Pagos</button>
                 </div>
 
-                {/* Vistas Dinámicas */}
                 {tabCartera === 'deudas' ? (
                     <div className="space-y-4">
                         {(!infoCredito.historial_creditos || infoCredito.historial_creditos.length === 0) ? (
@@ -240,15 +256,8 @@ const MiCartera = () => {
                             infoCredito.historial_pagos.map(pago => (
                                 <div key={pago.id} className="p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between bg-white border border-gray-100 rounded-2xl shadow-sm hover:border-green-200 transition-colors gap-3">
                                     <div className="flex items-start sm:items-center gap-4">
-                                        <div className="w-10 h-10 bg-green-50 text-green-500 rounded-xl flex items-center justify-center shrink-0">
-                                            <CheckCircle size={18} />
-                                        </div>
-                                        <div>
-                                            <p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-tight line-clamp-1">{pago.credito_descripcion}</p>
-                                            <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase mt-0.5 tracking-widest">
-                                                {new Date(pago.fecha).toLocaleDateString()} {pago.nota && `• ${pago.nota}`}
-                                            </p>
-                                        </div>
+                                        <div className="w-10 h-10 bg-green-50 text-green-500 rounded-xl flex items-center justify-center shrink-0"><CheckCircle size={18} /></div>
+                                        <div><p className="font-black text-gray-900 text-xs md:text-sm uppercase tracking-tight line-clamp-1">{pago.credito_descripcion}</p><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase mt-0.5 tracking-widest">{new Date(pago.fecha).toLocaleDateString()} {pago.nota && `• ${pago.nota}`}</p></div>
                                     </div>
                                     <span className="font-black italic text-green-600 text-lg md:text-xl sm:text-right shrink-0">
                                         +${formatCurrency(pago.monto)}
@@ -279,27 +288,14 @@ const HistorialPedidos = () => {
             setPedidos(resPedidos.data);
             setRutasDinamicas(resRutas.data || []);
             setHoraLimite(resHora.data.hora || '20:00');
-        } catch (error) {
-            toast.error("No pudimos cargar tus pedidos");
-        } finally {
-            setLoading(false);
-        }
+        } catch (error) { toast.error("No pudimos cargar tus pedidos"); } finally { setLoading(false); }
     };
 
-    useEffect(() => {
-        fetchPedidosConfig();
-    }, []);
+    useEffect(() => { fetchPedidosConfig(); }, []);
 
     const handleCancelarPedido = async (pedidoId) => {
         if(!window.confirm("¿Estás seguro de que deseas cancelar este pedido? Esta acción no se puede deshacer y los productos regresarán a la tienda.")) return;
-        
-        try {
-            await API.put(`/pedidos/${pedidoId}/cancelar`);
-            toast.success("Pedido cancelado exitosamente");
-            fetchPedidosConfig(); 
-        } catch (error) {
-            toast.error(error.response?.data?.error || "Error al cancelar el pedido");
-        }
+        try { await API.put(`/pedidos/${pedidoId}/cancelar`); toast.success("Pedido cancelado exitosamente"); fetchPedidosConfig(); } catch (error) { toast.error(error.response?.data?.error || "Error al cancelar el pedido"); }
     };
 
     const getStatusIcon = (estado) => {
@@ -329,7 +325,7 @@ const HistorialPedidos = () => {
             ) : (
                 <div className="space-y-6 md:space-y-8">
                     {pedidos.map((pedido) => {
-                        const fechaEstimadaLlegada = calcularFechaReal(pedido.ruta, pedido.Usuario?.ciudad, pedido.direccion, rutasDinamicas, pedido.fecha || pedido.createdAt, horaLimite);
+                        const infoLlegada = calcularFechaReal(pedido.ruta, pedido.Usuario?.ciudad, pedido.direccion, rutasDinamicas, pedido.fecha || pedido.createdAt, horaLimite);
 
                         return (
                             <div key={pedido.id} className="bg-white rounded-[1.5rem] md:rounded-[2.5rem] shadow-lg md:shadow-xl shadow-gray-100 border border-gray-100 overflow-hidden group hover:border-blue-400 transition-all duration-500">
@@ -341,9 +337,11 @@ const HistorialPedidos = () => {
                                         ) : (
                                             <>
                                                 <CalendarClock size={16} className="animate-pulse hidden sm:block" />
-                                                <div className="text-center sm:text-left">
+                                                <div className="text-center sm:text-left flex flex-col sm:flex-row sm:items-center">
                                                     <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest opacity-80 block sm:inline">Llegada Estimada: </span>
-                                                    <span className="text-xs md:text-sm font-black capitalize ml-0 sm:ml-2">{fechaEstimadaLlegada}</span>
+                                                    <span className={`text-xs md:text-sm font-black capitalize ml-0 sm:ml-2 ${infoLlegada.reprogramado ? 'text-orange-200' : ''}`}>
+                                                        {infoLlegada.fechaTexto}
+                                                    </span>
                                                 </div>
                                             </>
                                         )}
@@ -363,6 +361,12 @@ const HistorialPedidos = () => {
                                         <div>
                                             <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] md:tracking-[0.3em]">Orden #{pedido.id}</span>
                                             <h3 className="text-base md:text-xl font-black text-gray-900 uppercase italic leading-tight">Estado: {pedido.estado}</h3>
+                                            
+                                            {infoLlegada.reprogramado && pedido.estado !== 'Entregado' && pedido.estado !== 'Cancelado' && (
+                                                <div className="mt-2 inline-flex items-center gap-1.5 bg-orange-100 text-orange-700 px-2 py-1 rounded-md text-[8px] md:text-[9px] font-black uppercase tracking-widest">
+                                                    <AlertTriangle size={10} /> Reprogramado por Logística
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="text-left sm:text-right w-full sm:w-auto border-t sm:border-0 border-gray-200 pt-3 sm:pt-0">
@@ -428,13 +432,8 @@ const InformacionPersonal = () => {
         try {
             const res = await API.put('/auth/perfil', { telefono: formData.telefono });
             const datosParaSesion = res.data?.usuario ? res.data.usuario : { ...user, telefono: formData.telefono };
-            if (typeof setUser === 'function') {
-                setUser(datosParaSesion);
-                toast.success("¡Teléfono actualizado con éxito!");
-            } else {
-                toast.success("¡Teléfono actualizado con éxito!");
-                setTimeout(() => window.location.reload(), 1500);
-            }
+            if (typeof setUser === 'function') { setUser(datosParaSesion); toast.success("¡Teléfono actualizado con éxito!"); } 
+            else { toast.success("¡Teléfono actualizado con éxito!"); setTimeout(() => window.location.reload(), 1500); }
             setEditando(false);
         } catch (err) { toast.error("Error al actualizar perfil"); } finally { setLoading(false); }
     };
@@ -515,8 +514,6 @@ const InformacionPersonal = () => {
 const Favoritos = () => {
     const [favoritos, setFavoritos] = useState([]);
     const [loading, setLoading] = useState(true);
-    
-    // 🔥 IMPORTAMOS EL HOOK DEL CARRITO 🔥
     const { addToCart } = useCart();
 
     useEffect(() => {
@@ -527,24 +524,9 @@ const Favoritos = () => {
         cargarFavoritos();
     }, []);
 
-    // 🔥 FUNCIÓN PARA AÑADIR AL CARRITO CORREGIDA 🔥
     const handleAgregarAlCarrito = (producto) => {
-        if (producto.stock !== undefined && producto.stock <= 0) {
-            toast.error("Este producto se encuentra agotado.", { icon: '⚠️' });
-            return; 
-        }
-
-        addToCart({
-            id: producto.id,
-            nombre: producto.nombre,
-            precio: producto.precio,
-            imagen_url: producto.imagen_url,
-            Categoria: producto.Categoria || { nombre: 'General' },
-            stock: producto.stock, // 🔥 AHORA SÍ ENVIAMOS EL STOCK 🔥
-            tope_stock: producto.tope_stock,
-            cantidad: 1
-        });
-        
+        if (producto.stock !== undefined && producto.stock <= 0) { toast.error("Este producto se encuentra agotado.", { icon: '⚠️' }); return; }
+        addToCart({ id: producto.id, nombre: producto.nombre, precio: producto.precio, imagen_url: producto.imagen_url, Categoria: producto.Categoria || { nombre: 'General' }, stock: producto.stock, tope_stock: producto.tope_stock, cantidad: 1 });
         toast.success("¡Añadido al carrito!", { icon: '🛒' });
     };
 
@@ -557,23 +539,9 @@ const Favoritos = () => {
                 {favoritos.length === 0 && <p className="col-span-1 sm:col-span-2 text-gray-400 text-[10px] md:text-xs font-bold py-10 text-center">No tienes favoritos guardados.</p>}
                 {favoritos.map(f => (
                     <div key={f.id} className="flex items-center gap-3 md:gap-4 p-3 md:p-4 bg-gray-50 rounded-2xl md:rounded-3xl border border-gray-100 hover:border-black transition-colors">
-                        <img 
-                            src={formatearImagen(f.imagen_url)} 
-                            alt={f.nombre} 
-                            className="w-12 h-12 md:w-16 md:h-16 rounded-lg md:rounded-xl object-cover shrink-0" 
-                        />
-                        <div className="overflow-hidden flex-1">
-                            <h4 className="font-black text-[10px] md:text-xs uppercase truncate">{f.nombre}</h4>
-                            <p className="text-blue-600 font-black text-xs md:text-sm mt-0.5">${parseFloat(f.precio || 0).toLocaleString()}</p>
-                        </div>
-                        
-                        <button 
-                            onClick={() => handleAgregarAlCarrito(f)}
-                            className="p-2 md:p-3 bg-black text-white rounded-xl hover:bg-blue-600 transition-colors shadow-md active:scale-95 shrink-0"
-                            title="Añadir al carrito"
-                        >
-                            <ShoppingCart size={16} />
-                        </button>
+                        <img src={formatearImagen(f.imagen_url)} alt={f.nombre} className="w-12 h-12 md:w-16 md:h-16 rounded-lg md:rounded-xl object-cover shrink-0" />
+                        <div className="overflow-hidden flex-1"><h4 className="font-black text-[10px] md:text-xs uppercase truncate">{f.nombre}</h4><p className="text-blue-600 font-black text-xs md:text-sm mt-0.5">${parseFloat(f.precio || 0).toLocaleString()}</p></div>
+                        <button onClick={() => handleAgregarAlCarrito(f)} className="p-2 md:p-3 bg-black text-white rounded-xl hover:bg-blue-600 transition-colors shadow-md active:scale-95 shrink-0" title="Añadir al carrito"><ShoppingCart size={16} /></button>
                     </div>
                 ))}
             </div>
@@ -587,36 +555,23 @@ const DireccionesPagos = () => {
     const [nuevaDir, setNuevaDir] = useState({ etiqueta: '', direccion: '', ciudad: '' });
     const [loading, setLoading] = useState(false);
 
-    const fetchDirecciones = async () => {
-        try { const res = await API.get('/auth/direcciones'); setDirecciones(res.data); } 
-        catch (err) { console.log("Error cargando direcciones"); }
-    };
-
+    const fetchDirecciones = async () => { try { const res = await API.get('/auth/direcciones'); setDirecciones(res.data); } catch (err) { console.log("Error cargando direcciones"); } };
     useEffect(() => { fetchDirecciones(); }, []);
 
     const handleGuardar = async (e) => {
         e.preventDefault(); setLoading(true);
-        try {
-            await API.post('/auth/direcciones', nuevaDir); toast.success("Dirección agregada");
-            setMostrarForm(false); setNuevaDir({ etiqueta: '', direccion: '', ciudad: '' }); fetchDirecciones();
-        } catch (err) { toast.error("Error al guardar"); } finally { setLoading(false); }
+        try { await API.post('/auth/direcciones', nuevaDir); toast.success("Dirección agregada"); setMostrarForm(false); setNuevaDir({ etiqueta: '', direccion: '', ciudad: '' }); fetchDirecciones(); } 
+        catch (err) { toast.error("Error al guardar"); } finally { setLoading(false); }
     };
 
-    const eliminarDireccion = async (id) => {
-        try { await API.delete(`/auth/direcciones/${id}`); toast.success("Eliminada"); fetchDirecciones(); } 
-        catch (err) { toast.error("Error al eliminar"); }
-    };
+    const eliminarDireccion = async (id) => { try { await API.delete(`/auth/direcciones/${id}`); toast.success("Eliminada"); fetchDirecciones(); } catch (err) { toast.error("Error al eliminar"); } };
 
     return (
         <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
             <div className="border-b pb-4 flex justify-between items-end">
-                <div>
-                    <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter text-blue-600">Direcciones</h3>
-                    <p className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1">Tus puntos de entrega</p>
-                </div>
+                <div><h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter text-blue-600">Direcciones</h3><p className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1">Tus puntos de entrega</p></div>
                 {!mostrarForm && (<button onClick={() => setMostrarForm(true)} className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded-xl font-black text-[9px] md:text-xs uppercase hover:bg-black transition-all shadow-lg active:scale-95">+ Nueva</button>)}
             </div>
-
             {mostrarForm ? (
                 <form onSubmit={handleGuardar} className="bg-gray-50 p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-blue-100 space-y-3 md:space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
@@ -641,10 +596,7 @@ const DireccionesPagos = () => {
                             <div key={dir.id} className="flex items-center justify-between p-4 md:p-5 bg-white border border-gray-100 rounded-2xl md:rounded-3xl shadow-sm hover:border-black transition-colors group">
                                 <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
                                     <div className="w-10 h-10 shrink-0 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:bg-black group-hover:text-white transition-colors"><MapPin size={18} /></div>
-                                    <div className="overflow-hidden">
-                                        <h4 className="font-black text-xs md:text-sm uppercase italic truncate">{dir.etiqueta}</h4>
-                                        <p className="text-[10px] md:text-xs text-gray-500 font-medium truncate mt-0.5">{dir.direccion}, {dir.ciudad}</p>
-                                    </div>
+                                    <div className="overflow-hidden"><h4 className="font-black text-xs md:text-sm uppercase italic truncate">{dir.etiqueta}</h4><p className="text-[10px] md:text-xs text-gray-500 font-medium truncate mt-0.5">{dir.direccion}, {dir.ciudad}</p></div>
                                 </div>
                                 <button onClick={() => eliminarDireccion(dir.id)} className="text-gray-300 hover:text-red-500 transition-colors p-2 shrink-0"><X size={16} /></button>
                             </div>

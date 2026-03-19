@@ -16,8 +16,6 @@ import {
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
-
-// ⚠️ Se eliminó calcularFechaReal de aquí, lo definiremos localmente para darle más poder
 import { formatCurrency, formatearImagen } from '../utils/adminUtils';
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
@@ -107,7 +105,6 @@ const StatCard = ({ title, value, icon, color, subtitle }) => (
 );
 
 const AdminDashboard = () => {
-    // --- ESTADOS GLOBALES ---
     const [productos, setProductos] = useState([]);
     const [pedidos, setPedidos] = useState([]);
     const [categorias, setCategorias] = useState([]);
@@ -123,7 +120,6 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
     
-    // --- FILTROS ---
     const [searchTerm, setSearchTerm] = useState('');
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
@@ -221,7 +217,6 @@ const AdminDashboard = () => {
         }
     }, [formulario.costo_compra, formulario.margen_ganancia, formulario.stock_adicional, formulario.costo_nuevo_lote, formulario.stock, formulario.precio, productoEditando]);
 
-    // --- MEMOS ---
     const kpis = useMemo(() => {
         const hoy = new Date(); let ventasHoy = 0, ventasMes = 0, pendientes = 0;
         pedidos.forEach(p => {
@@ -326,6 +321,12 @@ const AdminDashboard = () => {
         return { ingresos, egresos, balance: ingresos - egresos, valorInventario: finanzas.valorInventario };
     }, [transaccionesFiltradas, finanzas.valorInventario]);
 
+    const opcionesMeses = useMemo(() => {
+        const meses = new Set();
+        transacciones.forEach(tx => { const d = new Date(tx.fecha); meses.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); });
+        return Array.from(meses).sort((a,b) => b.localeCompare(a));
+    }, [transacciones]);
+
     const pedidosFiltradosVisual = useMemo(() => {
         let filtrados = pedidos;
         if (filtroTextoPedidos) {
@@ -429,7 +430,6 @@ const AdminDashboard = () => {
         });
     }, [productos, searchTerm, filtroCategoria, filtroStockBajo]);
 
-    // --- HANDLERS ---
     const exportarManifiestoCarga = async () => {
         const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
         if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
@@ -682,6 +682,7 @@ const AdminDashboard = () => {
             </div>
 
             <div className="animate-in fade-in duration-500">
+                {/* VISTA DE CARTERA */}
                 {tab === 'cartera' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
@@ -961,6 +962,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {/* VISTA DE PRODUCTOS */}
                 {tab === 'productos' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
@@ -1066,7 +1068,6 @@ const AdminDashboard = () => {
                                             <div className="mb-6"><p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Contenido:</p><ul className="text-[9px] md:text-[10px] font-bold text-gray-600 space-y-1 mb-4">{items.slice(0, 3).map((item, idx) => (<li key={idx} className="truncate">• {item.cantidad}x {item.Producto?.nombre || item.nombre}</li>))}{items.length > 3 && <li className="text-blue-500">+ {items.length - 3} artículos más</li>}</ul><h4 className="text-2xl md:text-3xl font-black text-gray-900 italic tracking-tighter">${formatCurrency(ped.total)}</h4></div>
                                         </div>
                                         <div className="space-y-3 bg-gray-50 p-3 md:p-4 rounded-2xl md:rounded-3xl">
-                                            {/* 🔥 AQUÍ ESTÁ EL SELECTOR DOBLE (DÍA NORMAL O FECHA EXACTA) 🔥 */}
                                             <div className="grid grid-cols-2 gap-2">
                                                 <div>
                                                     <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Forzar Día</label>
@@ -1111,6 +1112,7 @@ const AdminDashboard = () => {
                     </>
                 )}
 
+                {/* VISTA DE CLIENTES (ADMIN DE USUARIOS) */}
                 {tab === 'clientes' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[600px]">
