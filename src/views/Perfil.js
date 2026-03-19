@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import API from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext'; 
+import { io } from "socket.io-client"; // 🔥 IMPORTAMOS SOCKET.IO 🔥
 import { 
     ShoppingBag, Heart, MapPin, User, ChevronRight, 
     Settings, Save, X, Clock, Truck, CheckCircle, ShieldCheck, 
     Lock, MessageCircle, CalendarClock, Calendar, Wallet, Banknote, History, ShoppingCart, Package, AlertTriangle 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 
 const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/150';
@@ -23,7 +26,6 @@ const formatearImagen = (url) => {
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
 
-    // 1. ¿El Admin modificó la fecha con una exacta? (YYYY-MM-DD)
     if (diaRuta && /^\d{4}-\d{2}-\d{2}$/.test(diaRuta)) {
         const fechaExacta = new Date(diaRuta);
         fechaExacta.setMinutes(fechaExacta.getMinutes() + fechaExacta.getTimezoneOffset());
@@ -33,7 +35,6 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
         };
     }
     
-    // 2. Lógica Clásica
     if (!diaRuta || diaRuta.toUpperCase() === "A CONVENIR") {
         const textoCliente = `${ciudadCliente || ''} ${direccionCliente || ''}`.toUpperCase();
         let matchEncontrado = null;
@@ -93,6 +94,7 @@ const formatCurrency = (valor) => Number(valor || 0).toLocaleString('es-CO');
 
 const Perfil = () => {
     const [seccion, setSeccion] = useState('pedidos');
+    const { user } = useAuth(); // 🔥 Extraemos el user aquí para pasarlo a los componentes 🔥
 
     const MenuItems = [
         { id: 'pedidos', label: 'Historial de Pedidos', icon: <ShoppingBag size={18}/> },
@@ -134,8 +136,9 @@ const Perfil = () => {
             </div>
 
             <div className="flex-1 bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl shadow-gray-100 border border-gray-100 min-h-[400px] md:min-h-[600px] relative overflow-hidden">
-                {seccion === 'pedidos' && <HistorialPedidos />}
-                {seccion === 'cartera' && <MiCartera />} 
+                {/* 🔥 Pasamos el usuario a los componentes para validar los sockets 🔥 */}
+                {seccion === 'pedidos' && <HistorialPedidos user={user} />}
+                {seccion === 'cartera' && <MiCartera user={user} />} 
                 {seccion === 'datos' && <InformacionPersonal />}
                 {seccion === 'favoritos' && <Favoritos />}
                 {seccion === 'direcciones' && <DireccionesPagos />}
@@ -146,28 +149,37 @@ const Perfil = () => {
 
 // --- SUB-COMPONENTES ---
 
-const MiCartera = () => {
+const MiCartera = ({ user }) => {
     const [infoCredito, setInfoCredito] = useState(null);
     const [loading, setLoading] = useState(true);
     const [tabCartera, setTabCartera] = useState('deudas');
 
-    useEffect(() => {
-        const fetchCredito = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                const res = await API.get('/creditos/mi-cartera', {
-                    headers: token ? { Authorization: `Bearer ${token}` } : {}
-                });
-                setInfoCredito(res.data);
-            } catch (error) {
-                console.error("Error cargando cartera:", error.response?.data || error.message);
-                toast.error(error.response?.data?.error || "No pudimos cargar tu información de crédito.");
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchCredito();
+    const fetchCredito = useCallback(async (silencioso = false) => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await API.get('/creditos/mi-cartera', {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
+            setInfoCredito(res.data);
+            if (silencioso) toast.success("Tu estado de cuenta ha sido actualizado", { icon: '💳' });
+        } catch (error) {
+            if (!silencioso) toast.error("No pudimos cargar tu información de crédito.");
+        } finally {
+            setLoading(false);
+        }
     }, []);
+
+    useEffect(() => {
+        fetchCredito();
+        
+        // 🔥 MAGIA DE TIEMPO REAL: Escuchamos si el Admin hizo un abono o cambio 🔥
+        const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
+        socket.on("cartera_actualizada", (data) => {
+            if (data.usuarioId === user?.id) fetchCredito(true);
+        });
+        
+        return () => socket.disconnect();
+    }, [fetchCredito, user]);
 
     if (loading) return <div className="p-10 text-center font-black animate-pulse uppercase tracking-[0.2em] text-gray-300 text-xs">Cargando estado de cuenta...</div>;
     if (!infoCredito) return <div className="p-10 text-center font-black uppercase text-gray-400 text-xs">Ocurrió un error al cargar los datos.</div>;
@@ -279,13 +291,13 @@ const MiCartera = () => {
     );
 };
 
-const HistorialPedidos = () => {
+const HistorialPedidos = ({ user }) => {
     const [pedidos, setPedidos] = useState([]);
     const [rutasDinamicas, setRutasDinamicas] = useState([]);
     const [horaLimite, setHoraLimite] = useState('20:00');
     const [loading, setLoading] = useState(true);
 
-    const fetchPedidosConfig = async () => {
+    const fetchPedidosConfig = useCallback(async (silencioso = false) => {
         try {
             const [resPedidos, resRutas, resHora] = await Promise.all([
                 API.get('/pedidos/mis-pedidos'),
@@ -295,20 +307,29 @@ const HistorialPedidos = () => {
             setPedidos(resPedidos.data);
             setRutasDinamicas(resRutas.data || []);
             setHoraLimite(resHora.data.hora || '20:00');
+            
+            if(silencioso) toast.success("Se ha actualizado el estado de un pedido.", { icon: '📦' });
         } catch (error) {
-            toast.error("No pudimos cargar tus pedidos");
+            if(!silencioso) toast.error("No pudimos cargar tus pedidos");
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchPedidosConfig();
-    }, []);
+
+        // 🔥 MAGIA DE TIEMPO REAL: Escuchamos si el Admin actualizó estado o fecha 🔥
+        const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
+        socket.on("pedido_actualizado", (data) => {
+            if (data.usuarioId === user?.id) fetchPedidosConfig(true);
+        });
+
+        return () => socket.disconnect();
+    }, [fetchPedidosConfig, user]);
 
     const handleCancelarPedido = async (pedidoId) => {
         if(!window.confirm("¿Estás seguro de que deseas cancelar este pedido? Esta acción no se puede deshacer y los productos regresarán a la tienda.")) return;
-        
         try {
             await API.put(`/pedidos/${pedidoId}/cancelar`);
             toast.success("Pedido cancelado exitosamente");
@@ -539,8 +560,6 @@ const InformacionPersonal = () => {
 const Favoritos = () => {
     const [favoritos, setFavoritos] = useState([]);
     const [loading, setLoading] = useState(true);
-    
-    // 🔥 IMPORTAMOS EL HOOK DEL CARRITO 🔥
     const { addToCart } = useCart();
 
     useEffect(() => {
@@ -551,7 +570,6 @@ const Favoritos = () => {
         cargarFavoritos();
     }, []);
 
-    // 🔥 FUNCIÓN PARA AÑADIR AL CARRITO CORREGIDA 🔥
     const handleAgregarAlCarrito = (producto) => {
         if (producto.stock !== undefined && producto.stock <= 0) {
             toast.error("Este producto se encuentra agotado.", { icon: '⚠️' });
@@ -564,7 +582,7 @@ const Favoritos = () => {
             precio: producto.precio,
             imagen_url: producto.imagen_url,
             Categoria: producto.Categoria || { nombre: 'General' },
-            stock: producto.stock, // 🔥 AHORA SÍ ENVIAMOS EL STOCK 🔥
+            stock: producto.stock,
             tope_stock: producto.tope_stock,
             cantidad: 1
         });
@@ -581,23 +599,12 @@ const Favoritos = () => {
                 {favoritos.length === 0 && <p className="col-span-1 sm:col-span-2 text-gray-400 text-[10px] md:text-xs font-bold py-10 text-center">No tienes favoritos guardados.</p>}
                 {favoritos.map(f => (
                     <div key={f.id} className="flex items-center gap-3 md:gap-4 p-3 md:p-4 bg-gray-50 rounded-2xl md:rounded-3xl border border-gray-100 hover:border-black transition-colors">
-                        <img 
-                            src={formatearImagen(f.imagen_url)} 
-                            alt={f.nombre} 
-                            className="w-12 h-12 md:w-16 md:h-16 rounded-lg md:rounded-xl object-cover shrink-0" 
-                        />
+                        <img src={formatearImagen(f.imagen_url)} alt={f.nombre} className="w-12 h-12 md:w-16 md:h-16 rounded-lg md:rounded-xl object-cover shrink-0" />
                         <div className="overflow-hidden flex-1">
                             <h4 className="font-black text-[10px] md:text-xs uppercase truncate">{f.nombre}</h4>
                             <p className="text-blue-600 font-black text-xs md:text-sm mt-0.5">${parseFloat(f.precio || 0).toLocaleString()}</p>
                         </div>
-                        
-                        <button 
-                            onClick={() => handleAgregarAlCarrito(f)}
-                            className="p-2 md:p-3 bg-black text-white rounded-xl hover:bg-blue-600 transition-colors shadow-md active:scale-95 shrink-0"
-                            title="Añadir al carrito"
-                        >
-                            <ShoppingCart size={16} />
-                        </button>
+                        <button onClick={() => handleAgregarAlCarrito(f)} className="p-2 md:p-3 bg-black text-white rounded-xl hover:bg-blue-600 transition-colors shadow-md active:scale-95 shrink-0" title="Añadir al carrito"><ShoppingCart size={16} /></button>
                     </div>
                 ))}
             </div>
