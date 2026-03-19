@@ -21,54 +21,30 @@ import { formatCurrency, formatearImagen } from '../utils/adminUtils';
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
 
-// 🔥 SUPER MOTOR DE FECHAS (AHORA SOPORTA FECHAS EXACTAS REPROGRAMADAS) 🔥
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
 
-    // 1. ¿Es una fecha exacta reprogramada por el Admin? (YYYY-MM-DD)
     if (diaRuta && /^\d{4}-\d{2}-\d{2}$/.test(diaRuta)) {
         const fechaExacta = new Date(diaRuta);
         fechaExacta.setMinutes(fechaExacta.getMinutes() + fechaExacta.getTimezoneOffset());
-        return {
-            ciudad: 'REPROGRAMADO',
-            diaNombre: diaRuta, 
-            fechaFormateada: fechaExacta.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
-            fechaRaw: fechaExacta,
-            color: "text-orange-600",
-            bg: "bg-orange-50",
-            reprogramado: true
-        };
+        return { ciudad: 'REPROGRAMADO', diaNombre: diaRuta, fechaFormateada: fechaExacta.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }), fechaRaw: fechaExacta, color: "text-orange-600", bg: "bg-orange-50", reprogramado: true };
     }
 
-    // 2. Lógica normal (Búsqueda por ciudad)
     if (!diaRuta || diaRuta.toUpperCase() === "A CONVENIR") {
         const textoCliente = `${ciudadCliente || ''} ${direccionCliente || ''}`.toUpperCase();
         let matchEncontrado = null;
         for (const ruta of rutasDB) {
             const palabrasClave = (ruta.ciudad || '').toUpperCase().split(',').map(c => c.trim());
-            if (palabrasClave.some(palabra => palabra !== '' && textoCliente.includes(palabra))) {
-                matchEncontrado = ruta.dia_ruta; break;
-            }
+            if (palabrasClave.some(palabra => palabra !== '' && textoCliente.includes(palabra))) { matchEncontrado = ruta.dia_ruta; break; }
         }
         if (!matchEncontrado) {
-            const MAPA_RUTAS_DEFECTO = {
-                "CHIGORODO": "Lunes", "CAREPA": "Lunes", "MUTATA": "Martes", "PAVARANDO": "Martes",
-                "BAJIRA": "Miércoles", "PLAYA ROJA": "Miércoles", "APARTADO": "Jueves", "TURBO": "Jueves",
-                "NECOCLI": "Viernes", "ARBOLETES": "Viernes"
-            };
-            for (const [ciudadMap, diaMap] of Object.entries(MAPA_RUTAS_DEFECTO)) {
-                if (textoCliente.includes(ciudadMap)) { matchEncontrado = diaMap; break; }
-            }
+            const MAPA_RUTAS_DEFECTO = { "CHIGORODO": "Lunes", "CAREPA": "Lunes", "MUTATA": "Martes", "PAVARANDO": "Martes", "BAJIRA": "Miércoles", "PLAYA ROJA": "Miércoles", "APARTADO": "Jueves", "TURBO": "Jueves", "NECOCLI": "Viernes", "ARBOLETES": "Viernes" };
+            for (const [ciudadMap, diaMap] of Object.entries(MAPA_RUTAS_DEFECTO)) { if (textoCliente.includes(ciudadMap)) { matchEncontrado = diaMap; break; } }
         }
         diaRuta = matchEncontrado || "A CONVENIR";
     }
 
-    if (diaRuta.toUpperCase() === "A CONVENIR") {
-        return { 
-            ciudad: "A CONVENIR", diaNombre: "A CONVENIR", fechaFormateada: "Por definir con logística", 
-            fechaRaw: null, color: "text-amber-500", bg: "bg-amber-50", reprogramado: false
-        };
-    }
+    if (diaRuta.toUpperCase() === "A CONVENIR") { return { ciudad: "A CONVENIR", diaNombre: "A CONVENIR", fechaFormateada: "Por definir con logística", fechaRaw: null, color: "text-amber-500", bg: "bg-amber-50", reprogramado: false }; }
 
     const mapDias = { "DOMINGO": 0, "LUNES": 1, "MARTES": 2, "MIÉRCOLES": 3, "MIERCOLES": 3, "JUEVES": 4, "VIERNES": 5, "SÁBADO": 6, "SABADO": 6 };
     const diaDestino = mapDias[diaRuta.toUpperCase()];
@@ -88,11 +64,7 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
     const fechaEntrega = new Date(fechaBase);
     fechaEntrega.setDate(fechaBase.getDate() + diasFaltantes);
 
-    return {
-        ciudad: diaRuta, diaNombre: diaRuta, fechaRaw: fechaEntrega,
-        fechaFormateada: fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
-        color: "text-green-600", bg: "bg-green-50", reprogramado: false
-    };
+    return { ciudad: diaRuta, diaNombre: diaRuta, fechaRaw: fechaEntrega, fechaFormateada: fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }), color: "text-green-600", bg: "bg-green-50", reprogramado: false };
 };
 
 const StatCard = ({ title, value, icon, color, subtitle }) => (
@@ -492,7 +464,7 @@ const AdminDashboard = () => {
     };
 
     const handleEliminar = async () => { try { await API.delete(`/productos/${productoAEliminar.id}`); setShowDeleteModal(false); fetchDatos(); toast.success("Producto Eliminado"); } catch (err) { toast.error("Error"); } };
-    const actualizarEstadoPedido = async (id, nuevoEstado) => { try { await API.put(`/pedidos/${id}/estado`, { estado: nuevoEstado }); fetchDatos(); toast.success("Estado Actualizado"); } catch (err) { toast.error("Error"); } };
+    const actualizarEstadoPedido = async (id, nuevoEstado) => { try { await API.put(`/pedidos/${id}/estado`, { estado: nuevoEstado }); fetchDatos(); toast.success("Estado Actualizado"); } catch (err) { toast.error(err.response?.data?.error || "Error"); } };
     const actualizarRutaPedido = async (id, nuevaRuta) => { try { await API.put(`/pedidos/${id}/ruta`, { ruta: nuevaRuta }); fetchDatos(); toast.success(`Ruta actualizada`); } catch (err) { toast.error("Error al actualizar la ruta"); } };
     
     const handleDevolucionProducto = async (pedidoId, item) => {
@@ -1068,6 +1040,7 @@ const AdminDashboard = () => {
                                             <div className="mb-6"><p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Contenido:</p><ul className="text-[9px] md:text-[10px] font-bold text-gray-600 space-y-1 mb-4">{items.slice(0, 3).map((item, idx) => (<li key={idx} className="truncate">• {item.cantidad}x {item.Producto?.nombre || item.nombre}</li>))}{items.length > 3 && <li className="text-blue-500">+ {items.length - 3} artículos más</li>}</ul><h4 className="text-2xl md:text-3xl font-black text-gray-900 italic tracking-tighter">${formatCurrency(ped.total)}</h4></div>
                                         </div>
                                         <div className="space-y-3 bg-gray-50 p-3 md:p-4 rounded-2xl md:rounded-3xl">
+                                            {/* 🔥 AQUÍ ESTÁ EL SELECTOR DOBLE (DÍA NORMAL O FECHA EXACTA) 🔥 */}
                                             <div className="grid grid-cols-2 gap-2">
                                                 <div>
                                                     <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Forzar Día</label>
@@ -1088,21 +1061,31 @@ const AdminDashboard = () => {
                                             </div>
                                             <div className="pt-2 mt-2 border-t border-gray-200">
                                                 <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Estado Logístico</label>
+                                                
+                                                {/* 🔥 EL SELECT ESTÁ BLOQUEADO SI EL CLIENTE CANCELÓ 🔥 */}
                                                 <select 
                                                     value={ped.estado || ''} 
+                                                    disabled={ped.estado === 'Cancelado' && ped.cancelado_por === 'CLIENTE'}
                                                     onChange={(e) => {
                                                         if (e.target.value === 'Entregado') {
                                                             if (estaLiquidado) actualizarEstadoPedido(ped.id, 'Entregado');
                                                             else { setPedidoACobrar(ped); setShowCobroModal(true); }
                                                         } else { actualizarEstadoPedido(ped.id, e.target.value); }
                                                     }} 
-                                                    className="w-full border-none rounded-xl text-[9px] md:text-[10px] font-black uppercase p-2 md:p-3 outline-none bg-black text-white cursor-pointer mt-1"
+                                                    className={`w-full border-none rounded-xl text-[9px] md:text-[10px] font-black uppercase p-2 md:p-3 outline-none cursor-pointer mt-1 ${(ped.estado === 'Cancelado' && ped.cancelado_por === 'CLIENTE') ? 'bg-red-100 text-red-500 cursor-not-allowed' : 'bg-black text-white'}`}
                                                 >
                                                     <option value="Pendiente">⏳ PENDIENTE (Bodega)</option>
                                                     <option value="Enviado">🚚 EN RUTA (Camión)</option>
                                                     <option value="Entregado">✅ ENTREGADO</option>
                                                     <option value="Cancelado">❌ CANCELADO</option>
                                                 </select>
+                                                
+                                                {/* Mensaje de aviso de bloqueo */}
+                                                {ped.estado === 'Cancelado' && ped.cancelado_por === 'CLIENTE' && (
+                                                    <p className="text-[8px] text-red-500 font-bold mt-1.5 flex items-center gap-1 uppercase tracking-widest leading-tight">
+                                                        <Lock size={10} /> Cancelado por el cliente
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
