@@ -5,7 +5,7 @@ import { useCart } from '../context/CartContext';
 import { 
     ShoppingBag, Heart, MapPin, User, ChevronRight, 
     Settings, Save, X, Clock, Truck, CheckCircle, ShieldCheck, 
-    Lock, MessageCircle, CalendarClock, Wallet, Banknote, History, ShoppingCart, Package, AlertTriangle
+    Lock, MessageCircle, CalendarClock, Wallet, Banknote, History, ShoppingCart, Package, AlertTriangle // 🔥 AHORA SÍ ESTÁ IMPORTADO 🔥
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
