@@ -16,10 +16,86 @@ import {
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
-import { formatCurrency, formatearImagen, calcularFechaReal } from '../utils/adminUtils';
+
+// ⚠️ Se eliminó calcularFechaReal de aquí, lo definiremos localmente para darle más poder
+import { formatCurrency, formatearImagen } from '../utils/adminUtils';
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
+
+// 🔥 SUPER MOTOR DE FECHAS (AHORA SOPORTA FECHAS EXACTAS REPROGRAMADAS) 🔥
+const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
+    let diaRuta = rutaGuardada;
+
+    // 1. ¿Es una fecha exacta reprogramada por el Admin? (YYYY-MM-DD)
+    if (diaRuta && /^\d{4}-\d{2}-\d{2}$/.test(diaRuta)) {
+        const fechaExacta = new Date(diaRuta);
+        fechaExacta.setMinutes(fechaExacta.getMinutes() + fechaExacta.getTimezoneOffset());
+        return {
+            ciudad: 'REPROGRAMADO',
+            diaNombre: diaRuta, 
+            fechaFormateada: fechaExacta.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+            fechaRaw: fechaExacta,
+            color: "text-orange-600",
+            bg: "bg-orange-50",
+            reprogramado: true
+        };
+    }
+
+    // 2. Lógica normal (Búsqueda por ciudad)
+    if (!diaRuta || diaRuta.toUpperCase() === "A CONVENIR") {
+        const textoCliente = `${ciudadCliente || ''} ${direccionCliente || ''}`.toUpperCase();
+        let matchEncontrado = null;
+        for (const ruta of rutasDB) {
+            const palabrasClave = (ruta.ciudad || '').toUpperCase().split(',').map(c => c.trim());
+            if (palabrasClave.some(palabra => palabra !== '' && textoCliente.includes(palabra))) {
+                matchEncontrado = ruta.dia_ruta; break;
+            }
+        }
+        if (!matchEncontrado) {
+            const MAPA_RUTAS_DEFECTO = {
+                "CHIGORODO": "Lunes", "CAREPA": "Lunes", "MUTATA": "Martes", "PAVARANDO": "Martes",
+                "BAJIRA": "Miércoles", "PLAYA ROJA": "Miércoles", "APARTADO": "Jueves", "TURBO": "Jueves",
+                "NECOCLI": "Viernes", "ARBOLETES": "Viernes"
+            };
+            for (const [ciudadMap, diaMap] of Object.entries(MAPA_RUTAS_DEFECTO)) {
+                if (textoCliente.includes(ciudadMap)) { matchEncontrado = diaMap; break; }
+            }
+        }
+        diaRuta = matchEncontrado || "A CONVENIR";
+    }
+
+    if (diaRuta.toUpperCase() === "A CONVENIR") {
+        return { 
+            ciudad: "A CONVENIR", diaNombre: "A CONVENIR", fechaFormateada: "Por definir con logística", 
+            fechaRaw: null, color: "text-amber-500", bg: "bg-amber-50", reprogramado: false
+        };
+    }
+
+    const mapDias = { "DOMINGO": 0, "LUNES": 1, "MARTES": 2, "MIÉRCOLES": 3, "MIERCOLES": 3, "JUEVES": 4, "VIERNES": 5, "SÁBADO": 6, "SABADO": 6 };
+    const diaDestino = mapDias[diaRuta.toUpperCase()];
+    if (diaDestino === undefined) return { ciudad: diaRuta, diaNombre: diaRuta, fechaFormateada: diaRuta, fechaRaw: null, color: "text-gray-500", bg: "bg-gray-50", reprogramado: false };
+
+    const fechaBase = fechaCreacionStr ? new Date(fechaCreacionStr) : new Date();
+    const diaActual = fechaBase.getDay(); 
+    let diasFaltantes = diaDestino - diaActual;
+
+    if (diasFaltantes < 0) diasFaltantes += 7;
+    if (diasFaltantes === 0) diasFaltantes += 7;
+    else if (diasFaltantes === 1) {
+        const [limiteHora, limiteMinuto] = horaLimite.split(':').map(Number);
+        if (fechaBase.getHours() > limiteHora || (fechaBase.getHours() === limiteHora && fechaBase.getMinutes() >= limiteMinuto)) diasFaltantes += 7;
+    }
+
+    const fechaEntrega = new Date(fechaBase);
+    fechaEntrega.setDate(fechaBase.getDate() + diasFaltantes);
+
+    return {
+        ciudad: diaRuta, diaNombre: diaRuta, fechaRaw: fechaEntrega,
+        fechaFormateada: fechaEntrega.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+        color: "text-green-600", bg: "bg-green-50", reprogramado: false
+    };
+};
 
 const StatCard = ({ title, value, icon, color, subtitle }) => (
     <div className="bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm group hover:border-black transition-all duration-300">
@@ -58,7 +134,6 @@ const AdminDashboard = () => {
     const [searchTermCartera, setSearchTermCartera] = useState(''); 
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('TODOS'); 
 
-    // 🔥 NUEVO: Filtros de Libro Mayor (Finanzas con Rango de Fechas) 🔥
     const [fechaInicioFinanzas, setFechaInicioFinanzas] = useState('');
     const [fechaFinFinanzas, setFechaFinFinanzas] = useState('');
     const [filtroClienteFinanzas, setFiltroClienteFinanzas] = useState('Todos');
@@ -181,7 +256,7 @@ const AdminDashboard = () => {
         pedidos.filter(p => p.estado === 'Pendiente').forEach(ped => {
             const info = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
             const clave = info.fechaFormateada;
-            if (!agenda[clave]) { agenda[clave] = { dia: info.diaNombre, fecha: info.fechaFormateada, cantidad: 0, total: 0, pedidos: [] }; }
+            if (!agenda[clave]) { agenda[clave] = { dia: info.diaNombre, fecha: info.fechaFormateada, cantidad: 0, total: 0, pedidos: [], reprogramado: info.reprogramado }; }
             agenda[clave].cantidad += 1; agenda[clave].total += parseFloat(ped.total || 0); agenda[clave].pedidos.push(ped);
         });
         return Object.values(agenda).sort((a, b) => b.cantidad - a.cantidad);
@@ -207,44 +282,32 @@ const AdminDashboard = () => {
         return Object.keys(conteo).map(nombre => ({ nombre, ...conteo[nombre] })).sort((a, b) => b.totalGastado - a.totalGastado).slice(0, 5);
     }, [pedidos]);
 
-    // 🔥 LÓGICA DE FILTRADO PARA EL LIBRO MAYOR (RANGO DE FECHAS) 🔥
     const transaccionesFiltradas = useMemo(() => {
         let filtradas = transacciones;
-
-        // 1. Filtrar por Rango de Fechas
         if (fechaInicioFinanzas || fechaFinFinanzas) {
             filtradas = filtradas.filter(tx => {
                 const fechaTx = new Date(tx.fecha);
-                fechaTx.setHours(0, 0, 0, 0); // Normalizar a medianoche local
-                
-                let cumpleInicio = true;
-                let cumpleFin = true;
-
+                fechaTx.setHours(0, 0, 0, 0); 
+                let cumpleInicio = true, cumpleFin = true;
                 if (fechaInicioFinanzas) {
                     const [year, month, day] = fechaInicioFinanzas.split('-').map(Number);
                     const fInicio = new Date(year, month - 1, day);
                     fInicio.setHours(0, 0, 0, 0);
                     cumpleInicio = fechaTx >= fInicio;
                 }
-
                 if (fechaFinFinanzas) {
                     const [year, month, day] = fechaFinFinanzas.split('-').map(Number);
                     const fFin = new Date(year, month - 1, day);
-                    fFin.setHours(23, 59, 59, 999); // Hasta el último segundo del día
+                    fFin.setHours(23, 59, 59, 999); 
                     cumpleFin = fechaTx <= fFin;
                 }
-
                 return cumpleInicio && cumpleFin;
             });
         }
-
-        // 2. Filtrar por Cliente
         if (filtroClienteFinanzas !== 'Todos') {
             const nombreCliente = filtroClienteFinanzas.toLowerCase();
             filtradas = filtradas.filter(tx => (tx.descripcion || '').toLowerCase().includes(nombreCliente));
         }
-
-        // 3. Filtrar por Factura o Texto
         if (filtroTextoFinanzas) {
             const term = filtroTextoFinanzas.toLowerCase();
             filtradas = filtradas.filter(tx => {
@@ -254,7 +317,6 @@ const AdminDashboard = () => {
                 return desc.includes(term) || cat.includes(term) || pedId.includes(term);
             });
         }
-
         return filtradas;
     }, [transacciones, fechaInicioFinanzas, fechaFinFinanzas, filtroClienteFinanzas, filtroTextoFinanzas]);
 
@@ -431,7 +493,7 @@ const AdminDashboard = () => {
 
     const handleEliminar = async () => { try { await API.delete(`/productos/${productoAEliminar.id}`); setShowDeleteModal(false); fetchDatos(); toast.success("Producto Eliminado"); } catch (err) { toast.error("Error"); } };
     const actualizarEstadoPedido = async (id, nuevoEstado) => { try { await API.put(`/pedidos/${id}/estado`, { estado: nuevoEstado }); fetchDatos(); toast.success("Estado Actualizado"); } catch (err) { toast.error("Error"); } };
-    const actualizarRutaPedido = async (id, nuevaRuta) => { try { await API.put(`/pedidos/${id}/ruta`, { ruta: nuevaRuta }); fetchDatos(); toast.success(`Ruta actualizada a ${nuevaRuta}`); } catch (err) { toast.error("Error al actualizar la ruta"); } };
+    const actualizarRutaPedido = async (id, nuevaRuta) => { try { await API.put(`/pedidos/${id}/ruta`, { ruta: nuevaRuta }); fetchDatos(); toast.success(`Ruta actualizada`); } catch (err) { toast.error("Error al actualizar la ruta"); } };
     
     const handleDevolucionProducto = async (pedidoId, item) => {
         const qtyStr = window.prompt(`Reembolso / Devolución:\n\n¿Cuántas unidades de "${item.Producto?.nombre || item.nombre}" regresó el cliente?\n(Máximo disponible: ${item.cantidad})`, "1");
@@ -699,7 +761,9 @@ const AdminDashboard = () => {
                                                 <div className="flex items-center gap-3 md:gap-4">
                                                     <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center font-black text-sm md:text-base">{agenda.cantidad}</div>
                                                     <div>
-                                                        <p className="font-black text-gray-900 uppercase italic text-xs md:text-sm">{agenda.dia}</p>
+                                                        <p className={`font-black uppercase italic text-xs md:text-sm ${agenda.reprogramado ? 'text-orange-600' : 'text-gray-900'}`}>
+                                                            {agenda.reprogramado ? 'REPROGRAMADO' : agenda.dia}
+                                                        </p>
                                                         <p className="text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest">{agenda.fecha}</p>
                                                     </div>
                                                 </div>
@@ -766,36 +830,9 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
-                            <div className="flex justify-between items-center mb-6 md:mb-8">
-                                <div><h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Ranking de Clientes</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Top compradores históricos</p></div>
-                                <Award className="text-yellow-500" size={28} />
-                            </div>
-                            <div className="overflow-x-auto custom-scrollbar">
-                                <table className="w-full text-left min-w-[500px]">
-                                    <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-widest border-b">
-                                        <tr><th className="px-4 md:px-6 py-4 rounded-tl-xl">Puesto / Cliente</th><th className="px-4 md:px-6 py-4 text-center">Total Pedidos</th><th className="px-4 md:px-6 py-4 text-right rounded-tr-xl">Inversión Histórica</th></tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {dataMejoresClientes.length === 0 && (<tr><td colSpan="3" className="py-8 text-center text-gray-400 text-xs font-bold uppercase">Sin datos registrados</td></tr>)}
-                                        {dataMejoresClientes.map((cliente, i) => (
-                                            <tr key={i} className="hover:bg-gray-50 transition-all group">
-                                                <td className="px-4 md:px-6 py-4 flex items-center gap-3 md:gap-4">
-                                                    <div className={`w-6 h-6 md:w-8 h-8 rounded-full flex items-center justify-center font-black text-[10px] md:text-xs ${i === 0 ? 'bg-yellow-100 text-yellow-600' : i === 1 ? 'bg-gray-200 text-gray-600' : i === 2 ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>#{i+1}</div>
-                                                    <span className="font-black text-xs md:text-sm uppercase text-gray-900 truncate">{cliente.nombre}</span>
-                                                </td>
-                                                <td className="px-4 md:px-6 py-4 text-center"><span className="bg-gray-100 text-gray-600 px-3 py-1 md:px-4 md:py-1.5 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest">{cliente.pedidos} Compras</span></td>
-                                                <td className="px-4 md:px-6 py-4 text-right font-black text-base md:text-lg italic text-green-600 group-hover:scale-105 transition-transform">${formatCurrency(cliente.totalGastado)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
                     </div>
                 )}
 
-                {/* 🔥 VISTA DE FINANZAS 🔥 */}
                 {tab === 'finanzas' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
@@ -829,7 +866,6 @@ const AdminDashboard = () => {
                                     ))}
                                 </select>
 
-                                {/* 🔥 NUEVO FILTRO POR RANGO DE FECHAS 🔥 */}
                                 <div className="flex flex-wrap items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200">
                                     <Filter size={14} className="text-gray-400 ml-1 hidden sm:block"/>
                                     <div className="flex items-center gap-1">
@@ -864,6 +900,33 @@ const AdminDashboard = () => {
                             <div className="bg-black p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] shadow-2xl relative overflow-hidden"><div className="absolute top-0 right-0 p-8 opacity-10"><Wallet size={100} /></div><div className="w-10 h-10 md:w-12 md:h-12 bg-gray-800 text-white rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6"><DollarSign size={20} /></div><p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Balance Neto Real</p><h3 className="text-3xl md:text-4xl font-black text-white tracking-tighter italic z-10 relative truncate">${formatCurrency(finanzasFiltradas.balance)}</h3></div>
                         </div>
                         <div className="bg-blue-50 border border-blue-100 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] flex flex-col md:flex-row items-start md:items-center justify-between gap-4"><div><h3 className="text-lg md:text-xl font-black text-blue-900 uppercase tracking-tighter">Patrimonio en Bodega</h3><p className="text-[9px] md:text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">Cálculo Global: Stock Actual × Costo de Compra</p></div><h3 className="text-3xl md:text-4xl font-black text-blue-600 tracking-tighter italic truncate">${formatCurrency(finanzasFiltradas.valorInventario)}</h3></div>
+                        
+                        <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
+                            <div className="flex justify-between items-center mb-6 md:mb-8">
+                                <div><h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Ranking de Clientes</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Top compradores históricos</p></div>
+                                <Award className="text-yellow-500" size={28} />
+                            </div>
+                            <div className="overflow-x-auto custom-scrollbar">
+                                <table className="w-full text-left min-w-[500px]">
+                                    <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-widest border-b">
+                                        <tr><th className="px-4 md:px-6 py-4 rounded-tl-xl">Puesto / Cliente</th><th className="px-4 md:px-6 py-4 text-center">Total Pedidos</th><th className="px-4 md:px-6 py-4 text-right rounded-tr-xl">Inversión Histórica</th></tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {dataMejoresClientes.length === 0 && (<tr><td colSpan="3" className="py-8 text-center text-gray-400 text-xs font-bold uppercase">Sin datos registrados</td></tr>)}
+                                        {dataMejoresClientes.map((cliente, i) => (
+                                            <tr key={i} className="hover:bg-gray-50 transition-all group">
+                                                <td className="px-4 md:px-6 py-4 flex items-center gap-3 md:gap-4">
+                                                    <div className={`w-6 h-6 md:w-8 h-8 rounded-full flex items-center justify-center font-black text-[10px] md:text-xs ${i === 0 ? 'bg-yellow-100 text-yellow-600' : i === 1 ? 'bg-gray-200 text-gray-600' : i === 2 ? 'bg-orange-100 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>#{i+1}</div>
+                                                    <span className="font-black text-xs md:text-sm uppercase text-gray-900 truncate">{cliente.nombre}</span>
+                                                </td>
+                                                <td className="px-4 md:px-6 py-4 text-center"><span className="bg-gray-100 text-gray-600 px-3 py-1 md:px-4 md:py-1.5 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest">{cliente.pedidos} Compras</span></td>
+                                                <td className="px-4 md:px-6 py-4 text-right font-black text-base md:text-lg italic text-green-600 group-hover:scale-105 transition-transform">${formatCurrency(cliente.totalGastado)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
 
                         <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
                             <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-2">Libro Mayor</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 md:mb-8">Registro detallado de transacciones</p>
@@ -927,7 +990,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* VISTA DE PEDIDOS */}
+                {/* VISTA DE PEDIDOS (CON OPCIÓN DE REPROGRAMAR FECHA) */}
                 {tab === 'pedidos' && (
                     <>
                         <div className="flex flex-col sm:flex-row justify-between mb-4 items-stretch sm:items-center gap-3">
@@ -983,7 +1046,11 @@ const AdminDashboard = () => {
                                 return (
                                     <div key={ped.id} className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden flex flex-col justify-between">
                                         <div>
-                                            <div className="absolute top-0 left-0 w-full bg-black py-1.5 md:py-2 text-center border-b"><span className="text-[8px] md:text-[9px] font-black text-white uppercase tracking-widest flex items-center justify-center gap-2"><Truck size={10} /> RUTA: {infoRuta.diaNombre.toUpperCase()}</span></div>
+                                            <div className={`absolute top-0 left-0 w-full py-1.5 md:py-2 text-center border-b ${infoRuta.reprogramado ? 'bg-orange-500 border-orange-600' : 'bg-black border-black'}`}>
+                                                <span className="text-[8px] md:text-[9px] font-black text-white uppercase tracking-widest flex items-center justify-center gap-2">
+                                                    {infoRuta.reprogramado ? <><AlertTriangle size={10} /> REPROGRAMADO: {infoRuta.diaNombre}</> : <><Truck size={10} /> RUTA: {infoRuta.diaNombre.toUpperCase()}</>}
+                                                </span>
+                                            </div>
                                             
                                             <div className="flex justify-between items-start mb-4 mt-6">
                                                 <div className="flex flex-col gap-2">
@@ -995,16 +1062,28 @@ const AdminDashboard = () => {
                                                 <button onClick={() => setPedidoDetalle(ped)} className="p-2 md:p-3 bg-gray-50 group-hover:bg-black group-hover:text-white rounded-xl md:rounded-2xl transition-all"><Eye size={14} /></button>
                                             </div>
                                             
-                                            <div className="mb-4 border-b border-gray-50 pb-4"><p className="text-[9px] md:text-[10px] font-black uppercase text-blue-600 mb-1 tracking-widest">{ped.Usuario?.nombre || 'CLIENTE DIRECTO'}</p><p className="text-[10px] md:text-[11px] font-bold text-gray-700 leading-tight">📍 {ped.direccion || ped.Usuario?.direccion || 'Sin dirección'}</p><p className="text-[8px] md:text-[9px] font-black text-gray-400 mt-1 uppercase">Ciudad: {ped.Usuario?.ciudad || 'No especificada'}</p><p className="text-[8px] md:text-[9px] font-bold text-orange-500 mt-2 bg-orange-50 p-1.5 md:p-2 rounded-lg inline-block">📆 Llegará el: {infoRuta.fechaFormateada}</p></div>
+                                            <div className="mb-4 border-b border-gray-50 pb-4"><p className="text-[9px] md:text-[10px] font-black uppercase text-blue-600 mb-1 tracking-widest">{ped.Usuario?.nombre || 'CLIENTE DIRECTO'}</p><p className="text-[10px] md:text-[11px] font-bold text-gray-700 leading-tight">📍 {ped.direccion || ped.Usuario?.direccion || 'Sin dirección'}</p><p className="text-[8px] md:text-[9px] font-black text-gray-400 mt-1 uppercase">Ciudad: {ped.Usuario?.ciudad || 'No especificada'}</p><p className={`text-[8px] md:text-[9px] font-bold mt-2 p-1.5 md:p-2 rounded-lg inline-block ${infoRuta.reprogramado ? 'text-orange-700 bg-orange-100' : 'text-orange-500 bg-orange-50'}`}>📆 Llegará el: {infoRuta.fechaFormateada}</p></div>
                                             <div className="mb-6"><p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Contenido:</p><ul className="text-[9px] md:text-[10px] font-bold text-gray-600 space-y-1 mb-4">{items.slice(0, 3).map((item, idx) => (<li key={idx} className="truncate">• {item.cantidad}x {item.Producto?.nombre || item.nombre}</li>))}{items.length > 3 && <li className="text-blue-500">+ {items.length - 3} artículos más</li>}</ul><h4 className="text-2xl md:text-3xl font-black text-gray-900 italic tracking-tighter">${formatCurrency(ped.total)}</h4></div>
                                         </div>
-                                        <div className="space-y-2 bg-gray-50 p-3 md:p-4 rounded-2xl md:rounded-3xl">
-                                            <div>
-                                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Forzar Ruta</label>
-                                                <select value={infoRuta.diaNombre || ''} onChange={(e) => actualizarRutaPedido(ped.id, e.target.value)} className="w-full border border-gray-200 rounded-xl text-[9px] md:text-[10px] font-bold uppercase p-2 md:p-3 outline-none bg-white cursor-pointer mt-1">
-                                                    <option value="A CONVENIR">A CONVENIR</option>
-                                                    {diasUnicosDropdown.map(r => <option key={r} value={r}>{r}</option>)}
-                                                </select>
+                                        <div className="space-y-3 bg-gray-50 p-3 md:p-4 rounded-2xl md:rounded-3xl">
+                                            {/* 🔥 AQUÍ ESTÁ EL SELECTOR DOBLE (DÍA NORMAL O FECHA EXACTA) 🔥 */}
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Forzar Día</label>
+                                                    <select value={(!infoRuta.reprogramado && infoRuta.diaNombre) ? infoRuta.diaNombre : ''} onChange={(e) => actualizarRutaPedido(ped.id, e.target.value)} className="w-full border border-gray-200 rounded-xl text-[9px] md:text-[10px] font-bold uppercase p-2 outline-none bg-white cursor-pointer mt-1">
+                                                        <option value="A CONVENIR">A CONVENIR</option>
+                                                        {diasUnicosDropdown.map(r => <option key={r} value={r}>{r}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[8px] md:text-[9px] font-black text-orange-500 uppercase tracking-widest ml-1 md:ml-2 flex items-center gap-1"><CalendarDays size={10}/> Reprogramar</label>
+                                                    <input 
+                                                        type="date" 
+                                                        value={infoRuta.reprogramado ? infoRuta.diaNombre : ''} 
+                                                        onChange={(e) => actualizarRutaPedido(ped.id, e.target.value)} 
+                                                        className="w-full border border-orange-200 text-orange-700 rounded-xl text-[9px] md:text-[10px] font-bold uppercase p-1.5 outline-none bg-orange-50 cursor-pointer mt-1" 
+                                                    />
+                                                </div>
                                             </div>
                                             <div className="pt-2 mt-2 border-t border-gray-200">
                                                 <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Estado Logístico</label>
@@ -1032,7 +1111,6 @@ const AdminDashboard = () => {
                     </>
                 )}
 
-                {/* VISTA DE CLIENTES (ADMIN DE USUARIOS) */}
                 {tab === 'clientes' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[600px]">
