@@ -26,6 +26,7 @@ const formatearImagen = (url) => {
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
 
+    // 1. ¿El Admin modificó la fecha con una exacta? (YYYY-MM-DD)
     if (diaRuta && /^\d{4}-\d{2}-\d{2}$/.test(diaRuta)) {
         const fechaExacta = new Date(diaRuta);
         fechaExacta.setMinutes(fechaExacta.getMinutes() + fechaExacta.getTimezoneOffset());
@@ -35,6 +36,7 @@ const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasD
         };
     }
     
+    // 2. Lógica Clásica
     if (!diaRuta || diaRuta.toUpperCase() === "A CONVENIR") {
         const textoCliente = `${ciudadCliente || ''} ${direccionCliente || ''}`.toUpperCase();
         let matchEncontrado = null;
@@ -94,7 +96,7 @@ const formatCurrency = (valor) => Number(valor || 0).toLocaleString('es-CO');
 
 const Perfil = () => {
     const [seccion, setSeccion] = useState('pedidos');
-    const { user } = useAuth(); // 🔥 Extraemos el user aquí para pasarlo a los componentes 🔥
+    const { user } = useAuth();
 
     const MenuItems = [
         { id: 'pedidos', label: 'Historial de Pedidos', icon: <ShoppingBag size={18}/> },
@@ -136,7 +138,6 @@ const Perfil = () => {
             </div>
 
             <div className="flex-1 bg-white p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem] shadow-2xl shadow-gray-100 border border-gray-100 min-h-[400px] md:min-h-[600px] relative overflow-hidden">
-                {/* 🔥 Pasamos el usuario a los componentes para validar los sockets 🔥 */}
                 {seccion === 'pedidos' && <HistorialPedidos user={user} />}
                 {seccion === 'cartera' && <MiCartera user={user} />} 
                 {seccion === 'datos' && <InformacionPersonal />}
@@ -172,7 +173,6 @@ const MiCartera = ({ user }) => {
     useEffect(() => {
         fetchCredito();
         
-        // 🔥 MAGIA DE TIEMPO REAL: Escuchamos si el Admin hizo un abono o cambio 🔥
         const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
         socket.on("cartera_actualizada", (data) => {
             if (data.usuarioId === user?.id) fetchCredito(true);
@@ -319,7 +319,6 @@ const HistorialPedidos = ({ user }) => {
     useEffect(() => {
         fetchPedidosConfig();
 
-        // 🔥 MAGIA DE TIEMPO REAL: Escuchamos si el Admin actualizó estado o fecha 🔥
         const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
         socket.on("pedido_actualizado", (data) => {
             if (data.usuarioId === user?.id) fetchPedidosConfig(true);
@@ -468,11 +467,24 @@ const InformacionPersonal = () => {
            .catch(err => console.error("Error al cargar whatsapp"));
     }, [user]);
 
+    // 🔥 BUG DP-002 CORREGIDO: VALIDACIÓN DE TELÉFONO VACÍO O INVÁLIDO 🔥
     const handleActualizar = async () => {
+        const telefonoLimpio = formData.telefono.trim();
+        
+        if (!telefonoLimpio) {
+            toast.error("El campo de teléfono no puede estar vacío.", { icon: '⚠️' });
+            return;
+        }
+
+        if (!/^\d+$/.test(telefonoLimpio)) {
+             toast.error("El teléfono solo puede contener números.", { icon: '⚠️' });
+             return;
+        }
+
         setLoading(true);
         try {
-            const res = await API.put('/auth/perfil', { telefono: formData.telefono });
-            const datosParaSesion = res.data?.usuario ? res.data.usuario : { ...user, telefono: formData.telefono };
+            const res = await API.put('/auth/perfil', { telefono: telefonoLimpio });
+            const datosParaSesion = res.data?.usuario ? res.data.usuario : { ...user, telefono: telefonoLimpio };
             if (typeof setUser === 'function') {
                 setUser(datosParaSesion);
                 toast.success("¡Teléfono actualizado con éxito!");
@@ -571,22 +583,8 @@ const Favoritos = () => {
     }, []);
 
     const handleAgregarAlCarrito = (producto) => {
-        if (producto.stock !== undefined && producto.stock <= 0) {
-            toast.error("Este producto se encuentra agotado.", { icon: '⚠️' });
-            return; 
-        }
-
-        addToCart({
-            id: producto.id,
-            nombre: producto.nombre,
-            precio: producto.precio,
-            imagen_url: producto.imagen_url,
-            Categoria: producto.Categoria || { nombre: 'General' },
-            stock: producto.stock,
-            tope_stock: producto.tope_stock,
-            cantidad: 1
-        });
-        
+        if (producto.stock !== undefined && producto.stock <= 0) { toast.error("Este producto se encuentra agotado.", { icon: '⚠️' }); return; }
+        addToCart({ id: producto.id, nombre: producto.nombre, precio: producto.precio, imagen_url: producto.imagen_url, Categoria: producto.Categoria || { nombre: 'General' }, stock: producto.stock, tope_stock: producto.tope_stock, cantidad: 1 });
         toast.success("¡Añadido al carrito!", { icon: '🛒' });
     };
 
@@ -600,10 +598,7 @@ const Favoritos = () => {
                 {favoritos.map(f => (
                     <div key={f.id} className="flex items-center gap-3 md:gap-4 p-3 md:p-4 bg-gray-50 rounded-2xl md:rounded-3xl border border-gray-100 hover:border-black transition-colors">
                         <img src={formatearImagen(f.imagen_url)} alt={f.nombre} className="w-12 h-12 md:w-16 md:h-16 rounded-lg md:rounded-xl object-cover shrink-0" />
-                        <div className="overflow-hidden flex-1">
-                            <h4 className="font-black text-[10px] md:text-xs uppercase truncate">{f.nombre}</h4>
-                            <p className="text-blue-600 font-black text-xs md:text-sm mt-0.5">${parseFloat(f.precio || 0).toLocaleString()}</p>
-                        </div>
+                        <div className="overflow-hidden flex-1"><h4 className="font-black text-[10px] md:text-xs uppercase truncate">{f.nombre}</h4><p className="text-blue-600 font-black text-xs md:text-sm mt-0.5">${parseFloat(f.precio || 0).toLocaleString()}</p></div>
                         <button onClick={() => handleAgregarAlCarrito(f)} className="p-2 md:p-3 bg-black text-white rounded-xl hover:bg-blue-600 transition-colors shadow-md active:scale-95 shrink-0" title="Añadir al carrito"><ShoppingCart size={16} /></button>
                     </div>
                 ))}
@@ -618,42 +613,52 @@ const DireccionesPagos = () => {
     const [nuevaDir, setNuevaDir] = useState({ etiqueta: '', direccion: '', ciudad: '' });
     const [loading, setLoading] = useState(false);
 
-    const fetchDirecciones = async () => {
-        try { const res = await API.get('/auth/direcciones'); setDirecciones(res.data); } 
-        catch (err) { console.log("Error cargando direcciones"); }
-    };
-
+    const fetchDirecciones = async () => { try { const res = await API.get('/auth/direcciones'); setDirecciones(res.data); } catch (err) { console.log("Error cargando direcciones"); } };
     useEffect(() => { fetchDirecciones(); }, []);
 
+    // 🔥 BUG DP-007 CORREGIDO: VALIDACIÓN CONTRA SOLO NÚMEROS EN DIRECCIONES 🔥
     const handleGuardar = async (e) => {
-        e.preventDefault(); setLoading(true);
-        try {
-            await API.post('/auth/direcciones', nuevaDir); toast.success("Dirección agregada");
-            setMostrarForm(false); setNuevaDir({ etiqueta: '', direccion: '', ciudad: '' }); fetchDirecciones();
-        } catch (err) { toast.error("Error al guardar"); } finally { setLoading(false); }
+        e.preventDefault(); 
+
+        const { etiqueta, ciudad, direccion } = nuevaDir;
+        
+        if (!etiqueta.trim() || !ciudad.trim() || !direccion.trim()) {
+            toast.error("Por favor completa todos los campos.", { icon: '⚠️' });
+            return;
+        }
+
+        const soloNumeros = /^\d+$/;
+        if (soloNumeros.test(etiqueta.trim()) || soloNumeros.test(ciudad.trim()) || soloNumeros.test(direccion.trim())) {
+            toast.error("Las direcciones y etiquetas no pueden contener únicamente números.", { icon: '⚠️' });
+            return;
+        }
+
+        setLoading(true);
+        try { 
+            await API.post('/auth/direcciones', nuevaDir); 
+            toast.success("Dirección agregada exitosamente"); 
+            setMostrarForm(false); 
+            setNuevaDir({ etiqueta: '', direccion: '', ciudad: '' }); 
+            fetchDirecciones(); 
+        } 
+        catch (err) { toast.error("Error al guardar la dirección"); } 
+        finally { setLoading(false); }
     };
 
-    const eliminarDireccion = async (id) => {
-        try { await API.delete(`/auth/direcciones/${id}`); toast.success("Eliminada"); fetchDirecciones(); } 
-        catch (err) { toast.error("Error al eliminar"); }
-    };
+    const eliminarDireccion = async (id) => { try { await API.delete(`/auth/direcciones/${id}`); toast.success("Eliminada"); fetchDirecciones(); } catch (err) { toast.error("Error al eliminar"); } };
 
     return (
         <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
             <div className="border-b pb-4 flex justify-between items-end">
-                <div>
-                    <h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter text-blue-600">Direcciones</h3>
-                    <p className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1">Tus puntos de entrega</p>
-                </div>
+                <div><h3 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tighter text-blue-600">Direcciones</h3><p className="text-gray-400 text-[9px] md:text-[10px] font-bold uppercase tracking-widest mt-1">Tus puntos de entrega</p></div>
                 {!mostrarForm && (<button onClick={() => setMostrarForm(true)} className="bg-blue-600 text-white px-4 md:px-6 py-2 rounded-xl font-black text-[9px] md:text-xs uppercase hover:bg-black transition-all shadow-lg active:scale-95">+ Nueva</button>)}
             </div>
-
             {mostrarForm ? (
                 <form onSubmit={handleGuardar} className="bg-gray-50 p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-blue-100 space-y-3 md:space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                        <input required className="w-full p-3 rounded-xl font-bold text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-600 shadow-sm" placeholder="Etiqueta (Ej: Trabajo)" value={nuevaDir.etiqueta} onChange={e => setNuevaDir({...nuevaDir, etiqueta: e.target.value})} />
-                        <input required className="w-full p-3 rounded-xl font-bold text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-600 shadow-sm" placeholder="Ciudad (Ej: Apartadó)" value={nuevaDir.ciudad} onChange={e => setNuevaDir({...nuevaDir, ciudad: e.target.value})} />
-                        <input required className="w-full sm:col-span-2 p-3 rounded-xl font-bold text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-600 shadow-sm" placeholder="Dirección completa" value={nuevaDir.direccion} onChange={e => setNuevaDir({...nuevaDir, direccion: e.target.value})} />
+                        <input className="w-full p-3 rounded-xl font-bold text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-600 shadow-sm" placeholder="Etiqueta (Ej: Trabajo)" value={nuevaDir.etiqueta} onChange={e => setNuevaDir({...nuevaDir, etiqueta: e.target.value})} />
+                        <input className="w-full p-3 rounded-xl font-bold text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-600 shadow-sm" placeholder="Ciudad (Ej: Apartadó)" value={nuevaDir.ciudad} onChange={e => setNuevaDir({...nuevaDir, ciudad: e.target.value})} />
+                        <input className="w-full sm:col-span-2 p-3 rounded-xl font-bold text-xs md:text-sm outline-none focus:ring-2 focus:ring-blue-600 shadow-sm" placeholder="Dirección completa" value={nuevaDir.direccion} onChange={e => setNuevaDir({...nuevaDir, direccion: e.target.value})} />
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 pt-2">
                         <button type="submit" disabled={loading} className="w-full sm:flex-1 bg-black text-white py-3 md:py-4 rounded-xl font-black text-[10px] md:text-xs uppercase hover:bg-blue-600 transition-colors shadow-lg active:scale-95">{loading ? 'Guardando...' : 'Guardar Dirección'}</button>
@@ -672,10 +677,7 @@ const DireccionesPagos = () => {
                             <div key={dir.id} className="flex items-center justify-between p-4 md:p-5 bg-white border border-gray-100 rounded-2xl md:rounded-3xl shadow-sm hover:border-black transition-colors group">
                                 <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
                                     <div className="w-10 h-10 shrink-0 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center group-hover:bg-black group-hover:text-white transition-colors"><MapPin size={18} /></div>
-                                    <div className="overflow-hidden">
-                                        <h4 className="font-black text-xs md:text-sm uppercase italic truncate">{dir.etiqueta}</h4>
-                                        <p className="text-[10px] md:text-xs text-gray-500 font-medium truncate mt-0.5">{dir.direccion}, {dir.ciudad}</p>
-                                    </div>
+                                    <div className="overflow-hidden"><h4 className="font-black text-xs md:text-sm uppercase italic truncate">{dir.etiqueta}</h4><p className="text-[10px] md:text-xs text-gray-500 font-medium truncate mt-0.5">{dir.direccion}, {dir.ciudad}</p></div>
                                 </div>
                                 <button onClick={() => eliminarDireccion(dir.id)} className="text-gray-300 hover:text-red-500 transition-colors p-2 shrink-0"><X size={16} /></button>
                             </div>

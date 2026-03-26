@@ -21,6 +21,7 @@ import { formatCurrency, formatearImagen } from '../utils/adminUtils';
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
 
+// 🔥 SUPER MOTOR DE FECHAS (AHORA SOPORTA FECHAS EXACTAS REPROGRAMADAS) 🔥
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
 
@@ -189,6 +190,25 @@ const AdminDashboard = () => {
         }
     }, [formulario.costo_compra, formulario.margen_ganancia, formulario.stock_adicional, formulario.costo_nuevo_lote, formulario.stock, formulario.precio, productoEditando]);
 
+    // 🔥 CORRECCIÓN BUG FN-005: Validadores de fechas lógicas 🔥
+    const handleFechaInicioChange = (e) => {
+        const val = e.target.value;
+        if (val && fechaFinFinanzas && val > fechaFinFinanzas) {
+            toast.error("La fecha 'Desde' no puede ser posterior a 'Hasta'", { icon: '⚠️' });
+            return;
+        }
+        setFechaInicioFinanzas(val);
+    };
+
+    const handleFechaFinChange = (e) => {
+        const val = e.target.value;
+        if (val && fechaInicioFinanzas && val < fechaInicioFinanzas) {
+            toast.error("La fecha 'Hasta' no puede ser anterior a 'Desde'", { icon: '⚠️' });
+            return;
+        }
+        setFechaFinFinanzas(val);
+    };
+
     const kpis = useMemo(() => {
         const hoy = new Date(); let ventasHoy = 0, ventasMes = 0, pendientes = 0;
         pedidos.forEach(p => {
@@ -292,12 +312,6 @@ const AdminDashboard = () => {
         transaccionesFiltradas.forEach(tx => { if (tx.tipo === 'INGRESO') ingresos += parseFloat(tx.monto); if (tx.tipo === 'EGRESO') egresos += parseFloat(tx.monto); });
         return { ingresos, egresos, balance: ingresos - egresos, valorInventario: finanzas.valorInventario };
     }, [transaccionesFiltradas, finanzas.valorInventario]);
-
-    const opcionesMeses = useMemo(() => {
-        const meses = new Set();
-        transacciones.forEach(tx => { const d = new Date(tx.fecha); meses.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); });
-        return Array.from(meses).sort((a,b) => b.localeCompare(a));
-    }, [transacciones]);
 
     const pedidosFiltradosVisual = useMemo(() => {
         let filtrados = pedidos;
@@ -654,7 +668,6 @@ const AdminDashboard = () => {
             </div>
 
             <div className="animate-in fade-in duration-500">
-                {/* VISTA DE CARTERA */}
                 {tab === 'cartera' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
@@ -846,7 +859,7 @@ const AdminDashboard = () => {
                                         <input 
                                             type="date" 
                                             value={fechaInicioFinanzas}
-                                            onChange={(e) => setFechaInicioFinanzas(e.target.value)}
+                                            onChange={handleFechaInicioChange} // 🔥 NUEVO EVENTO 🔥
                                             className="bg-transparent border-none font-black text-[9px] md:text-[10px] outline-none cursor-pointer uppercase text-gray-700 w-24"
                                         />
                                     </div>
@@ -855,7 +868,7 @@ const AdminDashboard = () => {
                                         <input 
                                             type="date" 
                                             value={fechaFinFinanzas}
-                                            onChange={(e) => setFechaFinFinanzas(e.target.value)}
+                                            onChange={handleFechaFinChange} // 🔥 NUEVO EVENTO 🔥
                                             className="bg-transparent border-none font-black text-[9px] md:text-[10px] outline-none cursor-pointer uppercase text-gray-700 w-24"
                                         />
                                     </div>
@@ -1040,7 +1053,6 @@ const AdminDashboard = () => {
                                             <div className="mb-6"><p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Contenido:</p><ul className="text-[9px] md:text-[10px] font-bold text-gray-600 space-y-1 mb-4">{items.slice(0, 3).map((item, idx) => (<li key={idx} className="truncate">• {item.cantidad}x {item.Producto?.nombre || item.nombre}</li>))}{items.length > 3 && <li className="text-blue-500">+ {items.length - 3} artículos más</li>}</ul><h4 className="text-2xl md:text-3xl font-black text-gray-900 italic tracking-tighter">${formatCurrency(ped.total)}</h4></div>
                                         </div>
                                         <div className="space-y-3 bg-gray-50 p-3 md:p-4 rounded-2xl md:rounded-3xl">
-                                            {/* 🔥 AQUÍ ESTÁ EL SELECTOR DOBLE (DÍA NORMAL O FECHA EXACTA) 🔥 */}
                                             <div className="grid grid-cols-2 gap-2">
                                                 <div>
                                                     <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Forzar Día</label>
@@ -1062,7 +1074,6 @@ const AdminDashboard = () => {
                                             <div className="pt-2 mt-2 border-t border-gray-200">
                                                 <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Estado Logístico</label>
                                                 
-                                                {/* 🔥 EL SELECT ESTÁ BLOQUEADO SI EL CLIENTE CANCELÓ 🔥 */}
                                                 <select 
                                                     value={ped.estado || ''} 
                                                     disabled={ped.estado === 'Cancelado' && ped.cancelado_por === 'CLIENTE'}
@@ -1080,7 +1091,6 @@ const AdminDashboard = () => {
                                                     <option value="Cancelado">❌ CANCELADO</option>
                                                 </select>
                                                 
-                                                {/* Mensaje de aviso de bloqueo */}
                                                 {ped.estado === 'Cancelado' && ped.cancelado_por === 'CLIENTE' && (
                                                     <p className="text-[8px] text-red-500 font-bold mt-1.5 flex items-center gap-1 uppercase tracking-widest leading-tight">
                                                         <Lock size={10} /> Cancelado por el cliente

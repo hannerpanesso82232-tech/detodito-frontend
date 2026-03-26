@@ -6,23 +6,23 @@ import {
     ChevronRight, ShoppingBag, MapPin 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { io } from "socket.io-client"; // 🔥 IMPORTAMOS SOCKET.IO 🔥
+
+const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 
 // 🔥 CORRECCIÓN AGRESIVA: Limpieza de Localhost para imágenes del Catálogo y Carrito 🔥
 const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/400x500?text=Sin+Imagen';
     
     let urlLimpia = url;
-    // Si la BD guardó la ruta local antigua, se la quitamos a la fuerza
     if (urlLimpia.includes('localhost:3000') || urlLimpia.includes('localhost:5000')) {
         urlLimpia = urlLimpia.replace(/http:\/\/localhost:(3000|5000)/g, '');
     }
 
-    // Si es un enlace de internet seguro real, lo dejamos pasar
     if (urlLimpia.startsWith('https://') || (urlLimpia.startsWith('http://') && !urlLimpia.includes('localhost'))) {
         return urlLimpia;
     }
     
-    // Usamos la URL de la API de las variables de entorno
     const base = process.env.REACT_APP_API_URL || "http://localhost:3000";
     return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
 };
@@ -53,6 +53,7 @@ const Catalogo = () => {
 
     const { cart, addToCart, removeFromCart, updateQuantity, total } = useCart();
 
+    // 1. CARGA INICIAL DE DATOS
     useEffect(() => {
         const cargarTodo = async () => {
             setLoading(true);
@@ -71,6 +72,30 @@ const Catalogo = () => {
             }
         };
         cargarTodo();
+    }, []);
+
+    // 2. 🔥 MAGIA DE TIEMPO REAL: ESCUCHAR CAMBIOS DEL ADMIN 🔥
+    useEffect(() => {
+        const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
+
+        // Si el admin edita un precio, nombre o categoría
+        socket.on('productoActualizado', (productoModificado) => {
+            setProductos(prev => prev.map(p => p.id === productoModificado.id ? productoModificado : p));
+        });
+
+        // Si alguien compra o el admin cambia el stock manual
+        socket.on('stockActualizado', (data) => {
+            setProductos(prev => prev.map(p => p.id === parseInt(data.id) ? { ...p, stock: data.nuevoStock } : p));
+        });
+
+        // Si el admin elimina un producto definitivamente
+        socket.on('productoEliminado', (idEliminado) => {
+            setProductos(prev => prev.filter(p => p.id !== parseInt(idEliminado)));
+        });
+
+        return () => {
+            socket.disconnect();
+        };
     }, []);
 
     const cargarFavoritos = async () => {
@@ -168,7 +193,7 @@ const Catalogo = () => {
             </div>
 
             <main className="px-4 md:px-6 py-6 md:py-8 max-w-[1600px] mx-auto">
-                {/* GRID DE PRODUCTOS - 🔥 AQUÍ ESTÁ EL CAMBIO PRINCIPAL A 2 COLUMNAS EN MOBILE 🔥 */}
+                {/* GRID DE PRODUCTOS */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 md:gap-x-8 gap-y-8 md:gap-y-12">
                     {loading ? (
                         [1, 2, 3, 4, 5, 6, 7, 8].map(n => <SkeletonCard key={n} />)
@@ -248,7 +273,7 @@ const Catalogo = () => {
                 </div>
             </main>
 
-            {/* CARRITO SIDEBAR (Mantenido igual) */}
+            {/* CARRITO SIDEBAR */}
             {showCart && (
                 <>
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60]" onClick={() => setShowCart(false)} />

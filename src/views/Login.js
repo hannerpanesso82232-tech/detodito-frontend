@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User, Lock, ArrowRight, Loader2, Mail, ShieldAlert } from 'lucide-react';
+import { User, Lock, ArrowRight, Loader2, Mail, ShieldAlert, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import API from '../services/api';
 
@@ -11,10 +11,20 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const [modoRecuperacion, setModoRecuperacion] = useState(false);
     
+    // 🔥 ESTADO PARA VER/OCULTAR CONTRASEÑA 🔥
+    const [mostrarPassword, setMostrarPassword] = useState(false);
+    
     const { login } = useAuth();
 
     const handleLogin = async (e) => {
         e.preventDefault();
+        
+        // 🔥 VALIDACIÓN: SI ALGUNO ESTÁ VACÍO AVISAMOS DE AMBOS 🔥
+        if (!cedula.trim() || !password.trim()) {
+            toast.error('Por favor, ingresa tu número de cédula y contraseña.', { icon: '⚠️' });
+            return;
+        }
+
         setLoading(true);
         const loadingToast = toast.loading('Verificando credenciales...');
         
@@ -37,6 +47,13 @@ const Login = () => {
 
     const handleRecuperar = async (e) => {
         e.preventDefault();
+        
+        // 🔥 VALIDACIÓN DE RECUPERACIÓN 🔥
+        if (!cedula.trim() || !emailRespaldo.trim()) {
+            toast.error('Por favor, ingresa tu cédula y tu correo electrónico registrado.', { icon: '⚠️' });
+            return;
+        }
+
         setLoading(true);
         const loadId = toast.loading('Verificando identidad...');
 
@@ -54,6 +71,7 @@ const Login = () => {
 
             setModoRecuperacion(false); 
             setPassword(res.data.passwordTemporal); 
+            setMostrarPassword(true); // Se la mostramos para que la vea y la copie
         } catch (error) {
             toast.dismiss(loadId);
             toast.error(error.response?.data?.error || 'Datos no coinciden en nuestro sistema');
@@ -88,12 +106,12 @@ const Login = () => {
 
                         <div className="relative group">
                             <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-orange-500 transition-colors" size={18} />
-                            <input type="text" placeholder="TU CÉDULA" className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-2xl focus:bg-white focus:border-orange-500 outline-none transition-all font-bold text-xs md:text-sm" value={cedula} onChange={e => setCedula(e.target.value)} required />
+                            <input type="text" placeholder="TU CÉDULA" className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-2xl focus:bg-white focus:border-orange-500 outline-none transition-all font-bold text-xs md:text-sm" value={cedula} onChange={e => setCedula(e.target.value)} />
                         </div>
 
                         <div className="relative group">
                             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-orange-500 transition-colors" size={18} />
-                            <input type="email" placeholder="CORREO REGISTRADO" className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-2xl focus:bg-white focus:border-orange-500 outline-none transition-all font-bold text-xs md:text-sm" value={emailRespaldo} onChange={e => setEmailRespaldo(e.target.value)} required />
+                            <input type="email" placeholder="CORREO REGISTRADO" className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-2xl focus:bg-white focus:border-orange-500 outline-none transition-all font-bold text-xs md:text-sm" value={emailRespaldo} onChange={e => setEmailRespaldo(e.target.value)} />
                         </div>
 
                         <button type="submit" disabled={loading} className="w-full bg-orange-500 text-white font-black py-4 md:py-5 rounded-xl md:rounded-2xl mt-2 transition-all shadow-xl hover:bg-black active:scale-95 uppercase tracking-widest text-[10px] md:text-xs flex items-center justify-center gap-2">
@@ -108,12 +126,28 @@ const Login = () => {
                     <form onSubmit={handleLogin} className="space-y-4 md:space-y-5 animate-in fade-in slide-in-from-left-4">
                         <div className="relative group">
                             <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors" size={18} />
-                            <input type="text" placeholder="NÚMERO DE CÉDULA" className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-2xl focus:bg-white focus:border-black outline-none transition-all font-bold text-xs md:text-sm" value={cedula} onChange={e => setCedula(e.target.value)} required />
+                            <input type="text" placeholder="NÚMERO DE CÉDULA" className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-2xl focus:bg-white focus:border-black outline-none transition-all font-bold text-xs md:text-sm" value={cedula} onChange={e => setCedula(e.target.value)} />
                         </div>
 
+                        {/* 🔥 INPUT DE CONTRASEÑA CON EL OJITO 🔥 */}
                         <div className="relative group">
                             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors" size={18} />
-                            <input type="password" placeholder="CONTRASEÑA" className="w-full pl-12 p-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-2xl focus:bg-white focus:border-black outline-none transition-all font-bold text-xs md:text-sm" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
+                            <input 
+                                type={mostrarPassword ? "text" : "password"} 
+                                placeholder="CONTRASEÑA" 
+                                className="w-full pl-12 pr-12 p-4 bg-gray-50 border-2 border-transparent rounded-xl md:rounded-2xl focus:bg-white focus:border-black outline-none transition-all font-bold text-xs md:text-sm" 
+                                value={password} 
+                                onChange={e => setPassword(e.target.value)} 
+                                autoComplete="current-password" 
+                            />
+                            <button 
+                                type="button"
+                                onClick={() => setMostrarPassword(!mostrarPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-black transition-colors focus:outline-none"
+                                title={mostrarPassword ? "Ocultar contraseña" : "Ver contraseña"}
+                            >
+                                {mostrarPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
                         </div>
 
                         <button type="submit" disabled={loading} className="w-full bg-black text-white font-black py-4 md:py-5 rounded-xl md:rounded-2xl mt-2 transition-all shadow-xl hover:bg-blue-600 active:scale-95 uppercase tracking-widest text-[10px] md:text-xs flex items-center justify-center gap-2">

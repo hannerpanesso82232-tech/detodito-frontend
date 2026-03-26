@@ -38,7 +38,16 @@ const GestionCategorias = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const nombreLimpio = nombre.trim().toUpperCase();
-    if (!nombreLimpio) return toast.error("Name is required");
+    
+    if (!nombreLimpio) {
+        return toast.error("Rellena este campo", { icon: '⚠️' });
+    }
+
+    // 🔥 BUG CA-005 CORREGIDO: VALIDACIÓN CONTRA SOLO NÚMEROS 🔥
+    const soloNumeros = /^\d+$/;
+    if (soloNumeros.test(nombreLimpio)) {
+        return toast.error("El nombre de la categoría no puede ser solo números.", { icon: '⚠️' });
+    }
     
     setEnviando(true);
     const toastId = toast.loading(editando ? 'Updating taxonomy...' : 'Creating new tag...');
