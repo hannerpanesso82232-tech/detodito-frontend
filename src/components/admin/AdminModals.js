@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     X, Loader2, CheckCircle2, Calculator, AlertTriangle, User, Key, Settings, 
     Map, Trash2, PackageMinus, Banknote, DollarSign, Image as ImageIcon, 
-    Printer, ArrowLeftRight, ChevronRight, History, Edit, ArrowUpRight, ArrowDownRight, Tag
+    Printer, ArrowLeftRight, ChevronRight, History, Edit, ArrowUpRight, ArrowDownRight, Tag, Plus
 } from 'lucide-react';
 import { formatCurrency, imprimirFacturaCliente } from '../../utils/adminUtils';
 
@@ -46,6 +46,53 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
     
     // Desempaquetamos los datos
     const { categorias, usuarios, rutasDinamicas, clienteActualData, transacciones } = data;
+
+    // 🔥 ESTADO LOCAL PARA MANEJAR LOS CÓDIGOS DE BARRAS FÁCILMENTE 🔥
+    const [barcodesUI, setBarcodesUI] = useState([{ id: Date.now().toString(), code: '', qty: 1 }]);
+
+    // Cuando se abre el modal, leemos el JSON (si existe) y lo convertimos en cajitas fáciles de usar
+    useEffect(() => {
+        if (showModal) {
+            try {
+                const parsed = formulario.codigo_barras ? JSON.parse(formulario.codigo_barras) : {};
+                const arr = Object.entries(parsed).map(([code, qty], i) => ({ id: i.toString() + code, code, qty }));
+                setBarcodesUI(arr.length > 0 ? arr : [{ id: Date.now().toString(), code: '', qty: 1 }]);
+            } catch(e) {
+                setBarcodesUI([{ id: Date.now().toString(), code: '', qty: 1 }]);
+            }
+        }
+    }, [showModal, productoEditando]);
+
+    // Función mágica que convierte las cajitas en JSON para mandarlo a la base de datos
+    const updateParentJSON = (list) => {
+        const obj = {};
+        list.forEach(item => {
+            if (item.code.trim()) {
+                obj[item.code.trim()] = parseInt(item.qty) || 1;
+            }
+        });
+        const newJson = Object.keys(obj).length > 0 ? JSON.stringify(obj) : '';
+        setFormulario({ ...formulario, codigo_barras: newJson });
+    };
+
+    const handleAddBarcode = () => {
+        const newList = [...barcodesUI, { id: Date.now().toString(), code: '', qty: 1 }];
+        setBarcodesUI(newList);
+        updateParentJSON(newList);
+    };
+
+    const handleRemoveBarcode = (id) => {
+        const newList = barcodesUI.filter(b => b.id !== id);
+        setBarcodesUI(newList);
+        updateParentJSON(newList);
+    };
+
+    const handleUpdateBarcode = (id, field, value) => {
+        const newList = barcodesUI.map(b => b.id === id ? { ...b, [field]: value } : b);
+        setBarcodesUI(newList);
+        updateParentJSON(newList);
+    };
+    // 🔥 FIN LÓGICA DE CÓDIGOS DE BARRAS 🔥
 
     return (
         <>
@@ -125,7 +172,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 </div>
                             </div>
 
-                            {/* 🔥 NUEVO: REGLAS AL POR MAYOR Y ESCÁNER (PUNTO DE VENTA) 🔥 */}
+                            {/* 🔥 LA NUEVA INTERFAZ LIMPIA PARA EL PUNTO DE VENTA Y ESCÁNER 🔥 */}
                             <div className="col-span-2 bg-green-50/50 p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-green-100 mt-2 space-y-4">
                                 <div className="flex items-center gap-3 mb-2 border-b border-green-100 pb-3">
                                     <div className="w-8 h-8 bg-green-600 text-white rounded-lg flex items-center justify-center shadow-lg"><Tag size={16} /></div>
@@ -143,10 +190,35 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                         <label className="text-[8px] font-black uppercase text-green-700 mb-1">Nuevo Precio Unitario ($)</label>
                                         <input type="number" step="0.01" min="0" placeholder="Ej: 400" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-green-500 shadow-sm text-xs" value={formulario.precio_mayor || ''} onChange={e => setFormulario({...formulario, precio_mayor: e.target.value})} />
                                     </div>
-                                    <div className="col-span-2">
-                                        <label className="text-[8px] font-black uppercase text-gray-500 mb-1 block">Códigos de Barras (JSON)</label>
-                                        <p className="text-[7px] text-gray-400 mb-1">Ej: <code>{"{"}"7701": 1, "7701CAJA": 10{"}"}</code> (El código de la caja sumará 10 uds en la caja)</p>
-                                        <textarea rows="2" placeholder='{"123456": 1}' className="w-full bg-white border-none rounded-xl p-3 font-mono text-xs outline-none focus:ring-2 focus:ring-green-500 resize-none shadow-sm" value={formulario.codigo_barras || ''} onChange={e => setFormulario({...formulario, codigo_barras: e.target.value})} />
+                                </div>
+
+                                {/* LISTA DINÁMICA DE CÓDIGOS DE BARRAS */}
+                                <div className="col-span-2 border-t border-green-200/50 pt-4 mt-2">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div>
+                                            <label className="text-[8px] md:text-[9px] font-black uppercase text-green-800 block">Códigos de Barras</label>
+                                            <p className="text-[7px] md:text-[8px] text-green-600 font-bold uppercase tracking-widest">Ej: Pistolea el código de la unidad o de la caja.</p>
+                                        </div>
+                                        <button type="button" onClick={handleAddBarcode} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-200 transition-colors flex items-center gap-1 text-[8px] font-black uppercase tracking-widest">
+                                            <Plus size={10}/> Añadir
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        {barcodesUI.map((b) => (
+                                            <div key={b.id} className="flex gap-2 items-center bg-white p-2 rounded-xl border border-green-100 shadow-sm">
+                                                <div className="flex-1">
+                                                    <input type="text" placeholder="Pistolear código aquí..." className="w-full bg-gray-50 border-none rounded-lg p-2 font-bold outline-none focus:ring-2 focus:ring-green-500 text-xs text-gray-700 placeholder:text-gray-400" value={b.code} onChange={e => handleUpdateBarcode(b.id, 'code', e.target.value)} />
+                                                </div>
+                                                <div className="w-24">
+                                                    <div className="flex items-center bg-gray-50 rounded-lg pr-2" title="¿Cuántas unidades se descuentan del inventario al pistolear este código?">
+                                                        <input type="number" min="1" className="w-full bg-transparent border-none p-2 font-black outline-none focus:ring-0 text-xs text-center text-green-700" value={b.qty} onChange={e => handleUpdateBarcode(b.id, 'qty', e.target.value)} />
+                                                        <span className="text-[8px] font-black text-gray-400">Uds</span>
+                                                    </div>
+                                                </div>
+                                                <button type="button" onClick={() => handleRemoveBarcode(b.id)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><X size={14}/></button>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
