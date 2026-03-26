@@ -1,16 +1,15 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import API from '../services/api';
 import { useCart } from '../context/CartContext';
 import { 
     Search, Heart, X, Plus, Minus, 
-    ChevronRight, ShoppingBag, MapPin 
+    ChevronRight, ShoppingBag, MapPin, ScanBarcode 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { io } from "socket.io-client"; // 🔥 IMPORTAMOS SOCKET.IO 🔥
+import { io } from "socket.io-client"; 
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 
-// 🔥 CORRECCIÓN AGRESIVA: Limpieza de Localhost para imágenes del Catálogo y Carrito 🔥
 const formatearImagen = (url) => {
     if (!url) return 'https://placehold.co/400x500?text=Sin+Imagen';
     
@@ -27,7 +26,6 @@ const formatearImagen = (url) => {
     return `${base}${urlLimpia.startsWith('/') ? '' : '/'}${urlLimpia}`;
 };
 
-// Componente para el efecto de carga (Skeleton)
 const SkeletonCard = () => (
     <div className="group relative animate-pulse">
         <div className="aspect-[4/5] rounded-2xl md:rounded-[2.5rem] bg-gray-200 mb-4" />
@@ -41,7 +39,6 @@ const SkeletonCard = () => (
 );
 
 const Catalogo = () => {
-    // Estados
     const [productos, setProductos] = useState([]);
     const [categorias, setCategorias] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -50,10 +47,13 @@ const Catalogo = () => {
     const [misFavoritos, setMisFavoritos] = useState([]);
     const [showCart, setShowCart] = useState(false);
     const [direccion, setDireccion] = useState('');
+    
+    // 🔥 ESTADOS PARA EL LECTOR DE CÓDIGO DE BARRAS 🔥
+    const [codigoEscaneado, setCodigoEscaneado] = useState('');
+    const inputScannerRef = useRef(null);
 
     const { cart, addToCart, removeFromCart, updateQuantity, total } = useCart();
 
-    // 1. CARGA INICIAL DE DATOS
     useEffect(() => {
         const cargarTodo = async () => {
             setLoading(true);
@@ -74,28 +74,22 @@ const Catalogo = () => {
         cargarTodo();
     }, []);
 
-    // 2. 🔥 MAGIA DE TIEMPO REAL: ESCUCHAR CAMBIOS DEL ADMIN 🔥
     useEffect(() => {
         const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
 
-        // Si el admin edita un precio, nombre o categoría
         socket.on('productoActualizado', (productoModificado) => {
             setProductos(prev => prev.map(p => p.id === productoModificado.id ? productoModificado : p));
         });
 
-        // Si alguien compra o el admin cambia el stock manual
         socket.on('stockActualizado', (data) => {
             setProductos(prev => prev.map(p => p.id === parseInt(data.id) ? { ...p, stock: data.nuevoStock } : p));
         });
 
-        // Si el admin elimina un producto definitivamente
         socket.on('productoEliminado', (idEliminado) => {
             setProductos(prev => prev.filter(p => p.id !== parseInt(idEliminado)));
         });
 
-        return () => {
-            socket.disconnect();
-        };
+        return () => socket.disconnect();
     }, []);
 
     const cargarFavoritos = async () => {
@@ -103,7 +97,7 @@ const Catalogo = () => {
         try {
             const res = await API.get('/favoritos');
             setMisFavoritos(res.data.map(f => f.id));
-        } catch (e) { /* Error silencioso */ }
+        } catch (e) { }
     };
 
     const manejarFavorito = async (productoId) => {
@@ -127,6 +121,46 @@ const Catalogo = () => {
         });
     }, [productos, busqueda, categoriaSel]);
 
+    // 🔥 MOTOR DEL ESCÁNER DE CÓDIGO DE BARRAS 🔥
+    const handleScannerSubmit = (e) => {
+        e.preventDefault();
+        const codigoBuscado = codigoEscaneado.trim();
+        if (!codigoBuscado) return;
+
+        let productoEncontrado = null;
+        let cantidadParaAgregar = 1; // Por defecto es 1 unidad
+
+        for (const prod of productos) {
+            if (prod.codigo_barras) {
+                try {
+                    const diccionarioCodigos = JSON.parse(prod.codigo_barras);
+                    // Buscamos si el código escaneado existe dentro de los códigos de este producto
+                    if (diccionarioCodigos[codigoBuscado] !== undefined) {
+                        productoEncontrado = prod;
+                        cantidadParaAgregar = parseInt(diccionarioCodigos[codigoBuscado]);
+                        break;
+                    }
+                } catch (error) {
+                    console.error("Error leyendo códigos de barras del producto", prod.id);
+                }
+            }
+        }
+
+        if (productoEncontrado) {
+            if (productoEncontrado.stock <= 0) {
+                toast.error(`"${productoEncontrado.nombre}" se encuentra agotado.`, { icon: '⚠️' });
+            } else {
+                addToCart(productoEncontrado, cantidadParaAgregar); // Le mandamos la cantidad que decía el código
+                setShowCart(true); // Abrimos la bolsa para que vea que se agregó
+            }
+        } else {
+            toast.error("Código de barras no encontrado en el sistema.", { icon: '🔍' });
+        }
+
+        setCodigoEscaneado(''); // Limpiamos el campo para el siguiente escaneo
+        inputScannerRef.current?.focus(); // Devolvemos el foco al input
+    };
+
     const handleCheckoutWhatsApp = () => {
         const numero = "573202832661"; 
         if (!direccion.trim()) {
@@ -136,7 +170,9 @@ const Catalogo = () => {
 
         let mensaje = "¡Hola! 👋 Quisiera realizar este pedido:\n\n";
         cart.forEach(item => {
-            mensaje += `📦 *${item.nombre}*\n   Cant: ${item.cantidad} x $${parseFloat(item.precio).toLocaleString('es-CO')}\n`;
+            // Revisamos si se cobró precio normal o de descuento para mostrarlo en el mensaje
+            const precioMostrado = item.es_mayor ? item.precio_mayor : item.precio;
+            mensaje += `📦 *${item.nombre}*\n   Cant: ${item.cantidad} x $${parseFloat(precioMostrado).toLocaleString('es-CO')} ${item.es_mayor ? ' *(Mayor)*' : ''}\n`;
         });
         
         mensaje += `\n📍 *ENTREGAR EN:* ${direccion}`;
@@ -147,14 +183,30 @@ const Catalogo = () => {
 
     return (
         <div className="min-h-screen bg-white font-sans text-gray-900">
-            {/* Header del Catálogo (Sticky junto con las categorías) */}
+            
+            {/* 🔥 BARRA DEL ESCÁNER (Oculta visualmente en PC para diseño limpio, pero funcional) 🔥 */}
+            <div className="bg-blue-600 text-white p-2 flex justify-center items-center">
+                <form onSubmit={handleScannerSubmit} className="flex items-center gap-2 max-w-sm w-full relative">
+                    <ScanBarcode size={18} className="absolute left-3 opacity-50" />
+                    <input 
+                        ref={inputScannerRef}
+                        type="text" 
+                        value={codigoEscaneado}
+                        onChange={(e) => setCodigoEscaneado(e.target.value)}
+                        placeholder="Escanear Código de Barras..." 
+                        className="w-full bg-blue-700/50 border border-blue-500 rounded-lg pl-10 pr-4 py-1.5 text-xs text-white placeholder:text-blue-300 outline-none focus:ring-2 focus:ring-white transition-all"
+                        autoFocus // Para que siempre esté listo para leer
+                    />
+                    {/* Botón oculto para submit con Enter */}
+                    <button type="submit" className="hidden"></button>
+                </form>
+            </div>
+
+            {/* Header del Catálogo */}
             <div className="sticky top-20 z-40 bg-white/95 backdrop-blur-xl border-b border-gray-100 pt-4 pb-2 px-4 md:px-6">
-                
-                {/* Barra superior con Título y Buscador (Desktop y Mobile unificados) */}
                 <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-4">
                     <h1 className="text-2xl md:text-3xl font-black tracking-tighter italic uppercase hidden md:block">Brand.Store</h1>
                     
-                    {/* Buscador - Visible en todos los dispositivos */}
                     <div className="relative w-full md:w-auto flex items-center">
                         <Search className="absolute left-4 text-gray-400" size={18} />
                         <input 
@@ -172,7 +224,6 @@ const Catalogo = () => {
                     </div>
                 </div>
 
-                {/* CATEGORÍAS (Sticky) */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
                     <button 
                         onClick={() => setCategoriaSel('all')}
@@ -193,7 +244,6 @@ const Catalogo = () => {
             </div>
 
             <main className="px-4 md:px-6 py-6 md:py-8 max-w-[1600px] mx-auto">
-                {/* GRID DE PRODUCTOS */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 md:gap-x-8 gap-y-8 md:gap-y-12">
                     {loading ? (
                         [1, 2, 3, 4, 5, 6, 7, 8].map(n => <SkeletonCard key={n} />)
@@ -202,9 +252,14 @@ const Catalogo = () => {
                             <p className="text-gray-400 font-black uppercase tracking-widest text-xs">No se encontraron productos.</p>
                         </div>
                     ) : (
-                        productosFiltrados.map(p => (
+                        productosFiltrados.map(p => {
+                            // Validaciones de precios
+                            const metaMayor = parseInt(p.cantidad_mayor) || 0;
+                            const tienePrecioMayor = metaMayor > 0 && p.precio_mayor !== null;
+
+                            return (
                             <div key={p.id} className="group relative bg-white p-2 md:p-4 rounded-2xl md:rounded-[2.5rem] border border-transparent hover:border-gray-100 transition-all hover:shadow-2xl flex flex-col h-full">
-                                {/* Contenedor Imagen */}
+                                
                                 <div className="relative aspect-[4/5] overflow-hidden rounded-xl md:rounded-[2rem] bg-gray-50 mb-3 md:mb-6">
                                     <img 
                                         src={formatearImagen(p.imagen_url)} 
@@ -213,7 +268,6 @@ const Catalogo = () => {
                                         onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/400x500?text=Error'; }}
                                     />
                                     
-                                    {/* Botón Favorito - Ajustado en Mobile */}
                                     <button 
                                         onClick={() => manejarFavorito(p.id)}
                                         className="absolute top-2 right-2 md:top-4 md:right-4 z-10 p-2 md:p-3 bg-white/90 backdrop-blur-md rounded-xl md:rounded-2xl shadow-sm hover:scale-110 transition active:scale-90"
@@ -221,14 +275,21 @@ const Catalogo = () => {
                                         <Heart size={14} className={`md:w-4 md:h-4 ${misFavoritos.includes(p.id) ? "fill-red-500 text-red-500" : "text-gray-300"}`} />
                                     </button>
 
-                                    {/* Badge Stock Flotante - Ajustado en Mobile */}
                                     <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-white/90 backdrop-blur-sm px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl shadow-sm">
                                         <span className={`text-[7px] md:text-[9px] font-black uppercase tracking-widest ${p.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>
                                             {p.stock > 0 ? `${p.stock} Disp.` : 'Agotado'}
                                         </span>
                                     </div>
 
-                                    {/* Overlay si no hay stock */}
+                                    {/* 🔥 LETRERO VERDE SI TIENE DESCUENTO POR MAYOR 🔥 */}
+                                    {tienePrecioMayor && (
+                                        <div className="absolute bottom-0 left-0 w-full bg-green-500/90 backdrop-blur-md py-1.5 text-center">
+                                            <p className="text-[8px] md:text-[10px] font-black text-white uppercase tracking-widest">
+                                                Lleva {metaMayor}+ por ${parseFloat(p.precio_mayor).toLocaleString()} c/u
+                                            </p>
+                                        </div>
+                                    )}
+
                                     {p.stock <= 0 && (
                                         <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex items-center justify-center pointer-events-none">
                                             <span className="text-[10px] md:text-[14px] font-black uppercase tracking-widest text-gray-900 bg-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg md:rounded-xl">
@@ -238,7 +299,6 @@ const Catalogo = () => {
                                     )}
                                 </div>
 
-                                {/* Info Producto */}
                                 <div className="px-1 md:px-2 flex flex-col flex-1">
                                     <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-1 md:mb-2 gap-1">
                                         <div className="flex-1 pr-0 md:pr-2">
@@ -258,9 +318,8 @@ const Catalogo = () => {
                                         {p.descripcion || 'Sin descripción disponible para este producto.'}
                                     </p>
                                     
-                                    {/* Botón Acción - Visible en Mobile, Hover en Desktop */}
                                     <button 
-                                        onClick={() => addToCart(p)}
+                                        onClick={() => addToCart(p, 1)} // Agregamos por defecto 1 unidad manual
                                         disabled={p.stock <= 0}
                                         className="w-full mt-auto bg-black text-white py-3 md:py-4 rounded-xl md:rounded-2xl font-black uppercase text-[8px] md:text-[10px] tracking-widest md:translate-y-2 md:opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 disabled:bg-gray-200 disabled:text-gray-400 disabled:opacity-100 md:disabled:translate-y-0 active:scale-95"
                                     >
@@ -268,7 +327,7 @@ const Catalogo = () => {
                                     </button>
                                 </div>
                             </div>
-                        ))
+                        )})
                     )}
                 </div>
             </main>
@@ -299,14 +358,36 @@ const Catalogo = () => {
                                                 <h4 className="font-black text-xs uppercase text-gray-900 leading-tight pr-2">{item.nombre}</h4>
                                                 <button onClick={() => removeFromCart(item.id)} className="text-gray-300 hover:text-red-500"><X size={14}/></button>
                                             </div>
-                                            <div className="flex items-center gap-4 bg-gray-50 self-start p-1.5 rounded-xl">
-                                                <button onClick={() => updateQuantity(item.id, item.cantidad - 1)} className="hover:text-blue-600"><Minus size={12}/></button>
-                                                <span className="font-black text-xs">{item.cantidad}</span>
-                                                <button 
-                                                    onClick={() => updateQuantity(item.id, item.cantidad + 1)} 
-                                                    disabled={item.cantidad >= item.stock}
-                                                    className="hover:text-blue-600 disabled:text-gray-300"
-                                                ><Plus size={12}/></button>
+
+                                            {/* 🔥 ETIQUETA SI ESTÁ RECIBIENDO DESCUENTO POR MAYOR 🔥 */}
+                                            {item.es_mayor && (
+                                                <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded uppercase font-black tracking-widest w-fit mt-1">
+                                                    Al Por Mayor Aplicado
+                                                </span>
+                                            )}
+
+                                            <div className="flex justify-between items-end mt-2">
+                                                <div className="flex items-center gap-4 bg-gray-50 self-start p-1.5 rounded-xl">
+                                                    <button onClick={() => updateQuantity(item.id, item.cantidad - 1)} className="hover:text-blue-600"><Minus size={12}/></button>
+                                                    <span className="font-black text-xs">{item.cantidad}</span>
+                                                    <button 
+                                                        onClick={() => updateQuantity(item.id, item.cantidad + 1)} 
+                                                        disabled={item.cantidad >= item.stock}
+                                                        className="hover:text-blue-600 disabled:text-gray-300"
+                                                    ><Plus size={12}/></button>
+                                                </div>
+
+                                                <div className="text-right">
+                                                    {/* Mostrar precio tachado si tiene descuento */}
+                                                    {item.es_mayor && (
+                                                        <p className="text-[9px] text-gray-400 font-bold line-through">
+                                                            ${parseFloat(item.precio).toLocaleString()} c/u
+                                                        </p>
+                                                    )}
+                                                    <p className={`font-black text-sm italic ${item.es_mayor ? 'text-green-600' : 'text-gray-900'}`}>
+                                                        ${parseFloat(item.precio_aplicado).toLocaleString()} <span className="text-[8px] font-bold text-gray-400">c/u</span>
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

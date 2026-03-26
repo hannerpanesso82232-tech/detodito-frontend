@@ -2,7 +2,7 @@ import React from 'react';
 import { 
     X, Loader2, CheckCircle2, Calculator, AlertTriangle, User, Key, Settings, 
     Map, Trash2, PackageMinus, Banknote, DollarSign, Image as ImageIcon, 
-    Printer, ArrowLeftRight, ChevronRight, History, Edit, ArrowUpRight, ArrowDownRight
+    Printer, ArrowLeftRight, ChevronRight, History, Edit, ArrowUpRight, ArrowDownRight, Tag
 } from 'lucide-react';
 import { formatCurrency, imprimirFacturaCliente } from '../../utils/adminUtils';
 
@@ -56,6 +56,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                         <button onClick={cerrarModal} className="absolute top-4 right-4 md:top-6 md:right-6 z-10 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
                             <X size={16}/>
                         </button>
+                        
                         <div className="w-full md:w-1/3 bg-gray-50 p-6 md:p-10 flex flex-col items-center justify-center border-b md:border-b-0 md:border-r border-gray-100">
                             <div className="w-32 h-32 md:w-full md:aspect-square bg-white rounded-2xl md:rounded-[2.5rem] shadow-inner border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden mb-4 md:mb-8">
                                 {preview ? <img src={preview} className="w-full h-full object-cover" alt="Preview" /> : <ImageIcon size={32} className="text-gray-200 md:w-12 md:h-12" />}
@@ -65,8 +66,10 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 <input type="file" className="hidden" accept="image/*" onChange={handleImagenChange} />
                             </label>
                         </div>
+
                         <form onSubmit={handleGuardarProducto} className="flex-1 p-6 md:p-10 grid grid-cols-2 gap-4 md:gap-5 max-h-[70vh] md:max-h-[85vh] overflow-y-auto custom-scrollbar">
                             <h2 className="col-span-2 text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-2 md:mb-4">{productoEditando ? 'EDITAR PRODUCTO' : 'NUEVO PRODUCTO'}</h2>
+                            
                             <div className="col-span-2 md:col-span-1">
                                 <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">NOMBRE</label>
                                 <input required type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-sm" value={formulario.nombre || ''} onChange={e => setFormulario({...formulario, nombre: e.target.value})} />
@@ -87,48 +90,73 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 <textarea rows="1" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black resize-none text-sm" value={formulario.descripcion || ''} onChange={e => setFormulario({...formulario, descripcion: e.target.value})} />
                             </div>
 
-                            <div className="col-span-2 bg-blue-50/50 p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-blue-100 mt-2 md:mt-4 space-y-4 md:space-y-5">
+                            {/* 🔥 CALCULADORA DE PRECIOS BASE 🔥 */}
+                            <div className="col-span-2 bg-blue-50/50 p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-blue-100 mt-2 space-y-4">
                                 <div className="flex items-center gap-3 mb-2 border-b border-blue-100 pb-3 md:pb-4">
                                     <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 text-white rounded-lg md:rounded-xl flex items-center justify-center shadow-lg"><Calculator size={16} className="md:w-5 md:h-5" /></div>
                                     <div>
-                                        <p className="text-xs md:text-sm font-black uppercase text-blue-900 tracking-tighter italic">Calculadora precio</p>
+                                        <p className="text-xs md:text-sm font-black uppercase text-blue-900 tracking-tighter italic">Estructura Base (Detal)</p>
                                         <p className="text-[8px] md:text-[9px] font-black text-blue-500 uppercase tracking-widest">Cálculo Automático</p>
                                     </div>
                                 </div>
                                 {!productoEditando ? (
                                     <div className="grid grid-cols-2 gap-3 md:gap-4">
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Costo de Compra (C/U)</label><input required type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-600 shadow-sm text-xs md:text-sm" value={formulario.costo_compra || ''} onChange={e => setFormulario({...formulario, costo_compra: e.target.value})} /></div>
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Margen de Ganancia (%)</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-orange-500 shadow-sm text-xs md:text-sm" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} /></div>
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Cantidad (Stock)</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black shadow-sm text-xs md:text-sm" value={formulario.stock || ''} onChange={e => setFormulario({...formulario, stock: e.target.value})} /></div>
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Alerta Stock Bajo</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-red-500 shadow-sm text-xs md:text-sm" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Costo (C/U)</label><input required type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-blue-600 shadow-sm text-xs" value={formulario.costo_compra || ''} onChange={e => setFormulario({...formulario, costo_compra: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Margen (%)</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-orange-500 shadow-sm text-xs" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Inventario Físico</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-black shadow-sm text-xs" value={formulario.stock || ''} onChange={e => setFormulario({...formulario, stock: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Avisar si quedan:</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-red-500 shadow-sm text-xs" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} /></div>
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-2 gap-3 md:gap-4">
-                                        <div className="bg-gray-100 p-3 md:p-4 rounded-xl md:rounded-2xl"><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Costo Promedio</p><p className="font-bold text-gray-600 text-xs md:text-sm">${formatCurrency(productoEditando.costo_compra)}</p></div>
-                                        <div className="bg-gray-100 p-3 md:p-4 rounded-xl md:rounded-2xl"><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Stock Actual</p><p className="font-bold text-gray-600 text-xs md:text-sm">{formulario.stock} Uds</p></div>
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">📦 ➕ Unidades Nuevas</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs md:text-sm" value={formulario.stock_adicional || ''} onChange={e => setFormulario({...formulario, stock_adicional: e.target.value})} /></div>
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">💰 Costo (C/U) Nuevo</label><input type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs md:text-sm" value={formulario.costo_nuevo_lote || ''} onChange={e => setFormulario({...formulario, costo_nuevo_lote: e.target.value})} /></div>
-                                        <div className="col-span-2 border-t border-dashed border-blue-200 pt-3 md:pt-4 mt-1 md:mt-2 flex gap-3 md:gap-4">
-                                            <div className="flex-1"><label className="text-[8px] md:text-[9px] font-black uppercase text-orange-600 mb-1">Margen (%)</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold text-orange-600 focus:ring-2 focus:ring-orange-500 shadow-sm outline-none text-xs md:text-sm" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} /></div>
-                                            <div className="flex-1"><label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Alerta Stock Bajo</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold text-red-600 focus:ring-2 focus:ring-red-500 shadow-sm outline-none text-xs md:text-sm" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} /></div>
+                                        <div className="bg-gray-100 p-3 rounded-xl"><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Costo Promedio</p><p className="font-bold text-gray-600 text-xs">${formatCurrency(productoEditando.costo_compra)}</p></div>
+                                        <div className="bg-gray-100 p-3 rounded-xl"><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Stock Actual</p><p className="font-bold text-gray-600 text-xs">{formulario.stock} Uds</p></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">📦 ➕ Cajas Nuevas</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs" value={formulario.stock_adicional || ''} onChange={e => setFormulario({...formulario, stock_adicional: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">💰 Costo Nuevo (C/U)</label><input type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl p-3 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs" value={formulario.costo_nuevo_lote || ''} onChange={e => setFormulario({...formulario, costo_nuevo_lote: e.target.value})} /></div>
+                                        <div className="col-span-2 border-t border-dashed border-blue-200 pt-3 mt-1 flex gap-3">
+                                            <div className="flex-1"><label className="text-[8px] md:text-[9px] font-black uppercase text-orange-600 mb-1">Margen (%)</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold text-orange-600 focus:ring-2 focus:ring-orange-500 shadow-sm outline-none text-xs" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} /></div>
+                                            <div className="flex-1"><label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Alerta Stock Bajo</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold text-red-600 focus:ring-2 focus:ring-red-500 shadow-sm outline-none text-xs" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} /></div>
                                         </div>
                                     </div>
                                 )}
-                                <div className="mt-3 md:mt-4 p-4 md:p-5 bg-black text-white rounded-xl md:rounded-2xl flex justify-between items-center shadow-2xl">
-                                    <div><p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-green-400">Precio de Venta</p><p className="text-2xl md:text-3xl font-black italic tracking-tighter">${formatCurrency(precioCalculado)}</p></div>
-                                    {productoEditando && parseInt(formulario.stock_adicional || 0) > 0 && (
-                                        <div className="text-right"><p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-400">Stock Final</p><p className="text-lg md:text-xl font-bold">{parseInt(formulario.stock || 0) + parseInt(formulario.stock_adicional || 0)} Uds</p></div>
-                                    )}
+                                <div className="mt-3 p-4 bg-black text-white rounded-xl flex justify-between items-center shadow-2xl">
+                                    <div><p className="text-[8px] font-black uppercase tracking-widest text-green-400">Precio Sugerido (Unidad)</p><p className="text-2xl font-black italic tracking-tighter">${formatCurrency(precioCalculado)}</p></div>
                                 </div>
                             </div>
-                            {productoEditando && parseInt(formulario.stock_adicional || 0) === 0 && (
-                                <div className="col-span-2 mt-1 md:mt-2 p-3 md:p-4 bg-gray-50 rounded-xl md:rounded-2xl border border-gray-100 flex items-center justify-between">
-                                    <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 block mb-0.5 md:mb-1">¿Forzar cambio de precio manual?</label></div>
-                                    <input type="number" step="0.01" className="w-1/2 sm:w-1/3 bg-white border-none rounded-lg md:rounded-xl p-2 md:p-3 font-bold shadow-sm outline-none focus:ring-2 focus:ring-black text-xs md:text-sm" value={formulario.precio || ''} onChange={e => setFormulario({...formulario, precio: e.target.value})} placeholder="Precio exacto..." />
+
+                            {/* 🔥 NUEVO: REGLAS AL POR MAYOR Y ESCÁNER (PUNTO DE VENTA) 🔥 */}
+                            <div className="col-span-2 bg-green-50/50 p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-green-100 mt-2 space-y-4">
+                                <div className="flex items-center gap-3 mb-2 border-b border-green-100 pb-3">
+                                    <div className="w-8 h-8 bg-green-600 text-white rounded-lg flex items-center justify-center shadow-lg"><Tag size={16} /></div>
+                                    <div>
+                                        <p className="text-xs md:text-sm font-black uppercase text-green-900 tracking-tighter italic">Punto de Venta (Mayorista)</p>
+                                        <p className="text-[8px] md:text-[9px] font-black text-green-600 uppercase tracking-widest">Escáner & Descuentos</p>
+                                    </div>
                                 </div>
-                            )}
-                            <button disabled={enviando || (precioCalculado <= 0 && !formulario.precio)} className={`col-span-2 mt-2 md:mt-4 text-white py-4 md:py-6 rounded-xl md:rounded-3xl font-black uppercase tracking-[0.2em] text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-2 md:gap-3 shadow-xl ${(precioCalculado <= 0 && !formulario.precio) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-black hover:scale-[1.02]'}`}>
-                                {enviando ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={16} className="md:w-5 md:h-5"/>} {productoEditando ? 'Guardar Cambios' : 'PUBLICAR PRODUCTO'}
+                                <div className="grid grid-cols-2 gap-3 md:gap-4">
+                                    <div>
+                                        <label className="text-[8px] font-black uppercase text-green-700 mb-1">Aplica descuento desde (Uds)</label>
+                                        <input type="number" min="0" placeholder="Ej: 10" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-green-500 shadow-sm text-xs" value={formulario.cantidad_mayor || ''} onChange={e => setFormulario({...formulario, cantidad_mayor: e.target.value})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[8px] font-black uppercase text-green-700 mb-1">Nuevo Precio Unitario ($)</label>
+                                        <input type="number" step="0.01" min="0" placeholder="Ej: 400" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-green-500 shadow-sm text-xs" value={formulario.precio_mayor || ''} onChange={e => setFormulario({...formulario, precio_mayor: e.target.value})} />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className="text-[8px] font-black uppercase text-gray-500 mb-1 block">Códigos de Barras (JSON)</label>
+                                        <p className="text-[7px] text-gray-400 mb-1">Ej: <code>{"{"}\"7701\": 1, \"7701CAJA\": 10{"}"}</code> (El código de la caja resta 10 uds del stock)</p>
+                                        <textarea rows="2" placeholder='{"123456": 1}' className="w-full bg-white border-none rounded-xl p-3 font-mono text-xs outline-none focus:ring-2 focus:ring-green-500 resize-none shadow-sm" value={formulario.codigo_barras || ''} onChange={e => setFormulario({...formulario, codigo_barras: e.target.value})} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* FORZAR PRECIO MANUAL */}
+                            <div className="col-span-2 mt-2 p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
+                                <div><label className="text-[8px] font-black uppercase text-gray-500 block mb-0.5">¿Ignorar cálculo y forzar precio (Detal)?</label></div>
+                                <input type="number" step="0.01" className="w-1/2 sm:w-1/3 bg-white border-none rounded-lg p-2 font-bold shadow-sm outline-none focus:ring-2 focus:ring-black text-xs" value={formulario.precio || ''} onChange={e => setFormulario({...formulario, precio: e.target.value})} placeholder="Precio exacto..." />
+                            </div>
+
+                            <button disabled={enviando || (precioCalculado <= 0 && !formulario.precio)} className={`col-span-2 mt-2 text-white py-4 md:py-6 rounded-xl font-black uppercase tracking-[0.2em] text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-2 shadow-xl ${(precioCalculado <= 0 && !formulario.precio) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-black hover:scale-[1.02]'}`}>
+                                {enviando ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={16} />} {productoEditando ? 'Guardar Cambios' : 'PUBLICAR PRODUCTO'}
                             </button>
                         </form>
                     </div>

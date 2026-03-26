@@ -10,6 +10,7 @@ export const CartProvider = ({ children }) => {
     const { user } = useAuth(); 
     const cartKey = useMemo(() => (user ? `carrito_${user.id}` : 'carrito_invitado'), [user]);
 
+    // Estado base del carrito (guarda los productos y las cantidades)
     const [cart, setCart] = useState(() => {
         const savedCart = localStorage.getItem(cartKey);
         try {
@@ -33,11 +34,8 @@ export const CartProvider = ({ children }) => {
                     const carritoVerificado = parsedCart.map(cartItem => {
                         const productoReal = dbProducts.find(p => Number(p.id) === Number(cartItem.id));
                         if (productoReal) {
-                            // Si el precio cambió mientras el cliente estaba offline
-                            if (parseFloat(productoReal.precio) !== parseFloat(cartItem.precio)) {
-                                huboCambios = true;
-                            }
-                            // Si el stock disminuyó drásticamente
+                            if (parseFloat(productoReal.precio) !== parseFloat(cartItem.precio)) huboCambios = true;
+                            
                             let cantidadCorregida = cartItem.cantidad;
                             if (cartItem.cantidad > productoReal.stock) {
                                 cantidadCorregida = productoReal.stock;
@@ -47,15 +45,17 @@ export const CartProvider = ({ children }) => {
                             return { 
                                 ...cartItem, 
                                 precio: productoReal.precio, 
+                                precio_mayor: productoReal.precio_mayor, // 🔥 Validamos precio mayor
+                                cantidad_mayor: productoReal.cantidad_mayor, // 🔥 Validamos cantidad tope
+                                codigo_barras: productoReal.codigo_barras, // 🔥 Validamos códigos
                                 nombre: productoReal.nombre, 
                                 stock: productoReal.stock, 
                                 cantidad: Math.max(0, cantidadCorregida) 
                             };
                         }
-                        return null; // Si el producto fue borrado, se filtra
+                        return null; 
                     }).filter(item => item !== null && item.cantidad > 0);
 
-                    // Si hubo alguna corrección, guardamos el nuevo carrito
                     if (huboCambios || carritoVerificado.length !== parsedCart.length) {
                         setCart(carritoVerificado);
                     }
@@ -69,14 +69,12 @@ export const CartProvider = ({ children }) => {
         localStorage.setItem(cartKey, JSON.stringify(cart));
     }, [cart, cartKey]);
 
-    // 3. ACTUALIZACIÓN EN TIEMPO REAL PARA CAMBIOS EN PRODUCTOS (PRECIO, STOCK, ELIMINACIÓN)
+    // 3. ACTUALIZACIÓN EN TIEMPO REAL PARA CAMBIOS EN PRODUCTOS
     useEffect(() => {
         const socket = io(process.env.REACT_APP_API_URL || "http://localhost:3000");
 
-        // EVENTO: El Admin editó nombre, precio o categoría
         socket.on('productoActualizado', (productoDB) => {
             setCart(prevCart => {
-                // Usamos Number() para asegurar que la comparación sea estricta y nunca falle
                 const existeEnCarrito = prevCart.find(item => Number(item.id) === Number(productoDB.id));
                 
                 if (existeEnCarrito) {
@@ -85,7 +83,16 @@ export const CartProvider = ({ children }) => {
                     }
                     
                     return prevCart.map(item => Number(item.id) === Number(productoDB.id) 
-                        ? { ...item, precio: productoDB.precio, nombre: productoDB.nombre, stock: productoDB.stock, imagen_url: productoDB.imagen_url } 
+                        ? { 
+                            ...item, 
+                            precio: productoDB.precio, 
+                            precio_mayor: productoDB.precio_mayor,
+                            cantidad_mayor: productoDB.cantidad_mayor,
+                            codigo_barras: productoDB.codigo_barras,
+                            nombre: productoDB.nombre, 
+                            stock: productoDB.stock, 
+                            imagen_url: productoDB.imagen_url 
+                          } 
                         : item
                     );
                 }
@@ -93,7 +100,6 @@ export const CartProvider = ({ children }) => {
             });
         });
 
-        // EVENTO: El Admin borró el producto para siempre
         socket.on('productoEliminado', (productoIdBorrado) => {
             setCart(prevCart => {
                 const existe = prevCart.find(item => Number(item.id) === Number(productoIdBorrado));
@@ -105,13 +111,11 @@ export const CartProvider = ({ children }) => {
             });
         });
 
-        // EVENTO: El Admin modificó el stock manualmente
         socket.on('stockActualizado', (data) => {
             setCart(prevCart => {
                 let carritoCambiado = false;
                 const nuevoCarrito = prevCart.map(item => {
                     if (Number(item.id) === Number(data.id)) {
-                        // Si el nuevo stock es menor a lo que el usuario quiere comprar
                         if (data.nuevoStock < item.cantidad) {
                             toast(`Solo quedan ${data.nuevoStock} unidades de "${item.nombre}".`, { icon: '⚠️', duration: 6000 });
                             carritoCambiado = true;
@@ -129,24 +133,57 @@ export const CartProvider = ({ children }) => {
         return () => socket.disconnect();
     }, []);
 
-    const addToCart = (producto) => {
+    // 🔥 MAGIA: COMPUTAMOS EL PRECIO DINÁMICAMENTE (DETAL vs MAYOR) 🔥
+    const cartCalculado = useMemo(() => {
+        return cart.map(item => {
+            const cantidad = item.cantidad || 0;
+            const metaMayor = parseInt(item.cantidad_mayor) || 0;
+            
+            // Verificamos si el producto tiene configurado un precio al por mayor
+            const tienePrecioMayor = metaMayor > 0 && item.precio_mayor !== null && item.precio_mayor !== undefined;
+            
+            // Verificamos si la cantidad que lleva el cliente alcanza para el descuento
+            const aplicaDescuentoMayor = tienePrecioMayor && cantidad >= metaMayor;
+            
+            // Elegimos el precio final a cobrar
+            const precioFinal = aplicaDescuentoMayor ? parseFloat(item.precio_mayor) : parseFloat(item.precio);
+
+            return {
+                ...item,
+                es_mayor: aplicaDescuentoMayor, // Le avisamos al frontend si está en descuento
+                precio_aplicado: precioFinal,   // El precio que realmente se cobrará
+                subtotal: precioFinal * cantidad
+            };
+        });
+    }, [cart]);
+
+    // 🔥 MODIFICADO: Ahora soporta agregar MÚLTIPLES cantidades de golpe (para los escáneres de cajas)
+    const addToCart = (producto, cantidadAgregada = 1) => {
         setCart(prev => {
             const existe = prev.find(item => Number(item.id) === Number(producto.id));
             const stockReal = Number(producto.stock);
 
             if (existe) {
-                if (existe.cantidad >= stockReal) {
+                const nuevaCantidad = existe.cantidad + cantidadAgregada;
+                if (nuevaCantidad > stockReal) {
                     toast.error(`Stock máximo alcanzado (${stockReal})`);
-                    return prev;
+                    // Lo dejamos en el tope máximo posible
+                    return prev.map(item => 
+                        Number(item.id) === Number(producto.id) ? { ...item, cantidad: stockReal } : item
+                    );
                 }
+                toast.success(`${cantidadAgregada}x ${producto.nombre} añadido`);
                 return prev.map(item => 
-                    Number(item.id) === Number(producto.id) ? { ...item, cantidad: item.cantidad + 1 } : item
+                    Number(item.id) === Number(producto.id) ? { ...item, cantidad: nuevaCantidad } : item
                 );
             }
             
-            if (stockReal > 0) {
-                toast.success(`${producto.nombre} añadido`);
-                return [...prev, { ...producto, cantidad: 1 }];
+            if (stockReal >= cantidadAgregada) {
+                toast.success(`${cantidadAgregada}x ${producto.nombre} añadido`);
+                return [...prev, { ...producto, cantidad: cantidadAgregada }];
+            } else if (stockReal > 0) {
+                toast.success(`Añadido stock restante de ${producto.nombre}`);
+                return [...prev, { ...producto, cantidad: stockReal }];
             }
             
             toast.error("Sin existencias");
@@ -178,18 +215,19 @@ export const CartProvider = ({ children }) => {
         localStorage.removeItem(cartKey);
     };
 
-    // Al depender de 'cart', esto se recalcula solito cuando cambian los precios
+    // 🔥 MODIFICADO: Calculamos el total basado en el cartCalculado y sus subtotales
     const total = useMemo(() => 
-        cart.reduce((acc, item) => acc + (Number(item.precio) * item.cantidad), 0)
-    , [cart]);
+        cartCalculado.reduce((acc, item) => acc + item.subtotal, 0)
+    , [cartCalculado]);
 
     const cantidadTotal = useMemo(() => 
-        cart.reduce((acc, item) => acc + item.cantidad, 0)
-    , [cart]);
+        cartCalculado.reduce((acc, item) => acc + item.cantidad, 0)
+    , [cartCalculado]);
 
     return (
         <CartContext.Provider value={{ 
-            cart, addToCart, updateQuantity, removeFromCart, 
+            cart: cartCalculado, // Exportamos el carrito ya procesado
+            addToCart, updateQuantity, removeFromCart, 
             clearCart, total, cantidadTotal 
         }}>
             {children}
