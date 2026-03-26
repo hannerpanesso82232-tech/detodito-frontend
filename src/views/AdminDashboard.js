@@ -155,22 +155,31 @@ const AdminDashboard = () => {
     const [formCredito, setFormCredito] = useState({ usuarioId: '', monto_total: '', descripcion: '' });
     const [formAbono, setFormAbono] = useState({ monto: '', nota: '' });
 
-    const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...rutasDinamicas.map(r => r.dia_ruta)])];
+    const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...(rutasDinamicas || []).map(r => r.dia_ruta)])];
 
     const fetchDatos = useCallback(async () => {
         try {
             const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos] = await Promise.all([
-                API.get('/productos'), API.get('/pedidos/admin/todos'), API.get('/categorias'),
-                API.get('/auth/admin/usuarios'), API.get('/auth/config/whatsapp'),
-                API.get('/contabilidad/resumen'), API.get('/contabilidad/transacciones'),
+                API.get('/productos').catch(() => ({ data: [] })), 
+                API.get('/pedidos/admin/todos').catch(() => ({ data: [] })), 
+                API.get('/categorias').catch(() => ({ data: [] })),
+                API.get('/auth/admin/usuarios').catch(() => ({ data: [] })), 
+                API.get('/auth/config/whatsapp').catch(() => ({ data: { whatsapp: '' } })),
+                API.get('/contabilidad/resumen').catch(() => ({ data: { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 } })), 
+                API.get('/contabilidad/transacciones').catch(() => ({ data: [] })),
                 API.get('/pedidos/config/rutas').catch(() => ({ data: [] })),
                 API.get('/pedidos/config/horalimite').catch(() => ({ data: { hora: '20:00' } })),
                 API.get('/creditos').catch(() => ({ data: [] })) 
             ]);
-            setProductos(resProd.data || []); setPedidos(resPed.data || []); setCategorias(resCat.data || []);
-            setUsuarios(resUsers.data || []); setWhatsappTienda(resWa.data.whatsapp || ''); 
-            setFinanzas(resFinanzas.data); setTransacciones(resTransacciones.data); setRutasDinamicas(resRutas.data || []);
-            setHoraLimite(resHora.data.hora || '20:00');
+            setProductos(resProd.data || []); 
+            setPedidos(resPed.data || []); 
+            setCategorias(resCat.data || []);
+            setUsuarios(resUsers.data || []); 
+            setWhatsappTienda(resWa.data?.whatsapp || ''); 
+            setFinanzas(resFinanzas.data || { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 }); 
+            setTransacciones(resTransacciones.data || []); 
+            setRutasDinamicas(resRutas.data || []);
+            setHoraLimite(resHora.data?.hora || '20:00');
             setCreditos(resCreditos.data || []); 
         } catch (err) { toast.error("Error de sincronización"); } finally { setLoading(false); }
     }, []);
@@ -184,8 +193,8 @@ const AdminDashboard = () => {
             toast(`📦 Nuevo Pedido [${metodoTXT}] de ${data.cliente || 'Cliente'}`, { icon: '🚀', style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } });
             fetchDatos();
         });
-        socket.on('stockActualizado', (data) => { setProductos(prev => prev.map(p => p.id === parseInt(data.id) ? { ...p, stock: data.nuevoStock } : p)); });
-        socket.on('productoActualizado', (productoModificado) => { setProductos(prev => prev.map(p => p.id === productoModificado.id ? productoModificado : p)); });
+        socket.on('stockActualizado', (data) => { setProductos(prev => (prev || []).map(p => p.id === parseInt(data.id) ? { ...p, stock: data.nuevoStock } : p)); });
+        socket.on('productoActualizado', (productoModificado) => { setProductos(prev => (prev || []).map(p => p.id === productoModificado.id ? productoModificado : p)); });
         return () => { if(socket) socket.disconnect(); };
     }, [fetchDatos]);
 
@@ -198,7 +207,23 @@ const AdminDashboard = () => {
         }
     }, [formulario.costo_compra, formulario.margen_ganancia, formulario.stock_adicional, formulario.costo_nuevo_lote, formulario.stock, formulario.precio, productoEditando]);
 
-    // 🔥 LÓGICA DE LA CAJA (PUNTO DE VENTA) 🔥
+    const handleFechaInicioChange = (e) => {
+        const val = e.target.value;
+        if (val && fechaFinFinanzas && val > fechaFinFinanzas) {
+            toast.error("La fecha 'Desde' no puede ser posterior a 'Hasta'", { icon: '⚠️' }); return;
+        }
+        setFechaInicioFinanzas(val);
+    };
+
+    const handleFechaFinChange = (e) => {
+        const val = e.target.value;
+        if (val && fechaInicioFinanzas && val < fechaInicioFinanzas) {
+            toast.error("La fecha 'Hasta' no puede ser anterior a 'Desde'", { icon: '⚠️' }); return;
+        }
+        setFechaFinFinanzas(val);
+    };
+
+    // 🔥 LOGICA POS 🔥
     const handlePosScan = (e) => {
         e.preventDefault();
         const codigoBuscado = posCodigo.trim();
@@ -207,7 +232,7 @@ const AdminDashboard = () => {
         let productoEncontrado = null;
         let cantidadParaAgregar = 1;
 
-        for (const prod of productos) {
+        for (const prod of (productos || [])) {
             if (prod.codigo_barras) {
                 try {
                     const diccionarioCodigos = JSON.parse(prod.codigo_barras);
@@ -223,11 +248,8 @@ const AdminDashboard = () => {
         if (productoEncontrado) {
             if (productoEncontrado.stock <= 0) toast.error("Agotado", { icon: '⚠️' });
             else addToPosCart(productoEncontrado, cantidadParaAgregar);
-        } else {
-            toast.error("Código no reconocido", { icon: '❓' });
-        }
-        setPosCodigo('');
-        inputScannerRef.current?.focus();
+        } else { toast.error("Código no reconocido", { icon: '❓' }); }
+        setPosCodigo(''); inputScannerRef.current?.focus();
     };
 
     const addToPosCart = (producto, qty = 1) => {
@@ -248,8 +270,7 @@ const AdminDashboard = () => {
                 toast.success(`Se agregaron solo ${producto.stock} uds (Stock Total)`);
                 return [...prev, { ...producto, cantidad: producto.stock }];
             }
-            toast.error("Sin existencias");
-            return prev;
+            toast.error("Sin existencias"); return prev;
         });
     };
 
@@ -266,12 +287,10 @@ const AdminDashboard = () => {
         }).filter(item => item.cantidad > 0));
     };
 
-    const removeFromPosCart = (id) => {
-        setPosCart(prev => prev.filter(item => item.id !== id));
-    };
+    const removeFromPosCart = (id) => { setPosCart(prev => prev.filter(item => item.id !== id)); };
 
     const posCartCalculado = useMemo(() => {
-        return posCart.map(item => {
+        return (posCart || []).map(item => {
             const metaMayor = parseInt(item.cantidad_mayor) || 0;
             const tienePrecioMayor = metaMayor > 0 && item.precio_mayor !== null;
             const aplicaDescuento = tienePrecioMayor && item.cantidad >= metaMayor;
@@ -289,17 +308,15 @@ const AdminDashboard = () => {
     const posTotal = useMemo(() => posCartCalculado.reduce((acc, item) => acc + item.subtotal, 0), [posCartCalculado]);
     
     const productosPOSVisuales = useMemo(() => {
-        if(!posSearchTerm) return productos.slice(0, 12); 
-        return productos.filter(p => p.nombre.toLowerCase().includes(posSearchTerm.toLowerCase())).slice(0, 20);
+        if(!posSearchTerm) return (productos || []).slice(0, 12); 
+        return (productos || []).filter(p => (p.nombre || '').toLowerCase().includes(posSearchTerm.toLowerCase())).slice(0, 20);
     }, [productos, posSearchTerm]);
 
     const handlePosCheckout = async (metodo) => {
         if(posCartCalculado.length === 0) return toast.error("La caja está vacía");
         if(metodo === 'CREDITO' && !posClienteId) return toast.error("Selecciona un cliente para poder fiar");
 
-        setEnviando(true);
-        const loadId = toast.loading("Facturando...");
-
+        setEnviando(true); const loadId = toast.loading("Facturando...");
         try {
             const resPedido = await API.post('/pedidos', {
                 productos: posCartCalculado.map(i => ({ id: i.id, cantidad: i.cantidad })),
@@ -307,68 +324,28 @@ const AdminDashboard = () => {
                 metodo_pago: 'POS_LOCAL' 
             });
             const pedidoId = resPedido.data.pedidoId;
-
             await API.put(`/pedidos/${pedidoId}/estado`, { estado: 'Entregado' });
 
             if (metodo === 'CONTADO') {
-                await API.post('/contabilidad/gasto', {
-                    monto: posTotal,
-                    descripcion: `Venta en Caja - Orden #${pedidoId}`,
-                    categoria: 'Ventas Productos',
-                    tipo: 'INGRESO',
-                    fecha: new Date().toISOString().split('T')[0],
-                    pedidoId: pedidoId
-                });
+                await API.post('/contabilidad/gasto', { monto: posTotal, descripcion: `Venta en Caja - Orden #${pedidoId}`, categoria: 'Ventas Productos', tipo: 'INGRESO', fecha: new Date().toISOString().split('T')[0], pedidoId: pedidoId });
                 toast.success("Venta cobrada con éxito", { id: loadId });
             } else if (metodo === 'CREDITO') {
-                const cliente = usuarios.find(u => u.id === parseInt(posClienteId));
+                const cliente = (usuarios || []).find(u => u.id === parseInt(posClienteId));
                 const dias = parseInt(cliente?.dias_credito || 30);
                 const fechaVencimiento = new Date();
                 fechaVencimiento.setDate(fechaVencimiento.getDate() + dias);
-
-                await API.post('/creditos', {
-                    usuarioId: posClienteId,
-                    monto_total: posTotal,
-                    descripcion: `Venta Fiada en Caja - Orden #${pedidoId}`,
-                    fecha_vencimiento: fechaVencimiento.toISOString()
-                });
+                await API.post('/creditos', { usuarioId: posClienteId, monto_total: posTotal, descripcion: `Venta Fiada en Caja - Orden #${pedidoId}`, fecha_vencimiento: fechaVencimiento.toISOString() });
                 toast.success("Venta anotada en la Cartera del Cliente", { id: loadId });
             }
 
-            setPosCart([]);
-            setPosCodigo('');
-            setPosClienteId('');
-            setPosSearchTerm('');
-            fetchDatos();
-        } catch (error) {
-            toast.error("Error al procesar la venta", { id: loadId });
-        } finally {
-            setEnviando(false);
-        }
+            setPosCart([]); setPosCodigo(''); setPosClienteId(''); setPosSearchTerm(''); fetchDatos();
+        } catch (error) { toast.error("Error al procesar la venta", { id: loadId }); } finally { setEnviando(false); }
     };
     // ---------------------------------------------
 
-    const handleFechaInicioChange = (e) => {
-        const val = e.target.value;
-        if (val && fechaFinFinanzas && val > fechaFinFinanzas) {
-            toast.error("La fecha 'Desde' no puede ser posterior a 'Hasta'", { icon: '⚠️' });
-            return;
-        }
-        setFechaInicioFinanzas(val);
-    };
-
-    const handleFechaFinChange = (e) => {
-        const val = e.target.value;
-        if (val && fechaInicioFinanzas && val < fechaInicioFinanzas) {
-            toast.error("La fecha 'Hasta' no puede ser anterior a 'Desde'", { icon: '⚠️' });
-            return;
-        }
-        setFechaFinFinanzas(val);
-    };
-
     const kpis = useMemo(() => {
         const hoy = new Date(); let ventasHoy = 0, ventasMes = 0, pendientes = 0;
-        pedidos.forEach(p => {
+        (pedidos || []).forEach(p => {
             if (p.estado !== 'Cancelado') {
                 const fecha = new Date(p.fecha); const monto = parseFloat(p.total || 0);
                 if (fecha.toDateString() === hoy.toDateString()) ventasHoy += monto;
@@ -380,45 +357,49 @@ const AdminDashboard = () => {
     }, [pedidos]);
 
     const statsProductos = useMemo(() => {
-        return { total: productos.length, stockBajo: productos.filter(p => parseInt(p.stock) <= (parseInt(p.tope_stock) || 10)).length };
+        return { total: (productos || []).length, stockBajo: (productos || []).filter(p => parseInt(p.stock) <= (parseInt(p.tope_stock) || 10)).length };
     }, [productos]);
 
     const dataVentasMensuales = useMemo(() => {
         const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]; const data = meses.map(m => ({ name: m, Ventas: 0 }));
-        pedidos.filter(p => p.estado !== 'Cancelado').forEach(ped => { const fecha = new Date(ped.fecha); const mesIndex = fecha.getMonth(); if(!isNaN(mesIndex)) data[mesIndex].Ventas += parseFloat(ped.total || 0); });
+        (pedidos || []).filter(p => p.estado !== 'Cancelado').forEach(ped => { const fecha = new Date(ped.fecha); const mesIndex = fecha.getMonth(); if(!isNaN(mesIndex)) data[mesIndex].Ventas += parseFloat(ped.total || 0); });
         return data.slice(0, new Date().getMonth() + 1);
     }, [pedidos]);
 
     const dataTopProductos = useMemo(() => {
         const conteo = {};
-        pedidos.filter(p => p.estado !== 'Cancelado').forEach(ped => { (ped.Detalles || ped.items || []).forEach(item => { const nombre = item.Producto?.nombre || item.nombre || 'Item'; conteo[nombre] = (conteo[nombre] || 0) + item.cantidad; }); });
+        (pedidos || []).filter(p => p.estado !== 'Cancelado').forEach(ped => { (ped.Detalles || ped.items || []).forEach(item => { const nombre = item.Producto?.nombre || item.nombre || 'Item'; conteo[nombre] = (conteo[nombre] || 0) + item.cantidad; }); });
         return Object.keys(conteo).map(key => ({ name: key, Vendidos: conteo[key] })).sort((a, b) => b.Vendidos - a.Vendidos).slice(0, 5);
     }, [pedidos]);
 
     const dataAgendaEntregas = useMemo(() => {
         const agenda = {};
-        pedidos.filter(p => p.estado === 'Pendiente').forEach(ped => {
+        (pedidos || []).filter(p => p.estado === 'Pendiente').forEach(ped => {
             const info = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
-            const clave = info.fechaFormateada;
-            if (!agenda[clave]) { agenda[clave] = { dia: info.diaNombre, fecha: info.fechaFormateada, cantidad: 0, total: 0, pedidos: [], reprogramado: info.reprogramado }; }
-            agenda[clave].cantidad += 1; agenda[clave].total += parseFloat(ped.total || 0); agenda[clave].pedidos.push(ped);
+            if(info && info.fechaFormateada) {
+                const clave = info.fechaFormateada;
+                if (!agenda[clave]) { agenda[clave] = { dia: info.diaNombre, fecha: info.fechaFormateada, cantidad: 0, total: 0, pedidos: [], reprogramado: info.reprogramado }; }
+                agenda[clave].cantidad += 1; agenda[clave].total += parseFloat(ped.total || 0); agenda[clave].pedidos.push(ped);
+            }
         });
         return Object.values(agenda).sort((a, b) => b.cantidad - a.cantidad);
     }, [pedidos, rutasDinamicas, horaLimite]);
 
     const dataGraficoRutas = useMemo(() => {
         const conteo = {};
-        pedidos.forEach(ped => { 
+        (pedidos || []).forEach(ped => { 
             const info = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
-            const ruta = info.diaNombre.toUpperCase(); 
-            if(!conteo[ruta]) conteo[ruta] = 0; conteo[ruta]++; 
+            if(info && info.diaNombre) {
+                const ruta = info.diaNombre.toUpperCase(); 
+                if(!conteo[ruta]) conteo[ruta] = 0; conteo[ruta]++; 
+            }
         });
         return Object.keys(conteo).map(key => ({ name: key, pedidos: conteo[key] })).filter(i => i.pedidos > 0);
     }, [pedidos, rutasDinamicas, horaLimite]);
 
     const dataMejoresClientes = useMemo(() => {
         const conteo = {};
-        pedidos.filter(p => p.estado !== 'Cancelado').forEach(ped => {
+        (pedidos || []).filter(p => p.estado !== 'Cancelado').forEach(ped => {
             const cliente = ped.Usuario?.nombre || 'Consumidor Final';
             if (!conteo[cliente]) conteo[cliente] = { pedidos: 0, totalGastado: 0 };
             conteo[cliente].pedidos += 1; conteo[cliente].totalGastado += parseFloat(ped.total || 0);
@@ -427,22 +408,21 @@ const AdminDashboard = () => {
     }, [pedidos]);
 
     const transaccionesFiltradas = useMemo(() => {
-        let filtradas = transacciones;
+        let filtradas = transacciones || [];
         if (fechaInicioFinanzas || fechaFinFinanzas) {
             filtradas = filtradas.filter(tx => {
+                if(!tx.fecha) return false;
                 const fechaTx = new Date(tx.fecha);
                 fechaTx.setHours(0, 0, 0, 0); 
                 let cumpleInicio = true, cumpleFin = true;
                 if (fechaInicioFinanzas) {
                     const [year, month, day] = fechaInicioFinanzas.split('-').map(Number);
-                    const fInicio = new Date(year, month - 1, day);
-                    fInicio.setHours(0, 0, 0, 0);
+                    const fInicio = new Date(year, month - 1, day); fInicio.setHours(0, 0, 0, 0);
                     cumpleInicio = fechaTx >= fInicio;
                 }
                 if (fechaFinFinanzas) {
                     const [year, month, day] = fechaFinFinanzas.split('-').map(Number);
-                    const fFin = new Date(year, month - 1, day);
-                    fFin.setHours(23, 59, 59, 999); 
+                    const fFin = new Date(year, month - 1, day); fFin.setHours(23, 59, 59, 999); 
                     cumpleFin = fechaTx <= fFin;
                 }
                 return cumpleInicio && cumpleFin;
@@ -466,12 +446,12 @@ const AdminDashboard = () => {
 
     const finanzasFiltradas = useMemo(() => {
         let ingresos = 0, egresos = 0;
-        transaccionesFiltradas.forEach(tx => { if (tx.tipo === 'INGRESO') ingresos += parseFloat(tx.monto); if (tx.tipo === 'EGRESO') egresos += parseFloat(tx.monto); });
-        return { ingresos, egresos, balance: ingresos - egresos, valorInventario: finanzas.valorInventario };
-    }, [transaccionesFiltradas, finanzas.valorInventario]);
+        (transaccionesFiltradas || []).forEach(tx => { if (tx.tipo === 'INGRESO') ingresos += parseFloat(tx.monto || 0); if (tx.tipo === 'EGRESO') egresos += parseFloat(tx.monto || 0); });
+        return { ingresos, egresos, balance: ingresos - egresos, valorInventario: finanzas?.valorInventario || 0 };
+    }, [transaccionesFiltradas, finanzas]);
 
     const pedidosFiltradosVisual = useMemo(() => {
-        let filtrados = pedidos;
+        let filtrados = pedidos || [];
         if (filtroTextoPedidos) {
             const termino = filtroTextoPedidos.toLowerCase();
             filtrados = filtrados.filter(ped => {
@@ -489,7 +469,7 @@ const AdminDashboard = () => {
             
             filtrados = filtrados.filter(ped => {
                 const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
-                if (!infoRuta.fechaRaw) return false;
+                if (!infoRuta || !infoRuta.fechaRaw) return false;
                 const pedDate = new Date(infoRuta.fechaRaw);
                 pedDate.setHours(0,0,0,0);
                 return pedDate.getTime() === targetDate.getTime();
@@ -500,7 +480,7 @@ const AdminDashboard = () => {
 
     const clientesCartera = useMemo(() => {
         const mapa = {};
-        usuarios.forEach(u => { 
+        (usuarios || []).forEach(u => { 
             mapa[u.id] = { 
                 ...u, creditos: [], pedidos: [], 
                 totalDeuda: 0, totalFiado: 0,
@@ -512,12 +492,12 @@ const AdminDashboard = () => {
 
         const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
 
-        creditos.forEach(c => {
+        (creditos || []).forEach(c => {
             const uid = parseInt(c.usuarioId || c.usuario_id || c.Usuario?.id);
             if (mapa[uid]) {
                 mapa[uid].creditos.push(c);
                 if (c.estado === 'VIGENTE') {
-                    mapa[uid].totalDeuda += parseFloat(c.saldo);
+                    mapa[uid].totalDeuda += parseFloat(c.saldo || 0);
                     mapa[uid].facturasPendientes += 1;
                     if (c.fecha_vencimiento) {
                         const vencimiento = new Date(c.fecha_vencimiento);
@@ -525,11 +505,11 @@ const AdminDashboard = () => {
                         if (hoy > vencimiento) mapa[uid].tieneMora = true;
                     }
                 }
-                mapa[uid].totalFiado += parseFloat(c.monto_total);
+                mapa[uid].totalFiado += parseFloat(c.monto_total || 0);
             }
         });
         
-        pedidos.forEach(p => { 
+        (pedidos || []).forEach(p => { 
             const uid = parseInt(p.usuarioId || p.usuario_id);
             if (mapa[uid]) mapa[uid].pedidos.push(p); 
         });
@@ -554,7 +534,7 @@ const AdminDashboard = () => {
 
     const statsCartera = useMemo(() => {
         let porCobrar = 0, fiadoTotal = 0;
-        creditos.forEach(c => { if(c.estado === 'VIGENTE') porCobrar += parseFloat(c.saldo); fiadoTotal += parseFloat(c.monto_total); });
+        (creditos || []).forEach(c => { if(c.estado === 'VIGENTE') porCobrar += parseFloat(c.saldo || 0); fiadoTotal += parseFloat(c.monto_total || 0); });
         return { porCobrar, fiadoTotal };
     }, [creditos]);
 
@@ -574,12 +554,12 @@ const AdminDashboard = () => {
     }, [productos, searchTerm, filtroCategoria, filtroStockBajo]);
 
     const exportarManifiestoCarga = async () => {
-        const pedidosPendientes = pedidos.filter(p => p.estado === 'Pendiente');
+        const pedidosPendientes = (pedidos || []).filter(p => p.estado === 'Pendiente');
         if (pedidosPendientes.length === 0) return toast.error("No hay pedidos pendientes en bodega.");
         const pedidosConInfoFecha = pedidosPendientes.map(p => ({
             ...p, infoCalculada: calcularFechaReal(p.ruta, p.Usuario?.ciudad, p.direccion, rutasDinamicas, p.fecha, horaLimite)
         }));
-        const pedidosConRutaProgramada = pedidosConInfoFecha.filter(p => p.infoCalculada.diaNombre !== "A CONVENIR");
+        const pedidosConRutaProgramada = pedidosConInfoFecha.filter(p => p.infoCalculada && p.infoCalculada.diaNombre !== "A CONVENIR");
         if (pedidosConRutaProgramada.length === 0) return toast.error("Solo hay pedidos 'A CONVENIR'. Asígnales un día primero.");
         pedidosConRutaProgramada.sort((a, b) => a.infoCalculada.fechaRaw - b.infoCalculada.fechaRaw);
         const fechaProximaStr = pedidosConRutaProgramada[0].infoCalculada.fechaFormateada;
@@ -775,6 +755,7 @@ const AdminDashboard = () => {
 
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
 
+    // --- RENDER DE VISTAS ---
     return (
         <div className="min-h-screen bg-gray-50 pb-20 px-4 md:px-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 md:mb-10 gap-4 pt-8">
@@ -792,12 +773,26 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
+            {/* 🔥 BLOQUE DE MÉTRICAS RECUPERADO Y BLINDADO 🔥 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
+                <StatCard title="Ventas Mes Actual" value={`$${formatCurrency(kpis.ventasMes)}`} subtitle={`Hoy: $${formatCurrency(kpis.ventasHoy)}`} icon={<DollarSign />} color="bg-green-100 text-green-600" />
+                <StatCard title="Pedidos Pendientes" value={kpis.pendientes} subtitle="Listos para ruta" icon={<Clock />} color="bg-amber-100 text-amber-600" />
+                <StatCard title="Total Pedidos" value={(pedidos || []).length} subtitle="Histórico completo" icon={<ShoppingCart />} color="bg-blue-100 text-blue-600" />
+                <StatCard title="Clientes Registrados" value={(usuarios || []).length} subtitle="En base de datos" icon={<Users />} color="bg-purple-100 text-purple-600" />
+                <StatCard title="Total Productos" value={statsProductos.total} subtitle="En inventario" icon={<Package />} color="bg-indigo-100 text-indigo-600" />
+                <StatCard title="Stock Bajo" value={statsProductos.stockBajo} subtitle="Requieren atención" icon={<AlertTriangle />} color="bg-red-100 text-red-600" />
+                <StatCard title="Cuentas por Cobrar" value={`$${formatCurrency(statsCartera.porCobrar)}`} subtitle="Deuda pendiente total" icon={<Banknote />} color="bg-rose-100 text-rose-600" />
+                <StatCard title="Total Histórico Fiado" value={`$${formatCurrency(statsCartera.fiadoTotal)}`} subtitle="Lo que has fiado" icon={<FileText />} color="bg-orange-100 text-orange-600" />
+            </div>
+
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
+                    {/* 🔥 PESTAÑA DE CAJA POS INTEGRADA AQUÍ 🔥 */}
                     {['reportes', 'pos', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => (
                         <button key={t} onClick={() => setTab(t)} className={`px-4 md:px-8 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${tab === t ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>{t === 'reportes' ? 'Analíticas' : t === 'pos' ? 'Caja (POS)' : t}</button>
                     ))}
                 </div>
+                {/* Filtros para la pestaña Productos */}
                 {tab === 'productos' && (
                     <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 md:gap-4 w-full md:w-auto">
                         <button onClick={() => setFiltroStockBajo(!filtroStockBajo)} className={`px-4 py-3 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2 transition-colors ${filtroStockBajo ? 'bg-red-600 text-white shadow-lg' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}><AlertTriangle size={16} /> {filtroStockBajo ? 'Ocultar Filtro' : 'Filtrar Stock Bajo'}</button>
@@ -805,13 +800,27 @@ const AdminDashboard = () => {
                         <div className="relative flex-1 md:w-64"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="BUSCAR..." value={searchTerm || ''} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none shadow-sm" /></div>
                     </div>
                 )}
+                {tab === 'cartera' && (
+                    <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 md:gap-4 w-full md:w-auto">
+                        <select value={filtroEstadoCartera} onChange={(e) => setFiltroEstadoCartera(e.target.value)} className="px-4 py-3 bg-white border border-gray-200 rounded-xl font-black uppercase text-[10px] outline-none shadow-sm cursor-pointer text-gray-600">
+                            <option value="TODOS">Todos los Clientes</option>
+                            <option value="VIGENTE">Con Deuda Activa</option>
+                            <option value="MORA">En Mora (Vencidos)</option>
+                            <option value="PAGADO">Sin Deudas (Pagados)</option>
+                        </select>
+                        <div className="relative flex-1 md:w-64"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} /><input type="text" placeholder="Buscar cliente o CC..." value={searchTermCartera || ''} onChange={(e) => setSearchTermCartera(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none shadow-sm" /></div>
+                    </div>
+                )}
             </div>
 
             <div className="animate-in fade-in duration-500">
 
+                {/* 🔥 PESTAÑA: CAJA REGISTRADORA (POS) 🔥 */}
                 {tab === 'pos' && (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Lado Izquierdo: Buscador, Escáner y Productos */}
                         <div className="lg:col-span-2 space-y-4">
+                            {/* ESCÁNER GIGANTE */}
                             <div className="bg-blue-600 rounded-[2rem] p-6 md:p-8 shadow-lg shadow-blue-600/20 text-white relative overflow-hidden">
                                 <div className="absolute -right-10 -top-10 opacity-10"><ScanBarcode size={200} /></div>
                                 <h3 className="text-xl font-black italic uppercase tracking-tighter mb-4 relative z-10">Lector de Barras</h3>
@@ -832,6 +841,7 @@ const AdminDashboard = () => {
                                 </form>
                             </div>
 
+                            {/* Búsqueda Manual */}
                             <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 h-[600px] flex flex-col">
                                 <div className="flex justify-between items-center mb-6">
                                     <h3 className="font-black uppercase tracking-widest text-sm text-gray-500 flex items-center gap-2"><MonitorSmartphone size={16}/> Catálogo Manual</h3>
@@ -857,6 +867,7 @@ const AdminDashboard = () => {
                             </div>
                         </div>
 
+                        {/* Lado Derecho: Carrito y Cobro */}
                         <div className="bg-white rounded-[2rem] shadow-2xl border border-gray-100 flex flex-col h-full max-h-[800px]">
                             <div className="p-6 border-b border-gray-100 bg-gray-50/50 shrink-0">
                                 <h2 className="text-2xl font-black uppercase italic tracking-tighter flex items-center gap-2">
@@ -918,7 +929,76 @@ const AdminDashboard = () => {
                         </div>
                     </div>
                 )}
+                {/* ------------------------------------------- */}
 
+                {/* PESTAÑA CARTERA */}
+                {tab === 'cartera' && (
+                    <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left min-w-[700px]">
+                            <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-[0.2em] border-b border-gray-100">
+                                <tr>
+                                    <th className="px-4 py-4 md:px-8 md:py-6">Cliente (Deudor)</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-center">Facturas Pendientes</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Límite / Cupo</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Saldo Deuda</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {clientesCartera.length === 0 ? (<tr><td colSpan="5" className="py-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">No hay historial de clientes ni deudas.</td></tr>) : (
+                                    clientesCartera.map(c => {
+                                        const cupoDisponible = c.limite_credito > 0 ? (c.limite_credito - c.totalDeuda) : 0;
+                                        return (
+                                            <tr key={c.id} className="group hover:bg-gray-50/50 transition-all">
+                                                <td className="px-4 py-4 md:px-8 md:py-5">
+                                                    <p className="font-black text-gray-900 uppercase text-[10px] md:text-xs">{c.nombre}</p>
+                                                    <p className="text-[8px] md:text-[9px] text-gray-500 font-bold uppercase tracking-widest">CC: {c.cedula || 'N/A'} • 📞 {c.telefono || 'N/A'}</p>
+                                                </td>
+                                                <td className="px-4 py-4 md:px-8 md:py-5 text-center">
+                                                    {c.facturasPendientes > 0 ? (
+                                                        <span className="bg-orange-50 text-orange-600 px-3 py-1 md:px-4 md:py-1.5 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest">{c.facturasPendientes} Por pagar</span>
+                                                    ) : (
+                                                        <span className="bg-gray-100 text-gray-400 px-3 py-1 md:px-4 md:py-1.5 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest">Al día</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-4 md:px-8 md:py-5 text-right">
+                                                    {c.limite_credito > 0 ? (
+                                                        <>
+                                                            <p className="font-bold text-gray-600 text-[10px] md:text-xs">Límite: ${formatCurrency(c.limite_credito)}</p>
+                                                            <p className={`font-black text-[9px] uppercase mt-1 ${cupoDisponible > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                                                Cupo: ${formatCurrency(cupoDisponible > 0 ? cupoDisponible : 0)}
+                                                            </p>
+                                                        </>
+                                                    ) : (
+                                                        <p className="font-bold text-gray-400 text-[9px] uppercase">Sin límite</p>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-4 md:px-8 md:py-5 text-right">
+                                                    <p className={`font-black text-base md:text-lg italic ${c.totalDeuda > 0 ? (c.tieneMora ? 'text-red-600' : 'text-orange-500') : 'text-green-600'}`}>
+                                                        ${formatCurrency(c.totalDeuda)}
+                                                    </p>
+                                                    {c.totalDeuda > 0 && (
+                                                        c.tieneMora ? 
+                                                        <p className="text-[7px] md:text-[8px] text-red-500 font-black uppercase mt-1 animate-pulse bg-red-50 py-0.5 rounded-md inline-block px-2">🔴 EN MORA</p> 
+                                                        : 
+                                                        <p className="text-[7px] md:text-[8px] text-orange-500 font-bold uppercase mt-1">🟡 VIGENTE</p>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-4 md:px-8 md:py-5 text-right">
+                                                    <button onClick={() => setClienteEstadoCuenta(c)} className="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all shadow-sm active:scale-95 flex items-center gap-1.5 ml-auto">
+                                                        <Receipt size={14} /> Estado de Cuenta
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {/* PESTAÑA REPORTES */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -1004,6 +1084,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {/* PESTAÑA FINANZAS */}
                 {tab === 'finanzas' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
@@ -1132,6 +1213,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {/* PESTAÑA PRODUCTOS */}
                 {tab === 'productos' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
@@ -1161,6 +1243,7 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
+                {/* PESTAÑA PEDIDOS */}
                 {tab === 'pedidos' && (
                     <>
                         <div className="flex flex-col sm:flex-row justify-between mb-4 items-stretch sm:items-center gap-3">
@@ -1209,8 +1292,8 @@ const AdminDashboard = () => {
                                 const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
                                 const items = ped.Detalles || ped.items || [];
                                 
-                                const yaEnCartera = creditos.some(c => c.descripcion === `Factura Pedido #${ped.id}`);
-                                const yaEnFinanzas = transacciones.some(t => t.pedidoId === ped.id || t.descripcion === `Pago de Contado - Pedido #${ped.id}` || t.descripcion === `Venta - Orden #${ped.id}`);
+                                const yaEnCartera = (creditos || []).some(c => c.descripcion === `Factura Pedido #${ped.id}`);
+                                const yaEnFinanzas = (transacciones || []).some(t => t.pedidoId === ped.id || t.descripcion === `Pago de Contado - Pedido #${ped.id}` || t.descripcion === `Venta - Orden #${ped.id}`);
                                 const estaLiquidado = yaEnCartera || yaEnFinanzas;
 
                                 return (
@@ -1288,7 +1371,7 @@ const AdminDashboard = () => {
                     </>
                 )}
 
-                {/* VISTA DE CLIENTES (ADMIN DE USUARIOS) */}
+                {/* PESTAÑA CLIENTES */}
                 {tab === 'clientes' && (
                     <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[600px]">
