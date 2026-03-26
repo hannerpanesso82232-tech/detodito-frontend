@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import API from '../services/api';
 import { useCart } from '../context/CartContext';
 import { 
     Search, Heart, X, Plus, Minus, 
-    ChevronRight, ShoppingBag, MapPin, ScanBarcode 
+    ChevronRight, ShoppingBag, MapPin 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { io } from "socket.io-client"; 
@@ -47,10 +47,6 @@ const Catalogo = () => {
     const [misFavoritos, setMisFavoritos] = useState([]);
     const [showCart, setShowCart] = useState(false);
     const [direccion, setDireccion] = useState('');
-    
-    // 🔥 ESTADOS PARA EL LECTOR DE CÓDIGO DE BARRAS 🔥
-    const [codigoEscaneado, setCodigoEscaneado] = useState('');
-    const inputScannerRef = useRef(null);
 
     const { cart, addToCart, removeFromCart, updateQuantity, total } = useCart();
 
@@ -121,46 +117,6 @@ const Catalogo = () => {
         });
     }, [productos, busqueda, categoriaSel]);
 
-    // 🔥 MOTOR DEL ESCÁNER DE CÓDIGO DE BARRAS 🔥
-    const handleScannerSubmit = (e) => {
-        e.preventDefault();
-        const codigoBuscado = codigoEscaneado.trim();
-        if (!codigoBuscado) return;
-
-        let productoEncontrado = null;
-        let cantidadParaAgregar = 1; // Por defecto es 1 unidad
-
-        for (const prod of productos) {
-            if (prod.codigo_barras) {
-                try {
-                    const diccionarioCodigos = JSON.parse(prod.codigo_barras);
-                    // Buscamos si el código escaneado existe dentro de los códigos de este producto
-                    if (diccionarioCodigos[codigoBuscado] !== undefined) {
-                        productoEncontrado = prod;
-                        cantidadParaAgregar = parseInt(diccionarioCodigos[codigoBuscado]);
-                        break;
-                    }
-                } catch (error) {
-                    console.error("Error leyendo códigos de barras del producto", prod.id);
-                }
-            }
-        }
-
-        if (productoEncontrado) {
-            if (productoEncontrado.stock <= 0) {
-                toast.error(`"${productoEncontrado.nombre}" se encuentra agotado.`, { icon: '⚠️' });
-            } else {
-                addToCart(productoEncontrado, cantidadParaAgregar); // Le mandamos la cantidad que decía el código
-                setShowCart(true); // Abrimos la bolsa para que vea que se agregó
-            }
-        } else {
-            toast.error("Código de barras no encontrado en el sistema.", { icon: '🔍' });
-        }
-
-        setCodigoEscaneado(''); // Limpiamos el campo para el siguiente escaneo
-        inputScannerRef.current?.focus(); // Devolvemos el foco al input
-    };
-
     const handleCheckoutWhatsApp = () => {
         const numero = "573202832661"; 
         if (!direccion.trim()) {
@@ -170,7 +126,6 @@ const Catalogo = () => {
 
         let mensaje = "¡Hola! 👋 Quisiera realizar este pedido:\n\n";
         cart.forEach(item => {
-            // Revisamos si se cobró precio normal o de descuento para mostrarlo en el mensaje
             const precioMostrado = item.es_mayor ? item.precio_mayor : item.precio;
             mensaje += `📦 *${item.nombre}*\n   Cant: ${item.cantidad} x $${parseFloat(precioMostrado).toLocaleString('es-CO')} ${item.es_mayor ? ' *(Mayor)*' : ''}\n`;
         });
@@ -183,25 +138,6 @@ const Catalogo = () => {
 
     return (
         <div className="min-h-screen bg-white font-sans text-gray-900">
-            
-            {/* 🔥 BARRA DEL ESCÁNER (Oculta visualmente en PC para diseño limpio, pero funcional) 🔥 */}
-            <div className="bg-blue-600 text-white p-2 flex justify-center items-center">
-                <form onSubmit={handleScannerSubmit} className="flex items-center gap-2 max-w-sm w-full relative">
-                    <ScanBarcode size={18} className="absolute left-3 opacity-50" />
-                    <input 
-                        ref={inputScannerRef}
-                        type="text" 
-                        value={codigoEscaneado}
-                        onChange={(e) => setCodigoEscaneado(e.target.value)}
-                        placeholder="Escanear Código de Barras..." 
-                        className="w-full bg-blue-700/50 border border-blue-500 rounded-lg pl-10 pr-4 py-1.5 text-xs text-white placeholder:text-blue-300 outline-none focus:ring-2 focus:ring-white transition-all"
-                        autoFocus // Para que siempre esté listo para leer
-                    />
-                    {/* Botón oculto para submit con Enter */}
-                    <button type="submit" className="hidden"></button>
-                </form>
-            </div>
-
             {/* Header del Catálogo */}
             <div className="sticky top-20 z-40 bg-white/95 backdrop-blur-xl border-b border-gray-100 pt-4 pb-2 px-4 md:px-6">
                 <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-4">
@@ -253,7 +189,6 @@ const Catalogo = () => {
                         </div>
                     ) : (
                         productosFiltrados.map(p => {
-                            // Validaciones de precios
                             const metaMayor = parseInt(p.cantidad_mayor) || 0;
                             const tienePrecioMayor = metaMayor > 0 && p.precio_mayor !== null;
 
@@ -281,7 +216,6 @@ const Catalogo = () => {
                                         </span>
                                     </div>
 
-                                    {/* 🔥 LETRERO VERDE SI TIENE DESCUENTO POR MAYOR 🔥 */}
                                     {tienePrecioMayor && (
                                         <div className="absolute bottom-0 left-0 w-full bg-green-500/90 backdrop-blur-md py-1.5 text-center">
                                             <p className="text-[8px] md:text-[10px] font-black text-white uppercase tracking-widest">
@@ -319,7 +253,7 @@ const Catalogo = () => {
                                     </p>
                                     
                                     <button 
-                                        onClick={() => addToCart(p, 1)} // Agregamos por defecto 1 unidad manual
+                                        onClick={() => addToCart(p, 1)} 
                                         disabled={p.stock <= 0}
                                         className="w-full mt-auto bg-black text-white py-3 md:py-4 rounded-xl md:rounded-2xl font-black uppercase text-[8px] md:text-[10px] tracking-widest md:translate-y-2 md:opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 disabled:bg-gray-200 disabled:text-gray-400 disabled:opacity-100 md:disabled:translate-y-0 active:scale-95"
                                     >
@@ -359,7 +293,6 @@ const Catalogo = () => {
                                                 <button onClick={() => removeFromCart(item.id)} className="text-gray-300 hover:text-red-500"><X size={14}/></button>
                                             </div>
 
-                                            {/* 🔥 ETIQUETA SI ESTÁ RECIBIENDO DESCUENTO POR MAYOR 🔥 */}
                                             {item.es_mayor && (
                                                 <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded uppercase font-black tracking-widest w-fit mt-1">
                                                     Al Por Mayor Aplicado
@@ -378,7 +311,6 @@ const Catalogo = () => {
                                                 </div>
 
                                                 <div className="text-right">
-                                                    {/* Mostrar precio tachado si tiene descuento */}
                                                     {item.es_mayor && (
                                                         <p className="text-[9px] text-gray-400 font-bold line-through">
                                                             ${parseFloat(item.precio).toLocaleString()} c/u
