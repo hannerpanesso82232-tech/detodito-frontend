@@ -61,7 +61,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 setBarcodesUI([{ id: Date.now().toString(), code: '', qty: 1 }]);
             }
         }
-    }, [showModal, productoEditando]);
+    }, [showModal, productoEditando, formulario.codigo_barras]);
 
     // Función mágica que convierte las cajitas en JSON para mandarlo a la base de datos
     const updateParentJSON = (list) => {
