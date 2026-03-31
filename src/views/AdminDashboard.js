@@ -78,9 +78,9 @@ const StatCard = ({ title, value, icon, color, subtitle }) => (
 );
 
 const AdminDashboard = () => {
-    // 🔥 LÓGICA DE CONTROL DE ACCESO (RBAC) 🔥
+    // 🔥 1. BLINDAMOS EL CONTROL DE ACCESO (Ignora mayúsculas/minúsculas) 🔥
     const { user } = useAuth();
-    const esCajero = user?.rol === 'CAJERO';
+    const esCajero = user?.rol?.toUpperCase() === 'CAJERO';
 
     const [productos, setProductos] = useState([]);
     const [pedidos, setPedidos] = useState([]);
@@ -97,6 +97,13 @@ const AdminDashboard = () => {
     const [tab, setTab] = useState(esCajero ? 'pos' : 'reportes'); 
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
+
+    // 🔥 2. EFECTO DE SINCRONIZACIÓN: Fuerza la vista de Caja apenas el usuario termine de cargar 🔥
+    useEffect(() => {
+        if (esCajero) {
+            setTab('pos');
+        }
+    }, [esCajero]);
 
     // --- ESTADOS PARA LA CAJA (POS) ---
     const [posCart, setPosCart] = useState([]);
