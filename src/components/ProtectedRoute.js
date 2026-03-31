@@ -3,7 +3,8 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
-export const ProtectedRoute = ({ children, roleRequired }) => {
+// 🔥 AÑADIMOS "allowedRoles" PARA SOPORTAR MÚLTIPLES ROLES (Arreglos) 🔥
+export const ProtectedRoute = ({ children, roleRequired, allowedRoles }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -21,8 +22,9 @@ export const ProtectedRoute = ({ children, roleRequired }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Validación de roles (ej: Cliente intentando entrar a /admin)
-  if (roleRequired && user.rol !== roleRequired) {
+  // 🔥 NUEVA LÓGICA: Verifica si el rol del usuario está dentro de la lista permitida 🔥
+  const rolesPermitidos = allowedRoles || (roleRequired ? [roleRequired] : []);
+  if (rolesPermitidos.length > 0 && !rolesPermitidos.includes(user.rol)) {
     return <Navigate to="/" replace />;
   }
 

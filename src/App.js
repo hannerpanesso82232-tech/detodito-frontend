@@ -10,7 +10,7 @@ import Registro from './views/Registro';
 import Catalogo from './views/Catalogo';
 import AdminDashboard from './views/AdminDashboard';
 import Perfil from './views/Perfil';
-import Carrito from './views/Carrito'; // 🔥 NUEVO IMPORT AÑADIDO
+import Carrito from './views/Carrito'; 
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 function App() {
@@ -45,14 +45,12 @@ function App() {
       <Navbar />
       
       <main className="min-h-screen bg-white"> 
-        {/* Eliminamos el padding top excesivo porque el Navbar ya lo maneja con su propio espaciador */}
         <Routes>
-          <Route path="/login" element={!user ? <Login /> : <Navigate to={user?.rol === 'ADMIN' ? "/admin" : "/"} replace />} />
+          {/* 🔥 CORRECCIÓN 1: Si es ADMIN o CAJERO, enviarlo al dashboard al hacer login 🔥 */}
+          <Route path="/login" element={!user ? <Login /> : <Navigate to={(user?.rol === 'ADMIN' || user?.rol === 'CAJERO') ? "/admin" : "/"} replace />} />
           <Route path="/registro" element={!user ? <Registro /> : <Navigate to="/" replace />} />
           
           <Route path="/" element={<Catalogo />} />
-          
-          {/* 🔥 NUEVA RUTA REGISTRADA AQUÍ 🔥 */}
           <Route path="/carrito" element={<Carrito />} />
 
           <Route path="/perfil" element={
@@ -61,8 +59,9 @@ function App() {
             </ProtectedRoute>
           } />
           
+          {/* 🔥 CORRECCIÓN 2: Permitir la entrada al Dashboard tanto a ADMIN como a CAJERO 🔥 */}
           <Route path="/admin" element={
-            <ProtectedRoute roleRequired="ADMIN">
+            <ProtectedRoute allowedRoles={['ADMIN', 'CAJERO']}>
               <AdminDashboard />
             </ProtectedRoute>
           } />
