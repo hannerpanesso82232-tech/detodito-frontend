@@ -44,35 +44,47 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
         handleRegistrarAbono 
     } = handlers;
     
-    // Desempaquetamos los datos
     const { categorias, usuarios, rutasDinamicas, clienteActualData, transacciones } = data;
 
-    // 🔥 ESTADO LOCAL PARA MANEJAR LOS CÓDIGOS DE BARRAS FÁCILMENTE 🔥
+    // 🔥 ESTADO LOCAL PARA LOS CÓDIGOS DE BARRAS 🔥
     const [barcodesUI, setBarcodesUI] = useState([{ id: Date.now().toString(), code: '', qty: 1 }]);
 
-    // Cuando se abre el modal, leemos el JSON (si existe) y lo convertimos en cajitas fáciles de usar
-    useEffect(() => {
-        if (showModal) {
+    // 🔥 DECODIFICADOR SEGURO: Limpia triples comillas del backend 🔥
+    const safeParseJSON = (str) => {
+        if (!str || str.trim() === '') return {};
+        let current = str;
+        while (typeof current === 'string') {
             try {
-                const parsed = formulario.codigo_barras ? JSON.parse(formulario.codigo_barras) : {};
-                const arr = Object.entries(parsed).map(([code, qty], i) => ({ id: i.toString() + code, code, qty }));
-                setBarcodesUI(arr.length > 0 ? arr : [{ id: Date.now().toString(), code: '', qty: 1 }]);
-            } catch(e) {
-                setBarcodesUI([{ id: Date.now().toString(), code: '', qty: 1 }]);
+                const parsed = JSON.parse(current);
+                if (typeof parsed !== 'object' || parsed === null) return {};
+                current = parsed;
+            } catch (e) {
+                break;
             }
         }
-    }, [showModal, productoEditando, formulario.codigo_barras]);
+        return typeof current === 'object' && current !== null ? current : {};
+    };
 
-    // Función mágica que convierte las cajitas en JSON para mandarlo a la base de datos
+    // Solo cargar los códigos al abrir el modal (evita que se corte al teclear)
+    useEffect(() => {
+        if (showModal) {
+            const parsed = safeParseJSON(formulario.codigo_barras);
+            const arr = Object.entries(parsed).map(([code, qty]) => ({ id: Math.random().toString(), code, qty }));
+            setBarcodesUI(arr.length > 0 ? arr : [{ id: Date.now().toString(), code: '', qty: 1 }]);
+        }
+    }, [showModal, productoEditando]); // <-- CLAVE: NO vigila formulario.codigo_barras
+
+    // Enviar la lista de códigos en segundo plano
     const updateParentJSON = (list) => {
         const obj = {};
         list.forEach(item => {
-            if (item.code.trim()) {
+            if (item.code && item.code.trim() !== '') {
                 obj[item.code.trim()] = parseInt(item.qty) || 1;
             }
         });
-        const newJson = Object.keys(obj).length > 0 ? JSON.stringify(obj) : '';
-        setFormulario({ ...formulario, codigo_barras: newJson });
+        // Enviamos un espacio vacío ' ' si se borran todos, para que el backend lo limpie
+        const newJson = Object.keys(obj).length > 0 ? JSON.stringify(obj) : ' ';
+        setFormulario(prev => ({ ...prev, codigo_barras: newJson }));
     };
 
     const handleAddBarcode = () => {
@@ -82,7 +94,10 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
     };
 
     const handleRemoveBarcode = (id) => {
-        const newList = barcodesUI.filter(b => b.id !== id);
+        let newList = barcodesUI.filter(b => b.id !== id);
+        if (newList.length === 0) {
+            newList = [{ id: Date.now().toString(), code: '', qty: 1 }];
+        }
         setBarcodesUI(newList);
         updateParentJSON(newList);
     };
@@ -137,42 +152,40 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 <textarea rows="1" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black resize-none text-sm" value={formulario.descripcion || ''} onChange={e => setFormulario({...formulario, descripcion: e.target.value})} />
                             </div>
 
-                            <div className="col-span-2 bg-blue-50/50 p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-blue-100 mt-2 md:mt-4 space-y-4 md:space-y-5">
+                            {/* 🔥 CALCULADORA DE PRECIOS BASE 🔥 */}
+                            <div className="col-span-2 bg-blue-50/50 p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-blue-100 mt-2 space-y-4">
                                 <div className="flex items-center gap-3 mb-2 border-b border-blue-100 pb-3 md:pb-4">
                                     <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-600 text-white rounded-lg md:rounded-xl flex items-center justify-center shadow-lg"><Calculator size={16} className="md:w-5 md:h-5" /></div>
                                     <div>
-                                        <p className="text-xs md:text-sm font-black uppercase text-blue-900 tracking-tighter italic">Calculadora precio</p>
+                                        <p className="text-xs md:text-sm font-black uppercase text-blue-900 tracking-tighter italic">Estructura Base (Detal)</p>
                                         <p className="text-[8px] md:text-[9px] font-black text-blue-500 uppercase tracking-widest">Cálculo Automático</p>
                                     </div>
                                 </div>
                                 {!productoEditando ? (
                                     <div className="grid grid-cols-2 gap-3 md:gap-4">
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Costo de Compra (C/U)</label><input required type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-600 shadow-sm text-xs md:text-sm" value={formulario.costo_compra || ''} onChange={e => setFormulario({...formulario, costo_compra: e.target.value})} /></div>
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Margen de Ganancia (%)</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-orange-500 shadow-sm text-xs md:text-sm" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} /></div>
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Cantidad (Stock)</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black shadow-sm text-xs md:text-sm" value={formulario.stock || ''} onChange={e => setFormulario({...formulario, stock: e.target.value})} /></div>
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Alerta Stock Bajo</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-red-500 shadow-sm text-xs md:text-sm" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Costo (C/U)</label><input required type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-blue-600 shadow-sm text-xs" value={formulario.costo_compra || ''} onChange={e => setFormulario({...formulario, costo_compra: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Margen (%)</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-orange-500 shadow-sm text-xs" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Inventario Físico</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-black shadow-sm text-xs" value={formulario.stock || ''} onChange={e => setFormulario({...formulario, stock: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Avisar si quedan:</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-red-500 shadow-sm text-xs" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} /></div>
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-2 gap-3 md:gap-4">
-                                        <div className="bg-gray-100 p-3 md:p-4 rounded-xl md:rounded-2xl"><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Costo Promedio</p><p className="font-bold text-gray-600 text-xs md:text-sm">${formatCurrency(productoEditando.costo_compra)}</p></div>
-                                        <div className="bg-gray-100 p-3 md:p-4 rounded-xl md:rounded-2xl"><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Stock Actual</p><p className="font-bold text-gray-600 text-xs md:text-sm">{formulario.stock} Uds</p></div>
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">📦 ➕ Unidades Nuevas</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs md:text-sm" value={formulario.stock_adicional || ''} onChange={e => setFormulario({...formulario, stock_adicional: e.target.value})} /></div>
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">💰 Costo (C/U) Nuevo</label><input type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs md:text-sm" value={formulario.costo_nuevo_lote || ''} onChange={e => setFormulario({...formulario, costo_nuevo_lote: e.target.value})} /></div>
-                                        <div className="col-span-2 border-t border-dashed border-blue-200 pt-3 md:pt-4 mt-1 md:mt-2 flex gap-3 md:gap-4">
-                                            <div className="flex-1"><label className="text-[8px] md:text-[9px] font-black uppercase text-orange-600 mb-1">Margen (%)</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold text-orange-600 focus:ring-2 focus:ring-orange-500 shadow-sm outline-none text-xs md:text-sm" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} /></div>
-                                            <div className="flex-1"><label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Alerta Stock Bajo</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold text-red-600 focus:ring-2 focus:ring-red-500 shadow-sm outline-none text-xs md:text-sm" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} /></div>
+                                        <div className="bg-gray-100 p-3 rounded-xl"><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Costo Promedio</p><p className="font-bold text-gray-600 text-xs">${formatCurrency(productoEditando.costo_compra)}</p></div>
+                                        <div className="bg-gray-100 p-3 rounded-xl"><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">Stock Actual</p><p className="font-bold text-gray-600 text-xs">{formulario.stock} Uds</p></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">📦 ➕ Cajas Nuevas</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs" value={formulario.stock_adicional || ''} onChange={e => setFormulario({...formulario, stock_adicional: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-blue-600 mb-1">💰 Costo Nuevo (C/U)</label><input type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl p-3 font-black text-blue-900 focus:ring-2 focus:ring-blue-600 shadow-sm outline-none text-xs" value={formulario.costo_nuevo_lote || ''} onChange={e => setFormulario({...formulario, costo_nuevo_lote: e.target.value})} /></div>
+                                        <div className="col-span-2 border-t border-dashed border-blue-200 pt-3 mt-1 flex gap-3">
+                                            <div className="flex-1"><label className="text-[8px] md:text-[9px] font-black uppercase text-orange-600 mb-1">Margen (%)</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold text-orange-600 focus:ring-2 focus:ring-orange-500 shadow-sm outline-none text-xs" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} /></div>
+                                            <div className="flex-1"><label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Alerta Stock Bajo</label><input type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold text-red-600 focus:ring-2 focus:ring-red-500 shadow-sm outline-none text-xs" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} /></div>
                                         </div>
                                     </div>
                                 )}
-                                <div className="mt-3 md:mt-4 p-4 md:p-5 bg-black text-white rounded-xl md:rounded-2xl flex justify-between items-center shadow-2xl">
-                                    <div><p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-green-400">Precio Sugerido (Detal)</p><p className="text-2xl md:text-3xl font-black italic tracking-tighter">${formatCurrency(precioCalculado)}</p></div>
-                                    {productoEditando && parseInt(formulario.stock_adicional || 0) > 0 && (
-                                        <div className="text-right"><p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-400">Stock Final</p><p className="text-lg md:text-xl font-bold">{parseInt(formulario.stock || 0) + parseInt(formulario.stock_adicional || 0)} Uds</p></div>
-                                    )}
+                                <div className="mt-3 p-4 bg-black text-white rounded-xl flex justify-between items-center shadow-2xl">
+                                    <div><p className="text-[8px] font-black uppercase tracking-widest text-green-400">Precio Sugerido (Unidad)</p><p className="text-2xl font-black italic tracking-tighter">${formatCurrency(precioCalculado)}</p></div>
                                 </div>
                             </div>
 
-                            {/* 🔥 LA NUEVA INTERFAZ LIMPIA PARA EL PUNTO DE VENTA Y ESCÁNER 🔥 */}
+                            {/* 🔥 NUEVO: REGLAS AL POR MAYOR Y ESCÁNER 🔥 */}
                             <div className="col-span-2 bg-green-50/50 p-4 md:p-6 rounded-2xl md:rounded-[2rem] border border-green-100 mt-2 space-y-4">
                                 <div className="flex items-center gap-3 mb-2 border-b border-green-100 pb-3">
                                     <div className="w-8 h-8 bg-green-600 text-white rounded-lg flex items-center justify-center shadow-lg"><Tag size={16} /></div>
@@ -194,17 +207,17 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
 
                                 {/* LISTA DINÁMICA DE CÓDIGOS DE BARRAS */}
                                 <div className="col-span-2 border-t border-green-200/50 pt-4 mt-2">
-                                    <div className="flex justify-between items-center mb-2">
+                                    <div className="flex justify-between items-center mb-3">
                                         <div>
-                                            <label className="text-[8px] md:text-[9px] font-black uppercase text-green-800 block">Códigos de Barras</label>
-                                            <p className="text-[7px] md:text-[8px] text-green-600 font-bold uppercase tracking-widest">Ej: Pistolea el código de la unidad o de la caja.</p>
+                                            <label className="text-[9px] md:text-[10px] font-black uppercase text-green-800 block">Asociar Códigos de Barras</label>
+                                            <p className="text-[8px] text-green-600 font-bold uppercase tracking-widest">Ej: Código Blíster = 1 ud. Código Caja = 10 uds.</p>
                                         </div>
-                                        <button type="button" onClick={handleAddBarcode} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-200 transition-colors flex items-center gap-1 text-[8px] font-black uppercase tracking-widest">
-                                            <Plus size={10}/> Añadir
+                                        <button type="button" onClick={handleAddBarcode} className="bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1 text-[9px] font-black uppercase tracking-widest shadow-sm">
+                                            <Plus size={12}/> Añadir
                                         </button>
                                     </div>
                                     
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
                                         {barcodesUI.map((b) => (
                                             <div key={b.id} className="flex gap-2 items-center bg-white p-2 rounded-xl border border-green-100 shadow-sm">
                                                 <div className="flex-1">
@@ -224,13 +237,13 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                             </div>
 
                             {/* FORZAR PRECIO MANUAL */}
-                            <div className="col-span-2 mt-1 md:mt-2 p-3 md:p-4 bg-gray-50 rounded-xl md:rounded-2xl border border-gray-100 flex items-center justify-between">
-                                <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 block mb-0.5 md:mb-1">¿Forzar cambio de precio manual (Detal)?</label></div>
-                                <input type="number" step="0.01" className="w-1/2 sm:w-1/3 bg-white border-none rounded-lg md:rounded-xl p-2 md:p-3 font-bold shadow-sm outline-none focus:ring-2 focus:ring-black text-xs md:text-sm" value={formulario.precio || ''} onChange={e => setFormulario({...formulario, precio: e.target.value})} placeholder="Precio exacto..." />
+                            <div className="col-span-2 mt-2 p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between">
+                                <div><label className="text-[8px] font-black uppercase text-gray-500 block mb-0.5">¿Ignorar cálculo y forzar precio (Detal)?</label></div>
+                                <input type="number" step="0.01" className="w-1/2 sm:w-1/3 bg-white border-none rounded-lg p-2 font-bold shadow-sm outline-none focus:ring-2 focus:ring-black text-xs" value={formulario.precio || ''} onChange={e => setFormulario({...formulario, precio: e.target.value})} placeholder="Precio exacto..." />
                             </div>
 
-                            <button disabled={enviando || (precioCalculado <= 0 && !formulario.precio)} className={`col-span-2 mt-2 md:mt-4 text-white py-4 md:py-6 rounded-xl md:rounded-3xl font-black uppercase tracking-[0.2em] text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-2 md:gap-3 shadow-xl ${(precioCalculado <= 0 && !formulario.precio) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-black hover:scale-[1.02]'}`}>
-                                {enviando ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={16} className="md:w-5 md:h-5"/>} {productoEditando ? 'Guardar Cambios' : 'PUBLICAR PRODUCTO'}
+                            <button disabled={enviando || (precioCalculado <= 0 && !formulario.precio)} className={`col-span-2 mt-2 text-white py-4 md:py-6 rounded-xl font-black uppercase tracking-[0.2em] text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-2 shadow-xl ${(precioCalculado <= 0 && !formulario.precio) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-black hover:scale-[1.02]'}`}>
+                                {enviando ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={16} />} {productoEditando ? 'Guardar Cambios' : 'PUBLICAR PRODUCTO'}
                             </button>
                         </form>
                     </div>
@@ -610,6 +623,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                             <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Rol del Sistema</label>
                                 <select className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.rol || 'CLIENTE'} onChange={e => setFormEditUsuario({...formEditUsuario, rol: e.target.value})}>
                                     <option value="CLIENTE">CLIENTE REGULAR</option><option value="ADMIN">ADMINISTRADOR</option><option value="COMPRAS">ENCARGADO DE COMPRAS</option>
+                                    <option value="CAJERO">CAJERO POS</option>
                                 </select>
                             </div>
                             <div className="sm:col-span-2"><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Dirección Exacta</label><textarea rows="2" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 resize-none text-xs md:text-sm" value={formEditUsuario.direccion || ''} onChange={e => setFormEditUsuario({...formEditUsuario, direccion: e.target.value})} /></div>
@@ -635,12 +649,21 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                         <button onClick={() => setShowUsuarioModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white">
                             <X size={18}/>
                         </button>
-                        <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-4 md:mb-6">Crear Cliente</h2>
+                        <h2 className="text-2xl md:text-3xl font-black uppercase italic tracking-tighter mb-4 md:mb-6">Crear Cliente / Usuario</h2>
                         <form onSubmit={handleCrearUsuario} className="space-y-3 md:space-y-4">
                             <input required type="text" placeholder="Nombre completo" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.nombre || ''} onChange={e => setFormUsuario({...formUsuario, nombre: e.target.value})} />
                             <input required type="text" placeholder="Número de Cédula" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.cedula || ''} onChange={e => setFormUsuario({...formUsuario, cedula: e.target.value})} />
                             <input type="email" placeholder="Correo electrónico (Opcional)" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.email || ''} onChange={e => setFormUsuario({...formUsuario, email: e.target.value})} />
                             <input required type="password" placeholder="Contraseña (mínimo 6 caracteres)" minLength="6" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.password || ''} onChange={e => setFormUsuario({...formUsuario, password: e.target.value})} />
+                            
+                            {/* 🔥 NUEVO CAMPO ROL EN CREAR USUARIO 🔥 */}
+                            <select className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-xs md:text-sm cursor-pointer" value={formUsuario.rol || 'CLIENTE'} onChange={e => setFormUsuario({...formUsuario, rol: e.target.value})}>
+                                <option value="CLIENTE">CLIENTE REGULAR</option>
+                                <option value="ADMIN">ADMINISTRADOR</option>
+                                <option value="COMPRAS">ENCARGADO DE COMPRAS</option>
+                                <option value="CAJERO">CAJERO POS</option>
+                            </select>
+
                             <div className="grid grid-cols-2 gap-3 md:gap-4"><input type="text" placeholder="Ciudad (Ej: Carepa)" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.ciudad || ''} onChange={e => setFormUsuario({...formUsuario, ciudad: e.target.value})} /><input type="text" placeholder="Teléfono" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.telefono || ''} onChange={e => setFormUsuario({...formUsuario, telefono: e.target.value})} /></div>
                             <input type="text" placeholder="Dirección Exacta" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.direccion || ''} onChange={e => setFormUsuario({...formUsuario, direccion: e.target.value})} />
                             
