@@ -17,7 +17,7 @@ import {
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
 import { formatCurrency, formatearImagen } from '../utils/adminUtils';
-import { useAuth } from '../context/AuthContext'; // 🔥 INYECCIÓN: Autenticación de Usuario
+import { useAuth } from '../context/AuthContext'; // 🔥 INYECCIÓN 1: Autenticación de Usuario
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
@@ -78,7 +78,7 @@ const StatCard = ({ title, value, icon, color, subtitle }) => (
 );
 
 const AdminDashboard = () => {
-    // 🔥 CONTROL DE ACCESO (RBAC) 🔥
+    // 🔥 INYECCIÓN 2: LÓGICA DE CONTROL DE ACCESO (RBAC) 🔥
     const { user } = useAuth();
     const esCajero = user?.rol === 'CAJERO';
 
@@ -93,7 +93,7 @@ const AdminDashboard = () => {
     const [whatsappTienda, setWhatsappTienda] = useState('');
     const [horaLimite, setHoraLimite] = useState('20:00'); 
     
-    // 🔥 CAJERO EMPIEZA EN POS 🔥
+    // 🔥 INYECCIÓN 3: SI ES CAJERO, FUERZA EL INICIO EN LA CAJA 'pos'
     const [tab, setTab] = useState(esCajero ? 'pos' : 'reportes'); 
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
@@ -103,7 +103,7 @@ const AdminDashboard = () => {
     const [posCodigo, setPosCodigo] = useState('');
     const [posClienteId, setPosClienteId] = useState('');
     const [posSearchTerm, setPosSearchTerm] = useState('');
-    const [showCheatSheetModal, setShowCheatSheetModal] = useState(false); // 🔥 ESTADO CHEAT SHEET
+    const [showCheatSheetModal, setShowCheatSheetModal] = useState(false); // 🔥 ESTADO CHEAT SHEET AÑADIDO
     const inputScannerRef = useRef(null);
     // ----------------------------------
     
@@ -750,12 +750,12 @@ const AdminDashboard = () => {
         } catch (error) { toast.error("Error al transferir factura", { id: loadingId }); }
     };
 
-    // 🔥 PASAMOS EL ESTADO DEL CHEAT SHEET A LOS MODALS 🔥
+    // 🔥 INYECCIÓN 4: Pasamos el estado de visualización del Cheat Sheet a los Modals
     const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal };
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal };
     const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera };
-    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones, productos }; // Pasamos los productos a los modales
+    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones, productos }; // Pasamos los productos a los Modals
 
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
 
@@ -769,9 +769,13 @@ const AdminDashboard = () => {
                 
                 {/* 🔥 CONTROL DE ACCESO PARA BOTONES GLOBALES 🔥 */}
                 {!esCajero && (
-                    <div className="flex flex-wrap gap-2">
-                        <button onClick={exportarManifiestoCarga} className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl hover:bg-blue-700 transition-all"><Truck size={16}/> Extraer Ruta</button>
-                        <button onClick={() => setShowConfigModal(true)} className="bg-gray-200 text-gray-900 px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-gray-300 transition-all"><Settings size={16}/> Ajustes</button>
+                    <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-3 w-full md:w-auto">
+                        {tab === 'finanzas' && (<button onClick={() => { setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); setShowGastoModal(true); }} className="col-span-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-500/30 uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><ArrowDownRight size={16} /> Movimiento Manual</button>)}
+                        {tab === 'cartera' && (<button onClick={() => setShowCreditoModal(true)} className="col-span-2 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Banknote size={16} /> Fiar Libre</button>)}
+                        <button onClick={exportarManifiestoCarga} className={`${(tab === 'finanzas' || tab === 'cartera') ? 'col-span-1' : 'col-span-2'} bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/30 uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95`}><Truck size={16} /> Extraer Ruta</button>
+                        {tab === 'productos' && (<button onClick={() => { setProductoEditando(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10, precio_mayor: '', cantidad_mayor: '', codigo_barras: '' }); setPrecioCalculado(0); setShowModal(true); }} className="col-span-1 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Plus size={16} /> Producto</button>)}
+                        {tab === 'clientes' && (<button onClick={() => setShowUsuarioModal(true)} className="col-span-1 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Users size={16} /> Cliente</button>)}
+                        <button onClick={() => setShowConfigModal(true)} className="col-span-1 bg-gray-200 hover:bg-gray-300 text-gray-900 px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Settings size={16} /> Ajustes</button>
                     </div>
                 )}
             </div>
@@ -792,6 +796,7 @@ const AdminDashboard = () => {
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
+                    
                     {/* 🔥 FILTRO DE PESTAÑAS: EL CAJERO SOLO VE 'POS' Y 'PEDIDOS' 🔥 */}
                     {['reportes', 'pos', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => {
                         if (esCajero && t !== 'pos' && t !== 'pedidos') return null;
@@ -801,7 +806,7 @@ const AdminDashboard = () => {
                         );
                     })}
                 </div>
-                
+
                 {tab === 'productos' && (
                     <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 md:gap-4 w-full md:w-auto">
                         <button onClick={() => setFiltroStockBajo(!filtroStockBajo)} className={`px-4 py-3 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2 transition-colors ${filtroStockBajo ? 'bg-red-600 text-white shadow-lg' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}><AlertTriangle size={16} /> {filtroStockBajo ? 'Ocultar Filtro' : 'Filtrar Stock Bajo'}</button>
@@ -838,7 +843,7 @@ const AdminDashboard = () => {
                                             type="text" 
                                             value={posCodigo}
                                             onChange={(e) => setPosCodigo(e.target.value)}
-                                            placeholder="Pistolear código..."
+                                            placeholder="Pistolear código y presionar Enter..."
                                             className="w-full bg-blue-800/50 border-2 border-blue-500 rounded-xl py-4 pl-12 pr-4 text-lg font-black tracking-widest outline-none focus:bg-white focus:text-black focus:border-white transition-all placeholder:text-blue-400"
                                             autoFocus
                                         />
@@ -850,9 +855,10 @@ const AdminDashboard = () => {
                                 <div className="flex justify-between items-center mb-6">
                                     <div className="flex flex-col">
                                         <h3 className="font-black uppercase tracking-widest text-sm text-gray-500 flex items-center gap-2"><MonitorSmartphone size={16}/> Catálogo Manual</h3>
+                                        {/* 🔥 BOTÓN CHEAT SHEET AQUÍ 🔥 */}
                                         <button onClick={() => setShowCheatSheetModal(true)} className="text-left mt-1 text-blue-600 font-bold text-[10px] uppercase hover:underline flex items-center gap-1"><FileText size={10}/> ¿Ver códigos de barras?</button>
                                     </div>
-                                    <div className="relative w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} /><input type="text" placeholder="Buscar..." value={posSearchTerm} onChange={e => setPosSearchTerm(e.target.value)} className="w-full bg-gray-50 border-none rounded-lg pl-9 pr-4 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                                    <div className="relative w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} /><input type="text" placeholder="Buscar por nombre..." value={posSearchTerm} onChange={e => setPosSearchTerm(e.target.value)} className="w-full bg-gray-50 border-none rounded-lg pl-9 pr-4 py-2 font-bold text-xs outline-none focus:ring-2 focus:ring-blue-500" /></div>
                                 </div>
                                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 grid grid-cols-2 md:grid-cols-3 gap-4">
                                     {productosPOSVisuales.map(p => (
@@ -875,7 +881,7 @@ const AdminDashboard = () => {
                                         <div key={item.id} className="flex gap-4 items-center bg-gray-50 p-3 rounded-2xl border border-gray-100">
                                             <div className="flex-1">
                                                 <h4 className="font-black text-xs uppercase text-gray-900 line-clamp-1">{item.nombre}</h4>
-                                                {item.es_mayor && <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Mayorista</span>}
+                                                {item.es_mayor && <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Al Por Mayor</span>}
                                                 <div className="flex items-center gap-3 mt-2">
                                                     <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-gray-200">
                                                         <button onClick={() => updatePosQuantity(item.id, item.cantidad - 1)} className="text-gray-400 hover:text-black"><Minus size={12}/></button>
@@ -894,16 +900,20 @@ const AdminDashboard = () => {
                                     ))}
                             </div>
                             <div className="p-6 border-t border-gray-200 bg-gray-50 shrink-0">
-                                <div className="flex justify-between items-end mb-6"><span className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Total</span><span className="text-4xl font-black italic tracking-tighter text-gray-900">${posTotal.toLocaleString('es-CO')}</span></div>
+                                <div className="flex justify-between items-end mb-6"><span className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Total Venta</span><span className="text-4xl font-black italic tracking-tighter text-gray-900">${posTotal.toLocaleString('es-CO')}</span></div>
                                 <div className="space-y-3">
-                                    <button onClick={() => handlePosCheckout('CONTADO')} disabled={enviando || posCartCalculado.length === 0} className="w-full bg-green-500 text-white py-4 rounded-xl font-black uppercase text-[10px] hover:bg-black transition-all flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 active:scale-95">{enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16}/>} Cobrar Efectivo</button>
+                                    <button onClick={() => handlePosCheckout('CONTADO')} disabled={enviando || posCartCalculado.length === 0} className="w-full bg-green-500 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-black transition-all flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 active:scale-95">
+                                        {enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16}/>} Cobrar Efectivo / Transf
+                                    </button>
                                     <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
-                                        <label className="text-[9px] font-black text-orange-800 uppercase mb-2 block flex items-center gap-1"><Banknote size={12}/> Fiar a Cliente</label>
+                                        <label className="text-[9px] font-black text-orange-800 uppercase tracking-widest mb-2 block flex items-center gap-1"><Banknote size={12}/> Fiar a Cliente</label>
                                         <select value={posClienteId} onChange={e => setPosClienteId(e.target.value)} className="w-full bg-white p-3 rounded-lg font-bold text-xs outline-none mb-3 border border-orange-100">
-                                            <option value="">-- Seleccionar --</option>
-                                            {(Array.isArray(usuarios) ? usuarios : []).map(u => <option key={u.id} value={u.id}>{u.nombre} (${formatCurrency(u.limite_credito)})</option>)}
+                                            <option value="">-- Seleccionar Cliente --</option>
+                                            {(Array.isArray(usuarios) ? usuarios : []).map(u => <option key={u.id} value={u.id}>{u.nombre} (Cupo: ${formatCurrency(u.limite_credito)})</option>)}
                                         </select>
-                                        <button onClick={() => handlePosCheckout('CREDITO')} disabled={enviando || posCartCalculado.length === 0 || !posClienteId} className="w-full bg-orange-500 text-white py-3 rounded-lg font-black uppercase text-[9px] hover:bg-black transition-all flex items-center justify-center">{enviando ? <Loader2 className="animate-spin" size={14} /> : 'Cargar a Cartera'}</button>
+                                        <button onClick={() => handlePosCheckout('CREDITO')} disabled={enviando || posCartCalculado.length === 0 || !posClienteId} className="w-full bg-orange-500 text-white py-3 rounded-lg font-black uppercase tracking-widest text-[9px] hover:bg-black transition-all disabled:opacity-50 active:scale-95 flex items-center justify-center">
+                                            {enviando ? <Loader2 className="animate-spin" size={14} /> : 'Cargar a Cartera'}
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -1268,7 +1278,7 @@ const AdminDashboard = () => {
                                     <p className="text-gray-500 font-bold text-xs uppercase tracking-widest">No hay pedidos que coincidan con tu búsqueda.</p>
                                 </div>
                             )}
-                            {pedidosFiltradosVisual.map(ped => {
+                            {(Array.isArray(pedidosFiltradosVisual) ? pedidosFiltradosVisual : []).map(ped => {
                                 const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
                                 const items = ped.Detalles || ped.items || [];
                                 
@@ -1368,6 +1378,7 @@ const AdminDashboard = () => {
                         </table>
                     </div>
                 )}
+
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
