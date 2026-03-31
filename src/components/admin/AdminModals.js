@@ -37,7 +37,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
         setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal 
     } = setters;
     
-    // 4. Extraemos los handlers (Las funciones de guardado vienen de AdminDashboard)
+    // 4. Extraemos los handlers
     const { 
         handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, 
         handleDevolucionProducto, handleGuardarProducto, handleImagenChange, 
@@ -53,30 +53,44 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
     // 🔥 ESTADO LOCAL PARA MANEJAR LOS CÓDIGOS DE BARRAS FÁCILMENTE 🔥
     const [barcodesUI, setBarcodesUI] = useState([{ id: Math.random().toString(36).substring(7), code: '', qty: 1 }]);
 
-    // 🔥 ALGORITMO DE AUTO-SANACIÓN (SELF-HEALING) 🔥
+    // 🔥 DECODIFICADOR MAESTRO DE JSON (SELF-HEALING) 🔥
+    const safeDecodeJSON = (rawString) => {
+        if (!rawString || typeof rawString !== 'string' || rawString.trim() === '') return {};
+        
+        let current = rawString;
+        let attempts = 0;
+        
+        try {
+            while (typeof current === 'string' && attempts < 5) {
+                const trimmed = current.trim();
+                // Si no parece un objeto JSON o un string escapado, paramos
+                if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+                    // Si empieza con comillas y tiene llaves dentro, lo quitamos
+                    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+                        current = trimmed.substring(1, trimmed.length - 1).replace(/\\"/g, '"');
+                        attempts++;
+                        continue;
+                    }
+                    break;
+                }
+                current = JSON.parse(trimmed);
+                attempts++;
+            }
+            if (typeof current === 'object' && current !== null && !Array.isArray(current)) {
+                return current;
+            }
+            return {};
+        } catch (e) {
+            return {};
+        }
+    };
+
+    // CARGAR LOS CÓDIGOS AL ABRIR EL MODAL DE EDICIÓN
     useEffect(() => {
         if (showModal) {
-            let initialCodes = '';
-            if (productoEditando && productoEditando.codigo_barras) {
-                initialCodes = productoEditando.codigo_barras;
-            }
-
             let parsed = {};
-            try {
-                let current = initialCodes;
-                let attempts = 0;
-                // Desempaqueta múltiples capas de string si están corruptas
-                while (typeof current === 'string' && attempts < 5) {
-                    const trimmed = current.trim();
-                    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) break;
-                    current = JSON.parse(trimmed);
-                    attempts++;
-                }
-                if (typeof current === 'object' && current !== null && !Array.isArray(current)) {
-                    parsed = current;
-                }
-            } catch (e) {
-                parsed = {}; 
+            if (productoEditando && productoEditando.codigo_barras) {
+                parsed = safeDecodeJSON(productoEditando.codigo_barras);
             }
 
             // Transformamos el objeto limpio a las filas visuales
@@ -102,7 +116,8 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 obj[cleanCode] = parseInt(item.qty) || 1;
             }
         });
-        const newJson = Object.keys(obj).length > 0 ? JSON.stringify(obj) : ' ';
+        // Si hay datos, lo serializa 1 sola vez de forma limpia
+        const newJson = Object.keys(obj).length > 0 ? JSON.stringify(obj) : '';
         setFormulario(prev => ({ ...prev, codigo_barras: newJson }));
     };
 
@@ -678,7 +693,6 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                             <input type="email" placeholder="Correo electrónico (Opcional)" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.email || ''} onChange={e => setFormUsuario({...formUsuario, email: e.target.value})} />
                             <input required type="password" placeholder="Contraseña (mínimo 6 caracteres)" minLength="6" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.password || ''} onChange={e => setFormUsuario({...formUsuario, password: e.target.value})} />
                             
-                            {/* 🔥 CAMPO ROL EN CREAR USUARIO 🔥 */}
                             <select className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-xs md:text-sm cursor-pointer" value={formUsuario.rol || 'CLIENTE'} onChange={e => setFormUsuario({...formUsuario, rol: e.target.value})}>
                                 <option value="CLIENTE">CLIENTE REGULAR</option>
                                 <option value="ADMIN">ADMINISTRADOR</option>
@@ -840,42 +854,29 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
-                                    {(Array.isArray(productos) ? productos : []).filter(p => p.codigo_barras && p.codigo_barras.trim() !== '' && (p.codigo_barras.trim().startsWith('{') || p.codigo_barras.trim().startsWith('"'))).length === 0 ? (
+                                    {(Array.isArray(productos) ? productos : []).map(p => {
+                                        const codigos = safeDecodeJSON(p.codigo_barras);
+                                        if (Object.keys(codigos).length === 0) return null;
+                                        return (
+                                            <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="p-4 font-black text-xs uppercase text-gray-800">{p.nombre}</td>
+                                                <td className="p-4 text-[10px] font-bold text-blue-600 uppercase">{p.Categoria?.nombre || 'Gral'}</td>
+                                                <td className="p-4">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {Object.entries(codigos).map(([code, qty]) => (
+                                                            <span key={code} className="bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 text-[10px] font-mono font-black flex items-center gap-1">
+                                                                <ScanBarcode size={10}/> {code} <span className="text-blue-400">({qty}u)</span>
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                    {(Array.isArray(productos) ? productos : []).filter(p => Object.keys(safeDecodeJSON(p.codigo_barras)).length > 0).length === 0 && (
                                         <tr>
                                             <td colSpan="3" className="p-10 text-center text-gray-400 font-bold uppercase text-[10px]">No hay códigos registrados en el sistema.</td>
                                         </tr>
-                                    ) : (
-                                        (Array.isArray(productos) ? productos : []).filter(p => p.codigo_barras && p.codigo_barras.trim() !== '' && (p.codigo_barras.trim().startsWith('{') || p.codigo_barras.trim().startsWith('"'))).map(p => {
-                                            let codigos = {};
-                                            try {
-                                                let current = p.codigo_barras;
-                                                let attempts = 0;
-                                                while (typeof current === 'string' && attempts < 5) {
-                                                    const trimmed = current.trim();
-                                                    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) break;
-                                                    current = JSON.parse(trimmed);
-                                                    attempts++;
-                                                }
-                                                if (typeof current === 'object' && current !== null && !Array.isArray(current)) {
-                                                    codigos = current;
-                                                }
-                                            } catch(e){}
-                                            return (
-                                                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="p-4 font-black text-xs uppercase text-gray-800">{p.nombre}</td>
-                                                    <td className="p-4 text-[10px] font-bold text-blue-600 uppercase">{p.Categoria?.nombre || 'Gral'}</td>
-                                                    <td className="p-4">
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {Object.entries(codigos).map(([code, qty]) => (
-                                                                <span key={code} className="bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 text-[10px] font-mono font-black flex items-center gap-1">
-                                                                    <ScanBarcode size={10}/> {String(code).replace(/["\\]/g, '')} <span className="text-blue-400">({qty}u)</span>
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )
-                                        })
                                     )}
                                 </tbody>
                             </table>
