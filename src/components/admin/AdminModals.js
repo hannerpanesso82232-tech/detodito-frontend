@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { 
     X, Loader2, CheckCircle2, Calculator, AlertTriangle, User, Key, Settings, 
     Map, Trash2, PackageMinus, Banknote, DollarSign, Image as ImageIcon, 
-    Printer, ArrowLeftRight, ChevronRight, History, Edit, ArrowUpRight, ArrowDownRight, Tag, Plus
+    Printer, ArrowLeftRight, ChevronRight, History, Edit, ArrowUpRight, ArrowDownRight, Tag, Plus, ScanBarcode
 } from 'lucide-react';
 import { formatCurrency, imprimirFacturaCliente } from '../../utils/adminUtils';
 
 const AdminModals = ({ states, forms, setters, handlers, data }) => {
-    // 1. Extraemos los estados
+    // 1. Extraemos los estados (Añadido showCheatSheetModal)
     const { 
         showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, 
         transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, 
@@ -15,7 +15,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
         showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, 
         usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, 
         pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, 
-        clienteEstadoCuenta, enviando 
+        clienteEstadoCuenta, enviando, showCheatSheetModal 
     } = states;
     
     const { 
@@ -24,6 +24,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
         formCredito, formAbono 
     } = forms;
     
+    // Añadido setShowCheatSheetModal
     const { 
         setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, 
         setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, 
@@ -32,7 +33,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
         setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, 
         setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, 
         setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, 
-        setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado 
+        setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal 
     } = setters;
     
     const { 
@@ -44,37 +45,34 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
         handleRegistrarAbono 
     } = handlers;
     
-    const { categorias, usuarios, rutasDinamicas, clienteActualData, transacciones } = data;
+    // Desempaquetamos los datos
+    const { categorias, usuarios, rutasDinamicas, clienteActualData, transacciones, productos } = data;
 
-    // 🔥 ESTADO LOCAL PARA LOS CÓDIGOS DE BARRAS 🔥
+    // 🔥 ESTADO LOCAL PARA MANEJAR LOS CÓDIGOS DE BARRAS FÁCILMENTE 🔥
     const [barcodesUI, setBarcodesUI] = useState([{ id: Date.now().toString(), code: '', qty: 1 }]);
 
-    // 🔥 DECODIFICADOR SEGURO: Limpia triples comillas del backend 🔥
-    const safeParseJSON = (str) => {
-        if (!str || str.trim() === '') return {};
-        let current = str;
-        while (typeof current === 'string') {
-            try {
-                const parsed = JSON.parse(current);
-                if (typeof parsed !== 'object' || parsed === null) return {};
-                current = parsed;
-            } catch (e) {
-                break;
-            }
-        }
-        return typeof current === 'object' && current !== null ? current : {};
-    };
-
-    // Solo cargar los códigos al abrir el modal (evita que se corte al teclear)
+    // 🔥 CORRECCIÓN DEL FANTASMA DE MEMORIA: Leemos directamente del producto seleccionado 🔥
     useEffect(() => {
         if (showModal) {
-            const parsed = safeParseJSON(formulario.codigo_barras);
-            const arr = Object.entries(parsed).map(([code, qty]) => ({ id: Math.random().toString(), code, qty }));
-            setBarcodesUI(arr.length > 0 ? arr : [{ id: Date.now().toString(), code: '', qty: 1 }]);
+            let initialCodes = '';
+            if (productoEditando && productoEditando.codigo_barras) {
+                initialCodes = productoEditando.codigo_barras;
+            }
+            
+            try {
+                const parsed = initialCodes ? JSON.parse(initialCodes) : {};
+                const arr = Object.entries(parsed).map(([code, qty], i) => ({ id: i.toString() + code, code, qty }));
+                setBarcodesUI(arr.length > 0 ? arr : [{ id: Date.now().toString(), code: '', qty: 1 }]);
+            } catch(e) {
+                setBarcodesUI([{ id: Date.now().toString(), code: '', qty: 1 }]);
+            }
+        } else {
+            // Limpiamos al cerrar para no arrastrar datos
+            setBarcodesUI([{ id: Date.now().toString(), code: '', qty: 1 }]);
         }
-    }, [showModal, productoEditando]); // <-- CLAVE: NO vigila formulario.codigo_barras
+    }, [showModal, productoEditando]); // <- Blindado: Solo se ejecuta al abrir/cambiar producto
 
-    // Enviar la lista de códigos en segundo plano
+    // Función mágica que convierte las cajitas en JSON para mandarlo a la base de datos
     const updateParentJSON = (list) => {
         const obj = {};
         list.forEach(item => {
@@ -82,8 +80,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                 obj[item.code.trim()] = parseInt(item.qty) || 1;
             }
         });
-        // Enviamos un espacio vacío ' ' si se borran todos, para que el backend lo limpie
-        const newJson = Object.keys(obj).length > 0 ? JSON.stringify(obj) : ' ';
+        const newJson = Object.keys(obj).length > 0 ? JSON.stringify(obj) : '';
         setFormulario(prev => ({ ...prev, codigo_barras: newJson }));
     };
 
@@ -163,7 +160,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 </div>
                                 {!productoEditando ? (
                                     <div className="grid grid-cols-2 gap-3 md:gap-4">
-                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Costo (C/U)</label><input required type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-blue-600 shadow-sm text-xs" value={formulario.costo_compra || ''} onChange={e => setFormulario({...formulario, costo_compra: e.target.value})} /></div>
+                                        <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Costo de Compra (C/U)</label><input required type="number" step="0.01" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-blue-600 shadow-sm text-xs" value={formulario.costo_compra || ''} onChange={e => setFormulario({...formulario, costo_compra: e.target.value})} /></div>
                                         <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Margen (%)</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-orange-500 shadow-sm text-xs" value={formulario.margen_ganancia || ''} onChange={e => setFormulario({...formulario, margen_ganancia: e.target.value})} /></div>
                                         <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-500 mb-1">Inventario Físico</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-black shadow-sm text-xs" value={formulario.stock || ''} onChange={e => setFormulario({...formulario, stock: e.target.value})} /></div>
                                         <div><label className="text-[8px] md:text-[9px] font-black uppercase text-red-500 mb-1">Avisar si quedan:</label><input required type="number" min="0" className="w-full bg-white border-none rounded-xl p-3 font-bold outline-none focus:ring-2 focus:ring-red-500 shadow-sm text-xs" value={formulario.tope_stock || ''} onChange={e => setFormulario({...formulario, tope_stock: e.target.value})} /></div>
@@ -181,7 +178,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                     </div>
                                 )}
                                 <div className="mt-3 p-4 bg-black text-white rounded-xl flex justify-between items-center shadow-2xl">
-                                    <div><p className="text-[8px] font-black uppercase tracking-widest text-green-400">Precio Sugerido (Unidad)</p><p className="text-2xl font-black italic tracking-tighter">${formatCurrency(precioCalculado)}</p></div>
+                                    <div><p className="text-[8px] font-black uppercase tracking-widest text-green-400">Precio Sugerido (Detal)</p><p className="text-2xl font-black italic tracking-tighter">${formatCurrency(precioCalculado)}</p></div>
                                 </div>
                             </div>
 
@@ -789,6 +786,62 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                         <div className="flex gap-3 md:gap-4">
                             <button onClick={() => setShowDeleteModal(false)} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-gray-100 hover:bg-gray-200 transition-all">Cancel</button>
                             <button onClick={handleEliminar} className="flex-1 py-4 md:py-5 rounded-xl md:rounded-2xl font-black uppercase text-[9px] md:text-[10px] bg-red-600 text-white hover:bg-red-700 transition-all">Destroy</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 🔥 15. NUEVO MODAL: LISTADO DE CÓDIGOS DE BARRAS (CHEAT SHEET) 🔥 */}
+            {showCheatSheetModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[400] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-3xl rounded-[2rem] shadow-2xl flex flex-col max-h-[80vh] animate-in zoom-in-95 duration-200 overflow-hidden">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center"><ScanBarcode size={20}/></div>
+                                <div>
+                                    <h2 className="text-xl font-black uppercase italic tracking-tighter text-gray-900">Listado de Códigos (POS)</h2>
+                                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Guía rápida para cajeros</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setShowCheatSheetModal(false)} className="p-2 bg-gray-200 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
+                        </div>
+                        <div className="p-0 flex-1 overflow-y-auto custom-scrollbar">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-white sticky top-0 shadow-sm">
+                                    <tr>
+                                        <th className="p-4 text-[9px] uppercase font-black text-gray-400 tracking-widest border-b">Producto</th>
+                                        <th className="p-4 text-[9px] uppercase font-black text-gray-400 tracking-widest border-b">Categoría</th>
+                                        <th className="p-4 text-[9px] uppercase font-black text-gray-400 tracking-widest border-b">Códigos Asociados</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {productos?.filter(p => p.codigo_barras && p.codigo_barras.trim() !== '' && p.codigo_barras.trim().startsWith('{')).length === 0 ? (
+                                        <tr>
+                                            <td colSpan="3" className="p-10 text-center text-gray-400 font-bold uppercase text-[10px]">No hay códigos registrados en el sistema.</td>
+                                        </tr>
+                                    ) : (
+                                        productos?.filter(p => p.codigo_barras && p.codigo_barras.trim() !== '' && p.codigo_barras.trim().startsWith('{')).map(p => {
+                                            let codigos = {};
+                                            try { codigos = JSON.parse(p.codigo_barras); } catch(e){}
+                                            return (
+                                                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="p-4 font-black text-xs uppercase text-gray-800">{p.nombre}</td>
+                                                    <td className="p-4 text-[10px] font-bold text-blue-600 uppercase">{p.Categoria?.nombre || 'Gral'}</td>
+                                                    <td className="p-4">
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {Object.entries(codigos).map(([code, qty]) => (
+                                                                <span key={code} className="bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 text-[10px] font-mono font-black flex items-center gap-1">
+                                                                    <ScanBarcode size={10}/> {code} <span className="text-blue-400">({qty}u)</span>
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
