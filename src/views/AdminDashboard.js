@@ -78,7 +78,7 @@ const StatCard = ({ title, value, icon, color, subtitle }) => (
 );
 
 const AdminDashboard = () => {
-    // 🔥 LÓGICA DE CONTROL DE ACCESO (RBAC) 🔥
+    // 🔥 CONTROL DE ACCESO (RBAC) 🔥
     const { user } = useAuth();
     const esCajero = user?.rol === 'CAJERO';
 
@@ -93,7 +93,7 @@ const AdminDashboard = () => {
     const [whatsappTienda, setWhatsappTienda] = useState('');
     const [horaLimite, setHoraLimite] = useState('20:00'); 
     
-    // 🔥 CONFIGURACIÓN INICIAL SEGÚN EL ROL 🔥
+    // 🔥 CAJERO EMPIEZA EN POS 🔥
     const [tab, setTab] = useState(esCajero ? 'pos' : 'reportes'); 
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
@@ -103,7 +103,7 @@ const AdminDashboard = () => {
     const [posCodigo, setPosCodigo] = useState('');
     const [posClienteId, setPosClienteId] = useState('');
     const [posSearchTerm, setPosSearchTerm] = useState('');
-    const [showCheatSheetModal, setShowCheatSheetModal] = useState(false); // 🔥 ESTADO PARA LA LISTA DE CÓDIGOS
+    const [showCheatSheetModal, setShowCheatSheetModal] = useState(false); // 🔥 ESTADO CHEAT SHEET
     const inputScannerRef = useRef(null);
     // ----------------------------------
     
@@ -487,7 +487,7 @@ const AdminDashboard = () => {
 
     const clientesCartera = useMemo(() => {
         const mapa = {};
-        (Array.isArray(usuarios) ? usuarios : []).forEach(u => { 
+        (usuarios || []).forEach(u => { 
             mapa[u.id] = { 
                 ...u, creditos: [], pedidos: [], 
                 totalDeuda: 0, totalFiado: 0,
@@ -499,7 +499,7 @@ const AdminDashboard = () => {
 
         const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
 
-        (Array.isArray(creditos) ? creditos : []).forEach(c => {
+        (creditos || []).forEach(c => {
             const uid = parseInt(c.usuarioId || c.usuario_id || c.Usuario?.id);
             if (mapa[uid]) {
                 mapa[uid].creditos.push(c);
@@ -516,7 +516,7 @@ const AdminDashboard = () => {
             }
         });
         
-        (Array.isArray(pedidos) ? pedidos : []).forEach(p => { 
+        (pedidos || []).forEach(p => { 
             const uid = parseInt(p.usuarioId || p.usuario_id);
             if (mapa[uid]) mapa[uid].pedidos.push(p); 
         });
@@ -541,13 +541,13 @@ const AdminDashboard = () => {
 
     const statsCartera = useMemo(() => {
         let porCobrar = 0, fiadoTotal = 0;
-        (Array.isArray(creditos) ? creditos : []).forEach(c => { if(c.estado === 'VIGENTE') porCobrar += parseFloat(c.saldo || 0); fiadoTotal += parseFloat(c.monto_total || 0); });
+        (creditos || []).forEach(c => { if(c.estado === 'VIGENTE') porCobrar += parseFloat(c.saldo || 0); fiadoTotal += parseFloat(c.monto_total || 0); });
         return { porCobrar, fiadoTotal };
     }, [creditos]);
 
     const clienteActualData = useMemo(() => {
         if(!clienteEstadoCuenta) return null;
-        return (Array.isArray(clientesCartera) ? clientesCartera : []).find(c => c.id === clienteEstadoCuenta.id);
+        return clientesCartera.find(c => c.id === clienteEstadoCuenta.id);
     }, [clienteEstadoCuenta, clientesCartera]);
 
     const productosFiltrados = useMemo(() => {
@@ -597,9 +597,9 @@ const AdminDashboard = () => {
         const ws = XLSX.utils.json_to_sheet(dataParaExportar); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Inventario"); XLSX.writeFile(wb, filtroStockBajo ? `Reporte_Inventario_Stock_Bajo.xlsx` : `Reporte_Inventario.xlsx`);
     };
 
-    const cerrarModal = () => { setShowModal(false); setProductoEditando(null); setImagenArchivo(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10, cantidad_mayor: 0, precio_mayor: '', codigo_barras: '' }); setPrecioCalculado(0); };
+    const cerrarModal = () => { setShowModal(false); setProductoEditando(null); setImagenArchivo(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 }); setPrecioCalculado(0); };
     const handleImagenChange = (e) => { const file = e.target.files[0]; if (file) { setImagenArchivo(file); setPreview(URL.createObjectURL(file)); } };
-    const abrirModalEditar = (p) => { setProductoEditando(p); setFormulario({ nombre: p.nombre || '', precio: p.precio || '', stock: p.stock || 0, stock_adicional: '', precio_nuevo_lote: p.costo_compra || 0, categoriaId: p.categoriaId || p.categoria_id || '', descripcion: p.descripcion || '', proveedor: p.proveedor || '', costo_compra: p.costo_compra || 0, margen_ganancia: p.margen_ganancia || 0, tope_stock: p.tope_stock || 10, cantidad_mayor: p.cantidad_mayor || 0, precio_mayor: p.precio_mayor || '', codigo_barras: p.codigo_barras || '' }); setPreview(formatearImagen(p.imagen_url)); setShowModal(true); };
+    const abrirModalEditar = (p) => { setProductoEditando(p); setFormulario({ nombre: p.nombre || '', precio: p.precio || '', stock: p.stock || 0, stock_adicional: '', precio_nuevo_lote: p.costo_compra || 0, categoriaId: p.categoriaId || p.categoria_id || '', descripcion: p.descripcion || '', proveedor: p.proveedor || '', costo_compra: p.costo_compra || 0, margen_ganancia: p.margen_ganancia || 0, tope_stock: p.tope_stock || 10 }); setPreview(formatearImagen(p.imagen_url)); setShowModal(true); };
     const abrirModalBaja = (p) => { setProductoBaja(p); setFormBaja({ cantidad: 1, motivo: 'Dañado/Roto' }); setShowBajaModal(true); };
 
     const handleGuardarProducto = async (e) => {
@@ -608,11 +608,7 @@ const AdminDashboard = () => {
         let costoFinalBD = parseFloat(formulario.costo_compra || 0);
         if (productoEditando && stockNuevo > 0) { const costoNuevoLote = parseFloat(formulario.costo_nuevo_lote || 0); costoFinalBD = ((stockExistente * costoFinalBD) + (stockNuevo * costoNuevoLote)) / stockFinal; }
         
-        data.append('nombre', formulario.nombre); data.append('precio', precioCalculado.toFixed(2)); data.append('stock', stockFinal); data.append('categoriaId', formulario.categoriaId); data.append('descripcion', formulario.descripcion); data.append('proveedor', formulario.proveedor || 'No especificado'); data.append('costo_compra', costoFinalBD.toFixed(2)); data.append('margen_ganancia', parseFloat(formulario.margen_ganancia || 0)); data.append('tope_stock', parseInt(formulario.tope_stock || 10)); 
-        if (formulario.cantidad_mayor) data.append('cantidad_mayor', parseInt(formulario.cantidad_mayor));
-        if (formulario.precio_mayor) data.append('precio_mayor', parseFloat(formulario.precio_mayor).toFixed(2));
-        if (formulario.codigo_barras) data.append('codigo_barras', formulario.codigo_barras);
-        if (imagenArchivo) data.append('imagen', imagenArchivo);
+        data.append('nombre', formulario.nombre); data.append('precio', precioCalculado.toFixed(2)); data.append('stock', stockFinal); data.append('categoriaId', formulario.categoriaId); data.append('descripcion', formulario.descripcion); data.append('proveedor', formulario.proveedor || 'No especificado'); data.append('costo_compra', costoFinalBD.toFixed(2)); data.append('margen_ganancia', parseFloat(formulario.margen_ganancia || 0)); data.append('tope_stock', parseInt(formulario.tope_stock || 10)); if (imagenArchivo) data.append('imagen', imagenArchivo);
         
         try { if (productoEditando) { await API.put(`/productos/${productoEditando.id}`, data); } else { await API.post('/productos', data); } cerrarModal(); fetchDatos(); toast.success("Producto Guardado en Inventario"); } catch (err) { toast.error("Error al guardar"); } finally { setEnviando(false); }
     };
@@ -754,12 +750,12 @@ const AdminDashboard = () => {
         } catch (error) { toast.error("Error al transferir factura", { id: loadingId }); }
     };
 
-    // 🔥 INYECCIÓN ARQUITECTÓNICA 5: Modals actualizados con la nueva visualización
+    // 🔥 PASAMOS EL ESTADO DEL CHEAT SHEET A LOS MODALS 🔥
     const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal };
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal };
     const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera };
-    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones, productos }; // Pasamos los productos
+    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones, productos }; // Pasamos los productos a los modales
 
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
 
@@ -796,7 +792,6 @@ const AdminDashboard = () => {
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
-                    
                     {/* 🔥 FILTRO DE PESTAÑAS: EL CAJERO SOLO VE 'POS' Y 'PEDIDOS' 🔥 */}
                     {['reportes', 'pos', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => {
                         if (esCajero && t !== 'pos' && t !== 'pedidos') return null;
@@ -880,7 +875,7 @@ const AdminDashboard = () => {
                                         <div key={item.id} className="flex gap-4 items-center bg-gray-50 p-3 rounded-2xl border border-gray-100">
                                             <div className="flex-1">
                                                 <h4 className="font-black text-xs uppercase text-gray-900 line-clamp-1">{item.nombre}</h4>
-                                                {item.es_mayor && <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Al Por Mayor</span>}
+                                                {item.es_mayor && <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Mayorista</span>}
                                                 <div className="flex items-center gap-3 mt-2">
                                                     <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-gray-200">
                                                         <button onClick={() => updatePosQuantity(item.id, item.cantidad - 1)} className="text-gray-400 hover:text-black"><Minus size={12}/></button>
@@ -901,18 +896,14 @@ const AdminDashboard = () => {
                             <div className="p-6 border-t border-gray-200 bg-gray-50 shrink-0">
                                 <div className="flex justify-between items-end mb-6"><span className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Total</span><span className="text-4xl font-black italic tracking-tighter text-gray-900">${posTotal.toLocaleString('es-CO')}</span></div>
                                 <div className="space-y-3">
-                                    <button onClick={() => handlePosCheckout('CONTADO')} disabled={enviando || posCartCalculado.length === 0} className="w-full bg-green-500 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-black transition-all flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 active:scale-95">
-                                        {enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16}/>} Cobrar Efectivo / Transf
-                                    </button>
+                                    <button onClick={() => handlePosCheckout('CONTADO')} disabled={enviando || posCartCalculado.length === 0} className="w-full bg-green-500 text-white py-4 rounded-xl font-black uppercase text-[10px] hover:bg-black transition-all flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 active:scale-95">{enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16}/>} Cobrar Efectivo</button>
                                     <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
-                                        <label className="text-[9px] font-black text-orange-800 uppercase tracking-widest mb-2 block flex items-center gap-1"><Banknote size={12}/> Fiar a Cliente</label>
+                                        <label className="text-[9px] font-black text-orange-800 uppercase mb-2 block flex items-center gap-1"><Banknote size={12}/> Fiar a Cliente</label>
                                         <select value={posClienteId} onChange={e => setPosClienteId(e.target.value)} className="w-full bg-white p-3 rounded-lg font-bold text-xs outline-none mb-3 border border-orange-100">
-                                            <option value="">-- Seleccionar Cliente --</option>
-                                            {(Array.isArray(usuarios) ? usuarios : []).map(u => <option key={u.id} value={u.id}>{u.nombre} (Cupo: ${u.limite_credito})</option>)}
+                                            <option value="">-- Seleccionar --</option>
+                                            {(Array.isArray(usuarios) ? usuarios : []).map(u => <option key={u.id} value={u.id}>{u.nombre} (${formatCurrency(u.limite_credito)})</option>)}
                                         </select>
-                                        <button onClick={() => handlePosCheckout('CREDITO')} disabled={enviando || posCartCalculado.length === 0 || !posClienteId} className="w-full bg-orange-500 text-white py-3 rounded-lg font-black uppercase tracking-widest text-[9px] hover:bg-black transition-all disabled:opacity-50 active:scale-95 flex items-center justify-center">
-                                            {enviando ? <Loader2 className="animate-spin" size={14} /> : 'Cargar a Cartera'}
-                                        </button>
+                                        <button onClick={() => handlePosCheckout('CREDITO')} disabled={enviando || posCartCalculado.length === 0 || !posClienteId} className="w-full bg-orange-500 text-white py-3 rounded-lg font-black uppercase text-[9px] hover:bg-black transition-all flex items-center justify-center">{enviando ? <Loader2 className="animate-spin" size={14} /> : 'Cargar a Cartera'}</button>
                                     </div>
                                 </div>
                             </div>
@@ -994,38 +985,38 @@ const AdminDashboard = () => {
                             <div className="lg:col-span-2 bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
                                 <div className="flex justify-between items-center mb-8"><div><h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Agenda de Entregas</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Rutas programadas por ciudad</p></div><CalendarDays className="text-blue-600" size={24} /></div>
                                 <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                                    {dataAgendaEntregas.length === 0 && <p className="text-center text-gray-400 font-bold uppercase text-xs py-10">No hay entregas pendientes</p>}
-                                    {dataAgendaEntregas.map((agenda, i) => (
-                                        <div key={i} className="flex flex-col gap-4 bg-gray-50 p-4 md:p-5 rounded-2xl md:rounded-3xl border border-gray-100">
-                                            <div className="flex justify-between items-center">
-                                                <div className="flex items-center gap-3 md:gap-4">
-                                                    <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center font-black text-sm md:text-base">{agenda.cantidad}</div>
-                                                    <div>
-                                                        <p className={`font-black uppercase italic text-xs md:text-sm ${agenda.reprogramado ? 'text-orange-600' : 'text-gray-900'}`}>
-                                                            {agenda.reprogramado ? 'REPROGRAMADO' : agenda.dia}
-                                                        </p>
-                                                        <p className="text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest">{agenda.fecha}</p>
+                                    {dataAgendaEntregas.length === 0 ? <p className="text-center text-gray-400 font-bold uppercase text-xs py-10">No hay entregas pendientes</p> : 
+                                        dataAgendaEntregas.map((agenda, i) => (
+                                            <div key={i} className="flex flex-col gap-4 bg-gray-50 p-4 md:p-5 rounded-2xl md:rounded-3xl border border-gray-100">
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-3 md:gap-4">
+                                                        <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center font-black text-sm md:text-base">{agenda.cantidad}</div>
+                                                        <div>
+                                                            <p className={`font-black uppercase italic text-xs md:text-sm ${agenda.reprogramado ? 'text-orange-600' : 'text-gray-900'}`}>
+                                                                {agenda.reprogramado ? 'REPROGRAMADO' : agenda.dia}
+                                                            </p>
+                                                            <p className="text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest">{agenda.fecha}</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="font-black text-base md:text-lg italic text-blue-600">${formatCurrency(agenda.total)}</span>
+                                                </div>
+                                                <div className="pl-12 md:pl-16">
+                                                    <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Detalle de ruta:</p>
+                                                    <div className="flex flex-col gap-2">
+                                                        {agenda.pedidos.map((ped, idx) => (
+                                                            <div key={idx} className="bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm flex flex-col">
+                                                                <span className="text-[9px] md:text-[10px] font-black text-gray-800 uppercase">
+                                                                    {ped.Usuario?.nombre || ped.cliente || 'Consumidor Final'}
+                                                                </span>
+                                                                <span className="text-[8px] md:text-[9px] font-bold text-gray-500 mt-0.5 truncate">
+                                                                    📍 {ped.Usuario?.ciudad || 'Ciudad N/A'} - {ped.direccion || ped.Usuario?.direccion || 'Sin dirección'}
+                                                                </span>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
-                                                <span className="font-black text-base md:text-lg italic text-blue-600">${formatCurrency(agenda.total)}</span>
                                             </div>
-                                            <div className="pl-12 md:pl-16">
-                                                <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Detalle de ruta:</p>
-                                                <div className="flex flex-col gap-2">
-                                                    {agenda.pedidos.map((ped, idx) => (
-                                                        <div key={idx} className="bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm flex flex-col">
-                                                            <span className="text-[9px] md:text-[10px] font-black text-gray-800 uppercase">
-                                                                {ped.Usuario?.nombre || ped.cliente || 'Consumidor Final'}
-                                                            </span>
-                                                            <span className="text-[8px] md:text-[9px] font-bold text-gray-500 mt-0.5 truncate">
-                                                                📍 {ped.Usuario?.ciudad || 'Ciudad N/A'} - {ped.direccion || ped.Usuario?.direccion || 'Sin dirección'}
-                                                            </span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
+                                        ))}
                                 </div>
                             </div>
                             <div className="bg-black text-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl flex flex-col">
@@ -1204,7 +1195,7 @@ const AdminDashboard = () => {
 
                 {/* --- VISTA PRODUCTOS --- */}
                 {tab === 'productos' && (
-                    <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
+                    <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[700px]">
                             <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-[0.2em] border-b border-gray-100">
                                 <tr><th className="px-4 py-4 md:px-8 md:py-6">Item / Categoría</th><th className="px-4 py-4 md:px-8 md:py-6">Proveedor</th><th className="px-4 py-4 md:px-8 md:py-6 bg-blue-50/50 rounded-tl-xl md:rounded-tl-2xl">Finanzas: Costo/Margen/Venta</th><th className="px-4 py-4 md:px-8 md:py-6">Stock</th><th className="px-4 py-4 md:px-8 md:py-6 text-right">Acciones</th></tr>
@@ -1362,41 +1353,15 @@ const AdminDashboard = () => {
 
                 {/* --- VISTA CLIENTES --- */}
                 {tab === 'clientes' && (
-                    <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
+                    <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
                         <table className="w-full text-left min-w-[600px]">
-                            <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-[0.2em] border-b border-gray-100">
-                                <tr><th className="px-4 py-4 md:px-8 md:py-6">Usuario / Cédula</th><th className="px-4 py-4 md:px-8 md:py-6 text-center">Crédito</th><th className="px-4 py-4 md:px-8 md:py-6">Teléfono / Ciudad</th><th className="px-4 py-4 md:px-8 md:py-6 text-center">Rol</th><th className="px-4 py-4 md:px-8 md:py-6 text-right">Acciones</th></tr>
-                            </thead>
+                            <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black border-b"><tr><th className="px-8 py-6">Cliente</th><th className="px-8 py-6 text-center">Crédito</th><th className="px-8 py-6 text-right">Acciones</th></tr></thead>
                             <tbody className="divide-y divide-gray-50">
                                 {(Array.isArray(usuarios) ? usuarios : []).map(u => (
                                     <tr key={u.id} className="hover:bg-gray-50/50 transition-all">
-                                        <td className="px-4 py-4 md:px-8 md:py-5"><p className="font-black text-gray-900 uppercase text-[10px] md:text-xs">{u.nombre}</p><p className="text-[9px] md:text-[10px] text-gray-500 font-bold">CC: {u.cedula || 'Sin cédula'}</p></td>
-                                        
-                                        <td className="px-4 py-4 md:px-8 md:py-5 text-center">
-                                            {parseFloat(u.limite_credito) > 0 ? (
-                                                <div className="bg-green-50 text-green-600 px-3 py-1 rounded-lg inline-block text-left mb-2 w-full max-w-[120px]">
-                                                    <p className="text-[9px] font-black uppercase tracking-widest">Límite: ${formatCurrency(u.limite_credito)}</p>
-                                                    <p className="text-[8px] font-bold uppercase mt-0.5">{u.dias_credito} Días plazo</p>
-                                                </div>
-                                            ) : (
-                                                <span className="bg-gray-100 text-gray-400 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest block mb-2 w-fit mx-auto">Estricto Contado</span>
-                                            )}
-
-                                            <button 
-                                                onClick={() => handleToggleCredito(u)}
-                                                className={`mx-auto w-full max-w-[120px] py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 ${u.credito_activo !== false ? 'bg-black text-white hover:bg-red-600' : 'bg-red-100 text-red-600 hover:bg-green-500 hover:text-white'}`}
-                                            >
-                                                {u.credito_activo !== false ? <><Unlock size={10}/> Crédito Activo</> : <><Lock size={10}/> Suspendido</>}
-                                            </button>
-                                        </td>
-                                        
-                                        <td className="px-4 py-4 md:px-8 md:py-5"><p className="text-[9px] md:text-[10px] font-bold text-gray-600">{u.telefono || 'N/A'}</p><p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mt-0.5">{u.ciudad || 'No definida'}</p></td>
-                                        <td className="px-4 py-4 md:px-8 md:py-5 text-center"><span className={`text-[8px] md:text-[9px] font-black uppercase px-2 py-1 md:px-3 rounded-lg ${u.rol === 'ADMIN' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}`}>{u.rol}</span></td>
-                                        <td className="px-4 py-4 md:px-8 md:py-5 text-right flex justify-end gap-1 md:gap-2">
-                                            <button onClick={() => abrirModalEditarUsuario(u)} className="p-2 md:p-2.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all"><Edit size={14} /></button>
-                                            <button onClick={() => { setUsuarioSeleccionado(u); setShowPasswordModal(true); }} className="p-2 md:p-2.5 bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white rounded-xl transition-all"><Key size={14} /></button>
-                                            <button onClick={() => { setUsuarioAEliminar(u); }} className="p-2 md:p-2.5 bg-red-50 text-red-500 hover:bg-red-600 hover:text-white rounded-xl transition-all"><Trash2 size={14} /></button>
-                                        </td>
+                                        <td className="px-8 py-5"><p className="font-black text-gray-900 uppercase text-xs">{u.nombre}</p><p className="text-[10px] text-gray-500">{u.telefono}</p></td>
+                                        <td className="px-8 py-5 text-center">{parseFloat(u.limite_credito) > 0 ? <span className="text-green-600 font-black text-[10px]">LÍMITE: ${formatCurrency(u.limite_credito)}</span> : <span className="text-gray-400 text-[10px]">CONTADO</span>}</td>
+                                        <td className="px-8 py-5 text-right flex justify-end gap-2"><button onClick={() => abrirModalEditarUsuario(u)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all"><Edit size={14} /></button><button onClick={() => { setUsuarioAEliminar(u); }} className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14} /></button></td>
                                     </tr>
                                 ))}
                             </tbody>
