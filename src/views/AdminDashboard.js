@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
-import { formatCurrency, formatearImagen } from '../utils/adminUtils';
+import { formatCurrency, formatearImagen, imprimirFacturaCliente, imprimirTirillaPOS } from '../utils/adminUtils';
 import { useAuth } from '../context/AuthContext'; 
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
@@ -356,8 +356,41 @@ const AdminDashboard = () => {
                 toast.success("Venta anotada en la Cartera del Cliente", { id: loadId });
             }
 
+            // 🔥 ALGORITMO DE GENERACIÓN DE FACTURAS AL INSTANTE 🔥
+            const clienteData = posClienteId ? (Array.isArray(usuarios) ? usuarios : []).find(u => u.id === parseInt(posClienteId)) : { nombre: 'VENTA CONTADO', cedula: '0000' };
+            const facturaObj = {
+                id: pedidoId,
+                total: posTotal,
+                fecha: new Date().toISOString(),
+                estado: 'Entregado',
+                metodo_pago: metodo === 'CREDITO' ? 'CRÉDITO (FIADO)' : 'CONTADO (CAJA)',
+                Usuario: clienteData,
+                Detalles: posCartCalculado.map(item => ({
+                    cantidad: item.cantidad,
+                    precioUnitario: item.precio_aplicado,
+                    Producto: { nombre: item.nombre }
+                }))
+            };
+
+            // 🔥 LÓGICA DE DOBLE OPCIÓN DE IMPRESIÓN 🔥
+            setTimeout(() => {
+                // 1. Preguntamos por la Tirilla POS
+                if (window.confirm(`✅ Venta #${pedidoId} exitosa.\n\n¿Deseas imprimir la TIRILLA TÉRMICA (Ticket POS)?\n\n(Haz clic en 'Aceptar' para Tirilla, o en 'Cancelar' para ver otra opción)`)) {
+                    imprimirTirillaPOS(facturaObj);
+                } 
+                // 2. Si cancela, ofrecemos la Factura Normal PDF
+                else if (window.confirm(`¿Deseas imprimir la FACTURA NORMAL (PDF tamaño carta) en su lugar?`)) {
+                    imprimirFacturaCliente(facturaObj, rutasDinamicas, horaLimite);
+                }
+            }, 300);
+
+            // Limpiamos la caja para el siguiente cliente
             setPosCart([]); setPosCodigo(''); setPosClienteId(''); setPosSearchTerm(''); fetchDatos();
-        } catch (error) { toast.error("Error al procesar la venta", { id: loadId }); } finally { setEnviando(false); }
+        } catch (error) { 
+            toast.error("Error al procesar la venta", { id: loadId }); 
+        } finally { 
+            setEnviando(false); 
+        }
     };
     // ---------------------------------------------
 
@@ -469,7 +502,13 @@ const AdminDashboard = () => {
     }, [transaccionesFiltradas, finanzas]);
 
     const pedidosFiltradosVisual = useMemo(() => {
+        // 🔥 FILTRO DE SEGURIDAD VISUAL: El cajero solo ve ventas POS_LOCAL 🔥
         let filtrados = Array.isArray(pedidos) ? pedidos : [];
+        
+        if (esCajero) {
+            filtrados = filtrados.filter(ped => ped.metodo_pago === 'POS_LOCAL');
+        }
+
         if (filtroTextoPedidos) {
             const termino = filtroTextoPedidos.toLowerCase();
             filtrados = filtrados.filter(ped => {
@@ -494,7 +533,7 @@ const AdminDashboard = () => {
             });
         }
         return filtrados;
-    }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos, filtroTextoPedidos]);
+    }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos, filtroTextoPedidos, esCajero]);
 
     const clientesCartera = useMemo(() => {
         const mapa = {};

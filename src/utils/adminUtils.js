@@ -114,3 +114,150 @@ export const imprimirFacturaCliente = (pedido, rutasDinamicas = [], horaLimiteGl
     doc.setFontSize(8); doc.setTextColor(150, 150, 150); doc.text("Gracias por elegirnos Dios te bendiga. Este documento avala la entrega de los productos.", 14, 280);
     const nombreArchivoSeguro = nombreCliente.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''); doc.save(`Factura_${nombreArchivoSeguro}_ModernShop_Orden${pedido.id}.pdf`); 
 };
+
+// 🔥 NUEVA FUNCIÓN: GENERADOR DE TIRILLA TÉRMICA (80mm / 58mm) 🔥
+export const imprimirTirillaPOS = (pedido) => {
+    // Abrimos una ventana temporal invisible para imprimir
+    const printWindow = window.open('', '_blank', 'width=400,height=600');
+    if (!printWindow) return;
+
+    // Generamos las filas de los productos
+    const itemsHtml = (pedido.Detalles || []).map(item => {
+        const nombreStr = item.Producto?.nombre || item.nombre || 'Item';
+        const cant = item.cantidad;
+        const precio = parseFloat(item.precioUnitario || 0);
+        const sub = cant * precio;
+        return `
+        <div class="item-row">
+            <span class="desc">${nombreStr.substring(0, 18)}</span>
+            <span class="cant">${cant}</span>
+            <span class="precio">$${sub.toLocaleString('es-CO')}</span>
+        </div>
+        `;
+    }).join('');
+
+    const totalFormateado = parseFloat(pedido.total).toLocaleString('es-CO');
+    const fecha = new Date(pedido.fecha || new Date());
+    const fechaStr = fecha.toLocaleDateString('es-CO');
+    const horaStr = fecha.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    const clienteStr = pedido.Usuario?.nombre || 'VENTA MOSTRADOR';
+    const documentoStr = pedido.Usuario?.cedula || '0000';
+
+    // Maquetación exacta para impresoras POS (CSS Print)
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Tirilla #${pedido.id}</title>
+        <style>
+            @page { margin: 0; } /* Quita los márgenes del navegador (Header/Footer url) */
+            body { 
+                font-family: 'Courier New', Courier, monospace; 
+                width: 80mm; /* Estándar de impresora térmica */
+                margin: 0 auto; 
+                padding: 10px 15px;
+                color: #000;
+                font-size: 12px;
+                text-transform: uppercase;
+            }
+            .text-center { text-align: center; }
+            .font-bold { font-weight: bold; }
+            .header { margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
+            .header h3 { margin: 0 0 5px 0; font-size: 16px; }
+            .header p { margin: 2px 0; font-size: 10px; }
+            
+            .info-section { margin-bottom: 10px; font-size: 11px; line-height: 1.4; }
+            .flex-between { display: flex; justify-content: space-between; }
+            
+            .table-header { 
+                display: flex; 
+                justify-content: space-between; 
+                border-top: 1px dashed #000; 
+                border-bottom: 1px dashed #000; 
+                padding: 5px 0; 
+                margin-bottom: 5px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            
+            .item-row { 
+                display: flex; 
+                justify-content: space-between; 
+                padding: 3px 0;
+                font-size: 11px;
+            }
+            
+            .desc { flex: 2; text-align: left; padding-right: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .cant { flex: 1; text-align: center; }
+            .precio { flex: 1; text-align: right; }
+            
+            .totals { margin-top: 10px; border-top: 1px dashed #000; padding-top: 10px; }
+            .total-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; margin-top: 5px; }
+            
+            .footer { margin-top: 15px; font-size: 10px; text-align: center; border-top: 1px dashed #000; padding-top: 10px;}
+        </style>
+    </head>
+    <body>
+        <div class="header text-center">
+            <h3>DETODITO</h3>
+            <p>NIT: 000.000.000-0</p>
+            <p>RÉGIMEN RESPONSABLE DE IVA</p>
+            <p>TEL: 000 000 0000</p>
+        </div>
+        
+        <div class="info-section">
+            <div class="flex-between"><span>FACTURA VENTA:</span> <span>#${pedido.id}</span></div>
+            <div class="flex-between"><span>FECHA: ${fechaStr}</span> <span>HORA: ${horaStr}</span></div>
+            <div>CLIENTE: ${clienteStr}</div>
+            <div>C.C./NIT: ${documentoStr}</div>
+            <div>MÉTODO: ${pedido.metodo_pago}</div>
+        </div>
+
+        <div class="table-header">
+            <span class="desc">DESCRIPCIÓN</span>
+            <span class="cant">CANT</span>
+            <span class="precio">PRECIO</span>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+            ${itemsHtml}
+        </div>
+
+        <div class="totals">
+            <div class="flex-between" style="font-size: 11px;">
+                <span>SUBTOTAL:</span>
+                <span>$${totalFormateado}</span>
+            </div>
+            <div class="total-row">
+                <span>TOTAL FACTURA:</span>
+                <span>$${totalFormateado}</span>
+            </div>
+            <div class="flex-between" style="font-size: 11px; margin-top: 5px;">
+                <span>${pedido.metodo_pago.includes('CONTADO') ? 'EFECTIVO:' : 'CRÉDITO:'}</span>
+                <span>$${totalFormateado}</span>
+            </div>
+        </div>
+
+        <div class="footer text-center">
+            <p>NO SE DEVUELVE DINERO</p>
+            <p>CONSERVE SU TIRILLA PARA RECLAMOS</p>
+            <p style="margin-top: 10px; font-weight: bold;">GRACIAS POR SU COMPRA</p>
+        </div>
+
+        <script>
+            // Dispara el menú de impresión de Windows inmediatamente
+            window.onload = function() {
+                setTimeout(() => {
+                    window.print();
+                    window.close(); // Cierra la pestaña fantasma al terminar
+                }, 300);
+            }
+        </script>
+    </body>
+    </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+};
