@@ -17,7 +17,7 @@ import {
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
 import { formatCurrency, formatearImagen } from '../utils/adminUtils';
-import { useAuth } from '../context/AuthContext'; // 🔥 IMPORTAMOS PARA SABER QUIÉN ESTÁ LOGUEADO
+import { useAuth } from '../context/AuthContext'; 
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
@@ -78,7 +78,7 @@ const StatCard = ({ title, value, icon, color, subtitle }) => (
 );
 
 const AdminDashboard = () => {
-    // 🔥 LÓGICA DE ROLES PARA PROTEGER EL DASHBOARD 🔥
+    // 🔥 LÓGICA DE CONTROL DE ACCESO (RBAC) 🔥
     const { user } = useAuth();
     const esCajero = user?.rol === 'CAJERO';
 
@@ -93,7 +93,7 @@ const AdminDashboard = () => {
     const [whatsappTienda, setWhatsappTienda] = useState('');
     const [horaLimite, setHoraLimite] = useState('20:00'); 
     
-    // 🔥 EL CAJERO INICIA DIRECTO EN LA CAJA 🔥
+    // 🔥 CAJERO EMPIEZA EN POS 🔥
     const [tab, setTab] = useState(esCajero ? 'pos' : 'reportes'); 
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
@@ -103,7 +103,7 @@ const AdminDashboard = () => {
     const [posCodigo, setPosCodigo] = useState('');
     const [posClienteId, setPosClienteId] = useState('');
     const [posSearchTerm, setPosSearchTerm] = useState('');
-    const [showCheatSheetModal, setShowCheatSheetModal] = useState(false); // 🔥 ESTADO PARA LA LISTA DE CÓDIGOS
+    const [showCheatSheetModal, setShowCheatSheetModal] = useState(false);
     const inputScannerRef = useRef(null);
     // ----------------------------------
     
@@ -245,7 +245,7 @@ const AdminDashboard = () => {
                     let parsed = prod.codigo_barras;
                     if (typeof parsed === 'string') {
                         parsed = JSON.parse(parsed);
-                        if (typeof parsed === 'string') parsed = JSON.parse(parsed); // Double parse si hay data poisoning
+                        if (typeof parsed === 'string') parsed = JSON.parse(parsed); 
                     }
                     if (parsed[codigoBuscado] !== undefined) {
                         productoEncontrado = prod;
@@ -777,13 +777,16 @@ const AdminDashboard = () => {
                 
                 {/* 🔥 CONTROL DE ACCESO PARA BOTONES GLOBALES 🔥 */}
                 {!esCajero && (
-                    <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-3 w-full md:w-auto">
-                        {tab === 'finanzas' && (<button onClick={() => { setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); setShowGastoModal(true); }} className="col-span-2 bg-red-600 hover:bg-red-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-red-500/30 uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><ArrowDownRight size={16} /> Movimiento Manual</button>)}
-                        {tab === 'cartera' && (<button onClick={() => setShowCreditoModal(true)} className="col-span-2 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Banknote size={16} /> Fiar Libre</button>)}
-                        <button onClick={exportarManifiestoCarga} className={`${(tab === 'finanzas' || tab === 'cartera') ? 'col-span-1' : 'col-span-2'} bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-500/30 uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95`}><Truck size={16} /> Extraer Ruta</button>
-                        {tab === 'productos' && (<button onClick={() => { setProductoEditando(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10, precio_mayor: '', cantidad_mayor: '', codigo_barras: '' }); setPrecioCalculado(0); setShowModal(true); }} className="col-span-1 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Plus size={16} /> Producto</button>)}
-                        {tab === 'clientes' && (<button onClick={() => setShowUsuarioModal(true)} className="col-span-1 bg-black hover:bg-gray-800 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Users size={16} /> Cliente</button>)}
-                        <button onClick={() => setShowConfigModal(true)} className="col-span-1 bg-gray-200 hover:bg-gray-300 text-gray-900 px-4 py-3 md:px-6 md:py-4 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 transition-all uppercase text-[9px] md:text-[10px] tracking-widest active:scale-95"><Settings size={16} /> Ajustes</button>
+                    <div className="flex flex-wrap gap-2">
+                        {tab === 'finanzas' && (<button onClick={() => { setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); setShowGastoModal(true); }} className="bg-red-600 hover:bg-red-700 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl active:scale-95"><ArrowDownRight size={16} /> Movimiento Manual</button>)}
+                        {tab === 'cartera' && (<button onClick={() => setShowCreditoModal(true)} className="bg-black hover:bg-gray-800 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl active:scale-95"><Banknote size={16} /> Fiar Libre</button>)}
+                        
+                        <button onClick={exportarManifiestoCarga} className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl hover:bg-blue-700 transition-all"><Truck size={16}/> Extraer Ruta</button>
+                        
+                        {tab === 'productos' && (<button onClick={() => { setProductoEditando(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10, precio_mayor: '', cantidad_mayor: '', codigo_barras: '' }); setPrecioCalculado(0); setShowModal(true); }} className="bg-black hover:bg-gray-800 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl active:scale-95"><Plus size={16} /> Producto</button>)}
+                        {tab === 'clientes' && (<button onClick={() => setShowUsuarioModal(true)} className="bg-black hover:bg-gray-800 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl active:scale-95"><Users size={16} /> Cliente</button>)}
+
+                        <button onClick={() => setShowConfigModal(true)} className="bg-gray-200 text-gray-900 px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-gray-300 transition-all"><Settings size={16}/> Ajustes</button>
                     </div>
                 )}
             </div>
@@ -851,7 +854,7 @@ const AdminDashboard = () => {
                                             type="text" 
                                             value={posCodigo}
                                             onChange={(e) => setPosCodigo(e.target.value)}
-                                            placeholder="Pistolear código y presionar Enter..."
+                                            placeholder="Pistolear código..."
                                             className="w-full bg-blue-800/50 border-2 border-blue-500 rounded-xl py-4 pl-12 pr-4 text-lg font-black tracking-widest outline-none focus:bg-white focus:text-black focus:border-white transition-all placeholder:text-blue-400"
                                             autoFocus
                                         />
@@ -888,7 +891,7 @@ const AdminDashboard = () => {
                                         <div key={item.id} className="flex gap-4 items-center bg-gray-50 p-3 rounded-2xl border border-gray-100">
                                             <div className="flex-1">
                                                 <h4 className="font-black text-xs uppercase text-gray-900 line-clamp-1">{item.nombre}</h4>
-                                                {item.es_mayor && <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Al Por Mayor</span>}
+                                                {item.es_mayor && <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Mayorista</span>}
                                                 <div className="flex items-center gap-3 mt-2">
                                                     <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-gray-200">
                                                         <button onClick={() => updatePosQuantity(item.id, item.cantidad - 1)} className="text-gray-400 hover:text-black"><Minus size={12}/></button>
@@ -910,7 +913,7 @@ const AdminDashboard = () => {
                                 <div className="flex justify-between items-end mb-6"><span className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Total Venta</span><span className="text-4xl font-black italic tracking-tighter text-gray-900">${posTotal.toLocaleString('es-CO')}</span></div>
                                 <div className="space-y-3">
                                     <button onClick={() => handlePosCheckout('CONTADO')} disabled={enviando || posCartCalculado.length === 0} className="w-full bg-green-500 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-black transition-all flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 active:scale-95">
-                                        {enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16}/>} Cobrar Efectivo / Transf
+                                        {enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16}/>} Cobrar Efectivo
                                     </button>
                                     <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
                                         <label className="text-[9px] font-black text-orange-800 uppercase tracking-widest mb-2 block flex items-center gap-1"><Banknote size={12}/> Fiar a Cliente</label>
@@ -942,7 +945,7 @@ const AdminDashboard = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {(Array.isArray(clientesCartera) ? clientesCartera : []).length === 0 ? (<tr><td colSpan="5" className="py-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">No hay historial de clientes ni deudas.</td></tr>) : (
+                                {clientesCartera.length === 0 ? (<tr><td colSpan="5" className="py-12 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">No hay historial de clientes ni deudas.</td></tr>) : (
                                     clientesCartera.map(c => {
                                         const cupoDisponible = c.limite_credito > 0 ? (c.limite_credito - c.totalDeuda) : 0;
                                         return (
@@ -1006,16 +1009,11 @@ const AdminDashboard = () => {
                                         dataAgendaEntregas.map((agenda, i) => (
                                             <div key={i} className="flex flex-col gap-4 bg-gray-50 p-4 md:p-5 rounded-2xl md:rounded-3xl border border-gray-100">
                                                 <div className="flex justify-between items-center">
-                                                    <div className="flex items-center gap-3 md:gap-4">
-                                                        <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 text-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center font-black text-sm md:text-base">{agenda.cantidad}</div>
-                                                        <div>
-                                                            <p className={`font-black uppercase italic text-xs md:text-sm ${agenda.reprogramado ? 'text-orange-600' : 'text-gray-900'}`}>
-                                                                {agenda.reprogramado ? 'REPROGRAMADO' : agenda.dia}
-                                                            </p>
-                                                            <p className="text-[9px] md:text-[10px] font-bold text-gray-500 uppercase tracking-widest">{agenda.fecha}</p>
-                                                        </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center font-black">{agenda.cantidad}</div>
+                                                        <div><p className={`font-black uppercase italic text-xs ${agenda.reprogramado ? 'text-orange-600' : 'text-gray-900'}`}>{agenda.reprogramado ? 'REPROG.' : agenda.dia}</p><p className="text-[9px] font-bold text-gray-500 uppercase">{agenda.fecha}</p></div>
                                                     </div>
-                                                    <span className="font-black text-base md:text-lg italic text-blue-600">${formatCurrency(agenda.total)}</span>
+                                                    <span className="font-black text-lg italic text-blue-600">${formatCurrency(agenda.total)}</span>
                                                 </div>
                                                 <div className="pl-12 md:pl-16">
                                                     <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Detalle de ruta:</p>
@@ -1037,42 +1035,36 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                             <div className="bg-black text-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl flex flex-col">
-                                <div className="flex justify-between items-center mb-6"><div><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Top Ventas</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Unidades vendidas</p></div><Activity className="text-blue-400" size={24} /></div>
+                                <div className="flex justify-between items-center mb-6"><div><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Top Ventas</h3></div><Activity className="text-blue-400" size={24} /></div>
                                 <div className="flex-1 flex flex-col justify-center gap-4">
                                     {(Array.isArray(dataTopProductos) ? dataTopProductos : []).length === 0 && <p className="text-gray-500 text-center text-xs">Sin datos aún</p>}
-                                    {dataTopProductos.map((prod, i) => (<div key={i} className="flex justify-between items-center border-b border-gray-800 pb-3 last:border-0"><span className="text-[10px] md:text-xs font-bold text-gray-300 uppercase truncate pr-4">{i+1}. {prod.name}</span><span className="text-xs md:text-sm font-black text-white">{prod.Vendidos} u.</span></div>))}
+                                    {dataTopProductos.map((prod, i) => (<div key={i} className="flex justify-between items-center border-b border-gray-800 pb-3 last:border-0"><span className="text-[10px] font-bold text-gray-300 uppercase truncate pr-4">{i+1}. {prod.name}</span><span className="text-xs font-black text-white">{prod.Vendidos} u.</span></div>))}
                                 </div>
                             </div>
                         </div>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
                             <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
-                                <div className="mb-6 md:mb-8"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Crecimiento Mensual</h3></div>
+                                <div className="mb-6"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Crecimiento Mensual</h3></div>
                                 <div style={{ width: '100%', height: 300 }}>
                                     <ResponsiveContainer width="100%" height={300}>
                                         <AreaChart data={dataVentasMensuales}>
-                                            <defs>
-                                                <linearGradient id="colorVentas" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3}/>
-                                                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
-                                                </linearGradient>
-                                            </defs>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} dy={10} />
-                                            <Tooltip formatter={(value) => `$${formatCurrency(value)}`} contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                                            <Area type="monotone" dataKey="Ventas" stroke="#2563eb" strokeWidth={4} fillOpacity={1} fill="url(#colorVentas)" />
+                                            <XAxis dataKey="name" tick={{fontSize: 10, fontWeight: 'bold'}} />
+                                            <Tooltip formatter={(value) => `$${formatCurrency(value)}`} />
+                                            <Area type="monotone" dataKey="Ventas" stroke="#2563eb" strokeWidth={4} fill="#2563eb33" />
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 </div>
                             </div>
                             <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
-                                <div className="mb-6 md:mb-8"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Pedidos por Zona</h3></div>
+                                <div className="mb-6"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Pedidos por Zona</h3></div>
                                 <div style={{ width: '100%', height: 300 }}>
                                     <ResponsiveContainer width="100%" height={300}>
                                         <BarChart data={dataGraficoRutas}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} dy={10} />
-                                            <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '15px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                                            <Bar dataKey="pedidos" fill="#000" radius={[10, 10, 10, 10]} barSize={40} />
+                                            <XAxis dataKey="name" tick={{fontSize: 10, fontWeight: 'bold'}} />
+                                            <Tooltip />
+                                            <Bar dataKey="pedidos" fill="#000" radius={[10, 10, 10, 10]} />
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -1368,17 +1360,57 @@ const AdminDashboard = () => {
                     </>
                 )}
 
-                {/* --- VISTA CLIENTES --- */}
+                {/* --- VISTA CLIENTES (¡RESTAURADA A 5 COLUMNAS!) --- */}
                 {tab === 'clientes' && (
-                    <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-                        <table className="w-full text-left min-w-[600px]">
-                            <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black border-b"><tr><th className="px-8 py-6">Cliente</th><th className="px-8 py-6 text-center">Crédito</th><th className="px-8 py-6 text-right">Acciones</th></tr></thead>
+                    <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left min-w-[800px]">
+                            <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-[0.2em] border-b border-gray-100">
+                                <tr>
+                                    <th className="px-4 py-4 md:px-8 md:py-6">Usuario / Cédula</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-center">Crédito</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6">Teléfono / Ciudad</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-center">Rol</th>
+                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Acciones</th>
+                                </tr>
+                            </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {(Array.isArray(usuarios) ? usuarios : []).map(u => (
                                     <tr key={u.id} className="hover:bg-gray-50/50 transition-all">
-                                        <td className="px-8 py-5"><p className="font-black text-gray-900 uppercase text-xs">{u.nombre}</p><p className="text-[10px] text-gray-500">{u.telefono}</p></td>
-                                        <td className="px-8 py-5 text-center">{parseFloat(u.limite_credito) > 0 ? <span className="text-green-600 font-black text-[10px]">LÍMITE: ${formatCurrency(u.limite_credito)}</span> : <span className="text-gray-400 text-[10px]">CONTADO</span>}</td>
-                                        <td className="px-8 py-5 text-right flex justify-end gap-2"><button onClick={() => abrirModalEditarUsuario(u)} className="p-2.5 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all"><Edit size={14} /></button><button onClick={() => { setUsuarioSeleccionado(u); setShowPasswordModal(true); }} className="p-2.5 bg-orange-50 text-orange-500 rounded-xl hover:bg-orange-500 hover:text-white transition-all"><Key size={14} /></button><button onClick={() => { setUsuarioAEliminar(u); }} className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-600 hover:text-white transition-all"><Trash2 size={14} /></button></td>
+                                        <td className="px-4 py-4 md:px-8 md:py-5">
+                                            <p className="font-black text-gray-900 uppercase text-[10px] md:text-xs">{u.nombre}</p>
+                                            <p className="text-[9px] md:text-[10px] text-gray-500 font-bold">CC: {u.cedula || 'Sin cédula'}</p>
+                                        </td>
+                                        
+                                        <td className="px-4 py-4 md:px-8 md:py-5 text-center">
+                                            {parseFloat(u.limite_credito) > 0 ? (
+                                                <div className="bg-green-50 text-green-600 px-3 py-1 rounded-lg inline-block text-left mb-2 w-full max-w-[120px]">
+                                                    <p className="text-[9px] font-black uppercase tracking-widest">Límite: ${formatCurrency(u.limite_credito)}</p>
+                                                    <p className="text-[8px] font-bold uppercase mt-0.5">{u.dias_credito} Días plazo</p>
+                                                </div>
+                                            ) : (
+                                                <span className="bg-gray-100 text-gray-400 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest block mb-2 w-fit mx-auto">Estricto Contado</span>
+                                            )}
+
+                                            <button 
+                                                onClick={() => handleToggleCredito(u)}
+                                                className={`mx-auto w-full max-w-[120px] py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 ${u.credito_activo !== false ? 'bg-black text-white hover:bg-red-600' : 'bg-red-100 text-red-600 hover:bg-green-500 hover:text-white'}`}
+                                            >
+                                                {u.credito_activo !== false ? <><Unlock size={10}/> Crédito Activo</> : <><Lock size={10}/> Suspendido</>}
+                                            </button>
+                                        </td>
+                                        
+                                        <td className="px-4 py-4 md:px-8 md:py-5">
+                                            <p className="text-[9px] md:text-[10px] font-bold text-gray-600">{u.telefono || 'N/A'}</p>
+                                            <p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mt-0.5">{u.ciudad || 'No definida'}</p>
+                                        </td>
+                                        <td className="px-4 py-4 md:px-8 md:py-5 text-center">
+                                            <span className={`text-[8px] md:text-[9px] font-black uppercase px-2 py-1 md:px-3 rounded-lg ${u.rol === 'ADMIN' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}`}>{u.rol}</span>
+                                        </td>
+                                        <td className="px-4 py-4 md:px-8 md:py-5 text-right flex justify-end gap-1 md:gap-2">
+                                            <button onClick={() => abrirModalEditarUsuario(u)} className="p-2 md:p-2.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all"><Edit size={14} /></button>
+                                            <button onClick={() => { setUsuarioSeleccionado(u); setShowPasswordModal(true); }} className="p-2 md:p-2.5 bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white rounded-xl transition-all"><Key size={14} /></button>
+                                            <button onClick={() => { setUsuarioAEliminar(u); }} className="p-2 md:p-2.5 bg-red-50 text-red-500 hover:bg-red-600 hover:text-white rounded-xl transition-all"><Trash2 size={14} /></button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -1388,7 +1420,7 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* 🔥 INYECCIÓN 4: Pasamos el showCheatSheetModal a AdminModals 🔥 */}
+            {/* 🔥 PASAMOS EL showCheatSheetModal A ADMINMODALS 🔥 */}
             <AdminModals 
                 states={{ showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal }} 
                 forms={{ formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono }} 
