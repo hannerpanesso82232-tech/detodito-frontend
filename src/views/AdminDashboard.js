@@ -609,31 +609,35 @@ const AdminDashboard = () => {
     const handleGuardarProducto = async (e) => {
         e.preventDefault(); 
 
-        // 🔥 1. NUEVA VALIDACIÓN ARQUITECTÓNICA: EVITAR CÓDIGOS DUPLICADOS 🔥
+        // 🔥 1. VALIDACIÓN: EVITAR CÓDIGOS DUPLICADOS 🔥
         if (formulario.codigo_barras && formulario.codigo_barras.trim() !== '') {
             try {
-                const codigosNuevos = Object.keys(JSON.parse(formulario.codigo_barras));
+                let codigosNuevosObj = {};
+                let rawNew = formulario.codigo_barras;
+                if(typeof rawNew === 'string') {
+                    while(typeof rawNew === 'string' && (rawNew.startsWith('"') || rawNew.startsWith('{'))) {
+                        try { rawNew = JSON.parse(rawNew); } catch(e) { break; }
+                    }
+                    if(typeof rawNew === 'object' && rawNew !== null) codigosNuevosObj = rawNew;
+                }
+                const codigosNuevos = Object.keys(codigosNuevosObj);
                 
                 for (const prod of productos) {
-                    // Si estamos editando, ignoramos el producto actual para no bloquearnos a nosotros mismos
-                    if (productoEditando && prod.id === productoEditando.id) continue;
+                    if (productoEditando && prod.id === productoEditando.id) continue; // Ignorar el mismo producto
                     
                     if (prod.codigo_barras) {
                         let parsedOld = prod.codigo_barras;
-                        if (typeof parsedOld === 'string') {
-                            try {
-                                parsedOld = JSON.parse(parsedOld);
-                                if (typeof parsedOld === 'string') parsedOld = JSON.parse(parsedOld);
-                            } catch(err) { parsedOld = {}; }
+                        let attempts = 0;
+                        while (typeof parsedOld === 'string' && attempts < 3) {
+                            try { parsedOld = JSON.parse(parsedOld); } catch(err) { break; }
+                            attempts++;
                         }
                         const codigosExistentes = Object.keys(parsedOld || {});
-                        
-                        // Buscamos si algún código nuevo ya existe en el catálogo
                         const duplicado = codigosNuevos.find(c => codigosExistentes.includes(c));
                         
                         if (duplicado) {
                             toast.error(`❌ El código "${duplicado}" ya está asignado a: ${prod.nombre}`, { duration: 5000 });
-                            return; // ⛔ Detenemos el guardado inmediatamente
+                            return; // ⛔ Detiene el guardado
                         }
                     }
                 }
@@ -642,23 +646,24 @@ const AdminDashboard = () => {
             }
         }
 
-        // 🔥 2. SI PASA LA VALIDACIÓN, GUARDAMOS NORMALMENTE 🔥
         setEnviando(true); 
         const data = new FormData();
         const stockExistente = parseInt(formulario.stock || 0); 
         const stockNuevo = parseInt(formulario.stock_adicional || 0); 
         const stockFinal = productoEditando ? (stockExistente + stockNuevo) : parseInt(formulario.stock || 0);
-        let costoFinalBD = parseFloat(formulario.costo_compra || 0);
         
+        let costoFinalBD = parseFloat(formulario.costo_compra || 0);
         if (productoEditando && stockNuevo > 0) { 
             const costoNuevoLote = parseFloat(formulario.costo_nuevo_lote || 0); 
             costoFinalBD = ((stockExistente * costoFinalBD) + (stockNuevo * costoNuevoLote)) / stockFinal; 
         }
 
-        precioFinalBD = parseFloat(formulario.precio) > 0 ? parseFloat(formulario.precio) : precioCalculado;
+        // 🔥 2. CORRECCIÓN DEL PRECIO MANUAL (AQUÍ ESTABA EL ERROR) 🔥
+        const precioForzado = parseFloat(formulario.precio);
+        const precioFinalBD = (precioForzado > 0) ? precioForzado : precioCalculado;
         
         data.append('nombre', formulario.nombre); 
-        data.append('precio', precioFinalBD.toFixed(2)); 
+        data.append('precio', precioFinalBD.toFixed(2)); // Usamos la variable ya definida
         data.append('stock', stockFinal); 
         data.append('categoriaId', formulario.categoriaId); 
         data.append('descripcion', formulario.descripcion); 
