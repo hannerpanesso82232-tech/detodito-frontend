@@ -4,7 +4,7 @@ import {
     Map, Trash2, PackageMinus, Banknote, DollarSign, Image as ImageIcon, 
     Printer, ArrowLeftRight, ChevronRight, History, Edit, ArrowUpRight, ArrowDownRight, Tag, Plus, ScanBarcode
 } from 'lucide-react';
-import { formatCurrency, imprimirFacturaCliente } from '../../utils/adminUtils';
+import { formatCurrency, imprimirFacturaCliente, imprimirTirillaPOS } from '../../utils/adminUtils';
 
 const AdminModals = ({ states, forms, setters, handlers, data }) => {
     // 1. Extraemos los estados
@@ -887,6 +887,50 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 🔥 16. NUEVO MODAL: SELECCIÓN DE TIPO DE IMPRESIÓN 🔥 */}
+            {showPrintModal && facturaAImprimir && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[500] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white p-8 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-md w-full shadow-2xl relative text-center animate-in zoom-in-95 duration-300">
+                        <button onClick={() => { setShowPrintModal(false); setFacturaAImprimir(null); }} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
+                            <X size={16}/>
+                        </button>
+                        
+                        <div className="w-16 h-16 bg-green-50 text-green-500 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6">
+                            <CheckCircle2 size={32} />
+                        </div>
+                        
+                        <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-2 text-gray-900">Venta Exitosa</h2>
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-8">¿Cómo deseas imprimir el recibo?</p>
+                        
+                        <div className="flex flex-col gap-4">
+                            {/* BOTÓN PRINCIPAL (TIRILLA POS) */}
+                            <button 
+                                onClick={() => { imprimirTirillaPOS(facturaAImprimir); setShowPrintModal(false); setFacturaAImprimir(null); }}
+                                className="w-full bg-blue-600 text-white p-5 rounded-2xl flex items-center justify-center gap-4 hover:bg-black transition-all shadow-lg active:scale-95"
+                            >
+                                <Printer size={24} />
+                                <div className="text-left">
+                                    <p className="font-black text-sm uppercase tracking-widest leading-none">Tirilla Térmica</p>
+                                    <p className="text-[9px] text-blue-200 mt-1.5 uppercase font-bold">Impresora POS (80mm / 58mm)</p>
+                                </div>
+                            </button>
+
+                            {/* BOTÓN SECUNDARIO (FACTURA A4) */}
+                            <button 
+                                onClick={() => { imprimirFacturaCliente(facturaAImprimir, rutasDinamicas, horaLimite); setShowPrintModal(false); setFacturaAImprimir(null); }}
+                                className="w-full bg-gray-50 border-2 border-gray-200 text-gray-700 p-5 rounded-2xl flex items-center justify-center gap-4 hover:border-black hover:text-black transition-all active:scale-95"
+                            >
+                                <FileText size={24} />
+                                <div className="text-left">
+                                    <p className="font-black text-sm uppercase tracking-widest leading-none">Factura Normal</p>
+                                    <p className="text-[9px] text-gray-400 mt-1.5 uppercase font-bold">Documento PDF (Tamaño Carta)</p>
+                                </div>
+                            </button>
                         </div>
                     </div>
                 </div>

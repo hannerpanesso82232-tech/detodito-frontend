@@ -111,6 +111,10 @@ const AdminDashboard = () => {
     const [posClienteId, setPosClienteId] = useState('');
     const [posSearchTerm, setPosSearchTerm] = useState('');
     const [showCheatSheetModal, setShowCheatSheetModal] = useState(false);
+    const [showCobroEfectivoModal, setShowCobroEfectivoModal] = useState(false);
+    const [efectivoRecibido, setEfectivoRecibido] = useState('');
+    const [showPrintModal, setShowPrintModal] = useState(false);
+    const [facturaAImprimir, setFacturaAImprimir] = useState(null);
     const inputScannerRef = useRef(null);
     // ----------------------------------
     
@@ -143,6 +147,7 @@ const AdminDashboard = () => {
     const [showCreditoModal, setShowCreditoModal] = useState(false);
     const [showAbonoModal, setShowAbonoModal] = useState(false);
     const [showCobroModal, setShowCobroModal] = useState(false);
+  
     
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
     const [productoEditando, setProductoEditando] = useState(null);
@@ -237,7 +242,7 @@ const AdminDashboard = () => {
         setFechaFinFinanzas(val);
     };
 
-    // 🔥 LOGICA POS 🔥
+  // 🔥 LOGICA POS 🔥
     const handlePosScan = (e) => {
         e.preventDefault();
         const codigoBuscado = posCodigo.trim();
@@ -330,7 +335,7 @@ const AdminDashboard = () => {
         return (Array.isArray(productos) ? productos : []).filter(p => (p.nombre || '').toLowerCase().includes(posSearchTerm.toLowerCase())).slice(0, 20);
     }, [productos, posSearchTerm]);
 
-    const handlePosCheckout = async (metodo) => {
+    const handlePosCheckout = async (metodo, subMetodo = 'EFECTIVO') => {
         if(posCartCalculado.length === 0) return toast.error("La caja está vacía");
         if(metodo === 'CREDITO' && !posClienteId) return toast.error("Selecciona un cliente para poder fiar");
 
@@ -345,8 +350,15 @@ const AdminDashboard = () => {
             await API.put(`/pedidos/${pedidoId}/estado`, { estado: 'Entregado' });
 
             if (metodo === 'CONTADO') {
-                await API.post('/contabilidad/gasto', { monto: posTotal, descripcion: `Venta en Caja - Orden #${pedidoId}`, categoria: 'Ventas Productos', tipo: 'INGRESO', fecha: new Date().toISOString().split('T')[0], pedidoId: pedidoId });
-                toast.success("Venta cobrada con éxito", { id: loadId });
+                await API.post('/contabilidad/gasto', { 
+                    monto: posTotal, 
+                    descripcion: `Venta Caja #${pedidoId} [${subMetodo}]`, 
+                    categoria: 'Ventas Productos', 
+                    tipo: 'INGRESO', 
+                    fecha: new Date().toISOString().split('T')[0], 
+                    pedidoId: pedidoId 
+                });
+                toast.success(`Venta en ${subMetodo} cobrada`, { id: loadId });
             } else if (metodo === 'CREDITO') {
                 const cliente = (Array.isArray(usuarios) ? usuarios : []).find(u => u.id === parseInt(posClienteId));
                 const dias = parseInt(cliente?.dias_credito || 30);
@@ -356,14 +368,13 @@ const AdminDashboard = () => {
                 toast.success("Venta anotada en la Cartera del Cliente", { id: loadId });
             }
 
-            // 🔥 ALGORITMO DE GENERACIÓN DE FACTURAS AL INSTANTE 🔥
             const clienteData = posClienteId ? (Array.isArray(usuarios) ? usuarios : []).find(u => u.id === parseInt(posClienteId)) : { nombre: 'VENTA CONTADO', cedula: '0000' };
             const facturaObj = {
                 id: pedidoId,
                 total: posTotal,
                 fecha: new Date().toISOString(),
                 estado: 'Entregado',
-                metodo_pago: metodo === 'CREDITO' ? 'CRÉDITO (FIADO)' : 'CONTADO (CAJA)',
+                metodo_pago: metodo === 'CREDITO' ? 'CRÉDITO (FIADO)' : `CONTADO (${subMetodo})`,
                 Usuario: clienteData,
                 Detalles: posCartCalculado.map(item => ({
                     cantidad: item.cantidad,
@@ -372,25 +383,14 @@ const AdminDashboard = () => {
                 }))
             };
 
-            // 🔥 LÓGICA DE DOBLE OPCIÓN DE IMPRESIÓN 🔥
-            setTimeout(() => {
-                // 1. Preguntamos por la Tirilla POS
-                if (window.confirm(`✅ Venta #${pedidoId} exitosa.\n\n¿Deseas imprimir la TIRILLA TÉRMICA (Ticket POS)?\n\n(Haz clic en 'Aceptar' para Tirilla, o en 'Cancelar' para ver otra opción)`)) {
-                    imprimirTirillaPOS(facturaObj);
-                } 
-                // 2. Si cancela, ofrecemos la Factura Normal PDF
-                else if (window.confirm(`¿Deseas imprimir la FACTURA NORMAL (PDF tamaño carta) en su lugar?`)) {
-                    imprimirFacturaCliente(facturaObj, rutasDinamicas, horaLimite);
-                }
-            }, 300);
+            // Pasamos los datos al modal moderno de AdminModals.js
+            setFacturaAImprimir(facturaObj);
+            setShowPrintModal(true);
 
-            // Limpiamos la caja para el siguiente cliente
-            setPosCart([]); setPosCodigo(''); setPosClienteId(''); setPosSearchTerm(''); fetchDatos();
-        } catch (error) { 
-            toast.error("Error al procesar la venta", { id: loadId }); 
-        } finally { 
-            setEnviando(false); 
-        }
+            setPosCart([]); setPosCodigo(''); setPosClienteId(''); setPosSearchTerm(''); 
+            setShowCobroEfectivoModal(false); setEfectivoRecibido('');
+            fetchDatos();
+        } catch (error) { toast.error("Error al procesar la venta", { id: loadId }); } finally { setEnviando(false); }
     };
     // ---------------------------------------------
 
@@ -1010,6 +1010,67 @@ const AdminDashboard = () => {
             <div className="animate-in fade-in duration-500">
                 {/* --- VISTA CAJA POS --- */}
                 {tab === 'pos' && (
+                    <div className="flex flex-col gap-6">
+                        
+                        {/* 🔥 PANEL INTELIGENTE DE CUADRE DIARIO PARA CAJEROS 🔥 */}
+                        {esCajero && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                <div className="bg-white p-5 rounded-[2rem] border-b-4 border-green-500 shadow-sm">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Efectivo en Caja (Hoy)</p>
+                                    <h3 className="text-3xl font-black text-gray-900 truncate">
+                                        ${formatCurrency(transacciones
+                                            .filter(t => {
+                                                if(!t.fecha) return false;
+                                                const fechaTx = new Date(t.fecha);
+                                                const hoy = new Date();
+                                                return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').includes('[EFECTIVO]');
+                                            })
+                                            .reduce((acc, t) => acc + parseFloat(t.monto || 0), 0))}
+                                    </h3>
+                                </div>
+                                <div className="bg-white p-5 rounded-[2rem] border-b-4 border-blue-500 shadow-sm">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Transferencias (Hoy)</p>
+                                    <h3 className="text-3xl font-black text-gray-900 truncate">
+                                        ${formatCurrency(transacciones
+                                            .filter(t => {
+                                                if(!t.fecha) return false;
+                                                const fechaTx = new Date(t.fecha);
+                                                const hoy = new Date();
+                                                return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').includes('[TRANSFERENCIA]');
+                                            })
+                                            .reduce((acc, t) => acc + parseFloat(t.monto || 0), 0))}
+                                    </h3>
+                                </div>
+                                <div className="bg-black p-5 rounded-[2rem] shadow-xl flex flex-col justify-center">
+                                    <button 
+                                        onClick={() => {
+                                            if(window.confirm("¿Cerrar caja hoy? Se generará la tirilla de cierre de turno.")) {
+                                                const ef = transacciones.filter(t => new Date(t.fecha).toDateString() === new Date().toDateString() && (t.descripcion || '').includes('[EFECTIVO]')).reduce((acc, t) => acc + parseFloat(t.monto || 0), 0);
+                                                const tr = transacciones.filter(t => new Date(t.fecha).toDateString() === new Date().toDateString() && (t.descripcion || '').includes('[TRANSFERENCIA]')).reduce((acc, t) => acc + parseFloat(t.monto || 0), 0);
+                                                
+                                                const printWindow = window.open('', '_blank', 'width=400,height=600');
+                                                const html = `
+                                                    <!DOCTYPE html><html><head><meta charset="utf-8"><title>Cierre de Caja</title>
+                                                    <style>body{font-family:monospace;width:80mm;margin:0 auto;padding:10px;font-size:12px;text-transform:uppercase;} .header{text-align:center;border-bottom:1px dashed #000;padding-bottom:10px;margin-bottom:10px;} .row{display:flex;justify-content:space-between;margin:5px 0;} .bold{font-weight:bold;}</style>
+                                                    </head><body>
+                                                    <div class="header"><h3>CIERRE DE CAJA</h3><p>${new Date().toLocaleString('es-CO')}</p></div>
+                                                    <div class="row"><span>TOTAL EFECTIVO:</span><span class="bold">$${ef.toLocaleString('es-CO')}</span></div>
+                                                    <div class="row"><span>TOTAL TRANSFERENCIA:</span><span class="bold">$${tr.toLocaleString('es-CO')}</span></div>
+                                                    <div class="row" style="border-top:1px dashed #000;padding-top:10px;margin-top:10px;font-size:14px;"><span>TOTAL GENERAL:</span><span class="bold">$${(ef+tr).toLocaleString('es-CO')}</span></div>
+                                                    <div style="text-align:center;margin-top:20px;">========================<br>FIN DE TURNO<br>========================</div>
+                                                    <script>window.onload=function(){setTimeout(()=>{window.print();window.close();},300);}</script></body></html>
+                                                `;
+                                                printWindow.document.write(html);
+                                                printWindow.document.close();
+                                            }
+                                        }}
+                                        className="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-[10px] tracking-tighter hover:bg-gray-200 transition-all"
+                                    >
+                                        Imprimir Cierre de Caja
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2 space-y-4">
                             <div className="bg-blue-600 rounded-[2rem] p-6 md:p-8 shadow-lg shadow-blue-600/20 text-white relative overflow-hidden">
@@ -1081,7 +1142,7 @@ const AdminDashboard = () => {
                             <div className="p-6 border-t border-gray-200 bg-gray-50 shrink-0">
                                 <div className="flex justify-between items-end mb-6"><span className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Total Venta</span><span className="text-4xl font-black italic tracking-tighter text-gray-900">${posTotal.toLocaleString('es-CO')}</span></div>
                                 <div className="space-y-3">
-                                    <button onClick={() => handlePosCheckout('CONTADO')} disabled={enviando || posCartCalculado.length === 0} className="w-full bg-green-500 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-black transition-all flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 active:scale-95">
+                                    <button onClick={() => setShowCobroEfectivoModal(true)} disabled={enviando || posCartCalculado.length === 0} className="w-full bg-green-500 text-white py-4 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-black transition-all flex justify-center items-center gap-2 shadow-lg disabled:opacity-50 active:scale-95">
                                         {enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16}/>} Cobrar Efectivo
                                     </button>
                                     <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
@@ -1098,7 +1159,76 @@ const AdminDashboard = () => {
                             </div>
                         </div>
                     </div>
+                    </div>
                 )}
+
+                {/* 🔥 MODAL DE CALCULADORA DE CAMBIO (VUELTO) 🔥 */}
+                        {showCobroEfectivoModal && (
+                            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[600] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                                <div className="bg-white p-8 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-md w-full shadow-2xl relative text-center">
+                                    <button onClick={() => { setShowCobroEfectivoModal(false); setEfectivoRecibido(''); }} className="absolute top-6 right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all"><X size={16}/></button>
+                                    
+                                    <div className="w-16 h-16 bg-green-50 text-green-500 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6"><DollarSign size={32} /></div>
+                                    
+                                    <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-1">Cierre de Venta</h2>
+                                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-6">Calculadora de Vuelto</p>
+                                    
+                                    <div className="bg-gray-50 p-4 rounded-2xl mb-6">
+                                        <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1">Total a Pagar</p>
+                                        <p className="text-3xl font-black italic text-gray-900 tracking-tighter">${posTotal.toLocaleString('es-CO')}</p>
+                                    </div>
+
+                                    <div className="mb-6 text-left">
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-2 block mb-2">Efectivo Recibido (Billete)</label>
+                                        <input 
+                                            type="number" 
+                                            autoFocus
+                                            value={efectivoRecibido} 
+                                            onChange={e => setEfectivoRecibido(e.target.value)} 
+                                            placeholder="Ej: 100000"
+                                            className="w-full text-center text-2xl font-black italic p-4 border-2 border-green-500 rounded-2xl outline-none focus:bg-green-50 transition-colors"
+                                        />
+                                        <div className="flex gap-2 mt-3">
+                                            <button onClick={() => setEfectivoRecibido(posTotal)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">Exacto</button>
+                                            <button onClick={() => setEfectivoRecibido(50000)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">$50k</button>
+                                            <button onClick={() => setEfectivoRecibido(100000)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest">$100k</button>
+                                        </div>
+                                    </div>
+
+                                    {parseFloat(efectivoRecibido || 0) >= posTotal ? (
+                                        <div className="bg-green-100 p-4 rounded-2xl mb-6 border border-green-200 animate-in zoom-in-95">
+                                            <p className="text-[10px] font-black uppercase text-green-700 tracking-widest mb-1">Cambio a entregar</p>
+                                            <p className="text-3xl font-black italic text-green-600 tracking-tighter">${(parseFloat(efectivoRecibido) - posTotal).toLocaleString('es-CO')}</p>
+                                        </div>
+                                    ) : efectivoRecibido !== '' && (
+                                        <div className="bg-red-50 p-4 rounded-2xl mb-6 border border-red-200 animate-in zoom-in-95">
+                                            <p className="text-[10px] font-black uppercase text-red-500 tracking-widest mb-1">Falta dinero</p>
+                                            <p className="text-xl font-black italic text-red-500 tracking-tighter">${(posTotal - parseFloat(efectivoRecibido)).toLocaleString('es-CO')}</p>
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-3">
+                                        <button 
+                                            onClick={() => handlePosCheckout('CONTADO', 'EFECTIVO')} 
+                                            disabled={parseFloat(efectivoRecibido || 0) < posTotal || enviando}
+                                            className="flex-1 bg-green-600 text-white p-4 rounded-2xl flex flex-col items-center justify-center hover:bg-black transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <span className="font-black text-xs uppercase tracking-widest">Fue Efectivo</span>
+                                        </button>
+                                        <button 
+                                            onClick={() => handlePosCheckout('CONTADO', 'TRANSFERENCIA')} 
+                                            disabled={enviando}
+                                            className="flex-1 bg-blue-600 text-white p-4 rounded-2xl flex flex-col items-center justify-center hover:bg-black transition-all shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <span className="font-black text-xs uppercase tracking-widest">Transferencia</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    
+                
+                        
 
                 {/* --- VISTA CARTERA --- */}
                 {tab === 'cartera' && (
@@ -1591,9 +1721,9 @@ const AdminDashboard = () => {
 
             {/* 🔥 PASAMOS EL showCheatSheetModal A ADMINMODALS 🔥 */}
             <AdminModals 
-                states={{ showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal }} 
+                states={{ showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal, showPrintModal, facturaAImprimir }} 
                 forms={{ formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono }} 
-                setters={{ setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal }} 
+                setters={{ setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir }} 
                 handlers={{ handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera }} 
                 data={{ categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones, productos }} 
             />
