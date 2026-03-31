@@ -215,10 +215,17 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                     </div>
                                 )}
                                 <div className="mt-3 md:mt-4 p-4 md:p-5 bg-black text-white rounded-xl md:rounded-2xl flex justify-between items-center shadow-2xl">
-                                    <div><p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-green-400">Precio Sugerido (Detal)</p><p className="text-2xl md:text-3xl font-black italic tracking-tighter">${formatCurrency(precioCalculado)}</p></div>
-                                    {productoEditando && parseInt(formulario.stock_adicional || 0) > 0 && (
-                                        <div className="text-right"><p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-400">Stock Final</p><p className="text-lg md:text-xl font-bold">{parseInt(formulario.stock || 0) + parseInt(formulario.stock_adicional || 0)} Uds</p></div>
-                                    )}
+                                <div>
+                                    <p className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest ${parseFloat(formulario.precio) > 0 ? 'text-orange-400' : 'text-green-400'}`}>
+                                        {parseFloat(formulario.precio) > 0 ? 'PRECIO FORZADO (MANUAL)' : 'Precio Sugerido (Detal)'}
+                                    </p>
+                                    <p className="text-2xl md:text-3xl font-black italic tracking-tighter">
+                                        ${formatCurrency(parseFloat(formulario.precio) > 0 ? parseFloat(formulario.precio) : precioCalculado)}
+                                    </p>
+                                </div>
+                                {productoEditando && parseInt(formulario.stock_adicional || 0) > 0 && (
+                                    <div className="text-right"><p className="text-[8px] md:text-[9px] font-black uppercase tracking-widest text-gray-400">Stock Final</p><p className="text-lg md:text-xl font-bold">{parseInt(formulario.stock || 0) + parseInt(formulario.stock_adicional || 0)} Uds</p></div>
+                                )}
                                 </div>
                             </div>
 

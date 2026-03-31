@@ -654,9 +654,11 @@ const AdminDashboard = () => {
             const costoNuevoLote = parseFloat(formulario.costo_nuevo_lote || 0); 
             costoFinalBD = ((stockExistente * costoFinalBD) + (stockNuevo * costoNuevoLote)) / stockFinal; 
         }
+
+        precioFinalBD = parseFloat(formulario.precio) > 0 ? parseFloat(formulario.precio) : precioCalculado;
         
         data.append('nombre', formulario.nombre); 
-        data.append('precio', precioCalculado.toFixed(2)); 
+        data.append('precio', precioFinalBD.toFixed(2)); 
         data.append('stock', stockFinal); 
         data.append('categoriaId', formulario.categoriaId); 
         data.append('descripcion', formulario.descripcion); 
@@ -689,11 +691,62 @@ const AdminDashboard = () => {
     const handleGuardarBaja = async (e) => {
         e.preventDefault(); setEnviando(true);
         try {
-            await API.put(`/productos/${productoBaja.id}/stock`, { cantidad: formBaja.cantidad, operacion: 'restar' });
-            const costoPerdida = parseFloat(productoBaja.costo_compra || 0) * parseInt(formBaja.cantidad);
-            if (costoPerdida > 0) { await API.post('/contabilidad/gasto', { monto: costoPerdida, descripcion: `Baja de inventario (${formBaja.motivo}): ${formBaja.cantidad}x ${productoBaja.nombre}`, categoria: 'Mercancía', tipo: 'EGRESO', fecha: new Date().toISOString().split('T')[0] }); }
-            toast.success("Producto dado de baja. Pérdida registrada en contabilidad."); setShowBajaModal(false); setProductoBaja(null); fetchDatos();
-        } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la baja del producto."); } finally { setEnviando(false); }
+            const stockOriginal = parseInt(productoBaja.stock);
+            const cantidadDañada = parseInt(formBaja.cantidad);
+            const stockRestante = stockOriginal - cantidadDañada;
+            const costoOriginal = parseFloat(productoBaja.costo_compra || 0);
+            const margen = parseFloat(productoBaja.margen_ganancia || 0);
+
+            // 1. Descontamos el stock físicamente en la BD
+            await API.put(`/productos/${productoBaja.id}/stock`, { cantidad: cantidadDañada, operacion: 'restar' });
+
+            // 🔥 2. ALGORITMO DE PRORRATEO FINANCIERO 🔥
+            if (stockRestante > 0 && costoOriginal > 0) {
+                // Si quedan productos, dividimos la inversión original total entre los sobrevivientes
+                const nuevoCostoBase = (stockOriginal * costoOriginal) / stockRestante;
+                const nuevoPrecioFinal = nuevoCostoBase + (nuevoCostoBase * (margen / 100));
+
+                const formData = new FormData();
+                formData.append('nombre', productoBaja.nombre);
+                formData.append('costo_compra', nuevoCostoBase.toFixed(2));
+                formData.append('precio', nuevoPrecioFinal.toFixed(2));
+                formData.append('stock', stockRestante); 
+                formData.append('margen_ganancia', margen);
+                formData.append('categoriaId', productoBaja.categoriaId || productoBaja.categoria_id);
+                formData.append('descripcion', productoBaja.descripcion || '');
+                formData.append('proveedor', productoBaja.proveedor || 'No especificado');
+                formData.append('tope_stock', productoBaja.tope_stock || 10);
+                
+                if (productoBaja.cantidad_mayor) formData.append('cantidad_mayor', productoBaja.cantidad_mayor);
+                if (productoBaja.precio_mayor) formData.append('precio_mayor', productoBaja.precio_mayor);
+                if (productoBaja.codigo_barras) formData.append('codigo_barras', productoBaja.codigo_barras);
+
+                await API.put(`/productos/${productoBaja.id}`, formData);
+                
+                toast.success(`Merma absorbida: El costo de los ${stockRestante} restantes subió a $${formatCurrency(nuevoCostoBase)}`);
+            } else {
+                // Si el stock llega a 0, la pérdida es total y debe ir al Libro Mayor
+                const costoPerdida = costoOriginal * cantidadDañada;
+                if (costoPerdida > 0) {
+                    await API.post('/contabilidad/gasto', { 
+                        monto: costoPerdida, 
+                        descripcion: `Pérdida total por baja (${formBaja.motivo}): ${cantidadDañada}x ${productoBaja.nombre}`, 
+                        categoria: 'Mercancía', 
+                        tipo: 'EGRESO', 
+                        fecha: new Date().toISOString().split('T')[0] 
+                    });
+                }
+                toast.success("Stock en cero. Pérdida registrada directo en contabilidad.");
+            }
+
+            setShowBajaModal(false); 
+            setProductoBaja(null); 
+            fetchDatos();
+        } catch (err) { 
+            toast.error(err.response?.data?.error || "Error al procesar la baja del producto."); 
+        } finally { 
+            setEnviando(false); 
+        }
     };
 
     const handleEliminar = async () => { try { await API.delete(`/productos/${productoAEliminar.id}`); setShowDeleteModal(false); fetchDatos(); toast.success("Producto Eliminado"); } catch (err) { toast.error("Error"); } };
