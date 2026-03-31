@@ -607,18 +607,83 @@ const AdminDashboard = () => {
     const abrirModalBaja = (p) => { setProductoBaja(p); setFormBaja({ cantidad: 1, motivo: 'Dañado/Roto' }); setShowBajaModal(true); };
 
     const handleGuardarProducto = async (e) => {
-        e.preventDefault(); setEnviando(true); const data = new FormData();
-        const stockExistente = parseInt(formulario.stock || 0); const stockNuevo = parseInt(formulario.stock_adicional || 0); const stockFinal = productoEditando ? (stockExistente + stockNuevo) : parseInt(formulario.stock || 0);
+        e.preventDefault(); 
+
+        // 🔥 1. NUEVA VALIDACIÓN ARQUITECTÓNICA: EVITAR CÓDIGOS DUPLICADOS 🔥
+        if (formulario.codigo_barras && formulario.codigo_barras.trim() !== '') {
+            try {
+                const codigosNuevos = Object.keys(JSON.parse(formulario.codigo_barras));
+                
+                for (const prod of productos) {
+                    // Si estamos editando, ignoramos el producto actual para no bloquearnos a nosotros mismos
+                    if (productoEditando && prod.id === productoEditando.id) continue;
+                    
+                    if (prod.codigo_barras) {
+                        let parsedOld = prod.codigo_barras;
+                        if (typeof parsedOld === 'string') {
+                            try {
+                                parsedOld = JSON.parse(parsedOld);
+                                if (typeof parsedOld === 'string') parsedOld = JSON.parse(parsedOld);
+                            } catch(err) { parsedOld = {}; }
+                        }
+                        const codigosExistentes = Object.keys(parsedOld || {});
+                        
+                        // Buscamos si algún código nuevo ya existe en el catálogo
+                        const duplicado = codigosNuevos.find(c => codigosExistentes.includes(c));
+                        
+                        if (duplicado) {
+                            toast.error(`❌ El código "${duplicado}" ya está asignado a: ${prod.nombre}`, { duration: 5000 });
+                            return; // ⛔ Detenemos el guardado inmediatamente
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Error al validar códigos de barras", err);
+            }
+        }
+
+        // 🔥 2. SI PASA LA VALIDACIÓN, GUARDAMOS NORMALMENTE 🔥
+        setEnviando(true); 
+        const data = new FormData();
+        const stockExistente = parseInt(formulario.stock || 0); 
+        const stockNuevo = parseInt(formulario.stock_adicional || 0); 
+        const stockFinal = productoEditando ? (stockExistente + stockNuevo) : parseInt(formulario.stock || 0);
         let costoFinalBD = parseFloat(formulario.costo_compra || 0);
-        if (productoEditando && stockNuevo > 0) { const costoNuevoLote = parseFloat(formulario.costo_nuevo_lote || 0); costoFinalBD = ((stockExistente * costoFinalBD) + (stockNuevo * costoNuevoLote)) / stockFinal; }
         
-        data.append('nombre', formulario.nombre); data.append('precio', precioCalculado.toFixed(2)); data.append('stock', stockFinal); data.append('categoriaId', formulario.categoriaId); data.append('descripcion', formulario.descripcion); data.append('proveedor', formulario.proveedor || 'No especificado'); data.append('costo_compra', costoFinalBD.toFixed(2)); data.append('margen_ganancia', parseFloat(formulario.margen_ganancia || 0)); data.append('tope_stock', parseInt(formulario.tope_stock || 10)); 
+        if (productoEditando && stockNuevo > 0) { 
+            const costoNuevoLote = parseFloat(formulario.costo_nuevo_lote || 0); 
+            costoFinalBD = ((stockExistente * costoFinalBD) + (stockNuevo * costoNuevoLote)) / stockFinal; 
+        }
+        
+        data.append('nombre', formulario.nombre); 
+        data.append('precio', precioCalculado.toFixed(2)); 
+        data.append('stock', stockFinal); 
+        data.append('categoriaId', formulario.categoriaId); 
+        data.append('descripcion', formulario.descripcion); 
+        data.append('proveedor', formulario.proveedor || 'No especificado'); 
+        data.append('costo_compra', costoFinalBD.toFixed(2)); 
+        data.append('margen_ganancia', parseFloat(formulario.margen_ganancia || 0)); 
+        data.append('tope_stock', parseInt(formulario.tope_stock || 10)); 
+        
         if (formulario.cantidad_mayor) data.append('cantidad_mayor', parseInt(formulario.cantidad_mayor));
         if (formulario.precio_mayor) data.append('precio_mayor', parseFloat(formulario.precio_mayor).toFixed(2));
         if (formulario.codigo_barras) data.append('codigo_barras', formulario.codigo_barras);
         if (imagenArchivo) data.append('imagen', imagenArchivo);
         
-        try { if (productoEditando) { await API.put(`/productos/${productoEditando.id}`, data); } else { await API.post('/productos', data); } cerrarModal(); fetchDatos(); toast.success("Producto Guardado en Inventario"); } catch (err) { toast.error("Error al guardar"); } finally { setEnviando(false); }
+        try { 
+            if (productoEditando) { 
+                await API.put(`/productos/${productoEditando.id}`, data); 
+            } else { 
+                await API.post('/productos', data); 
+            } 
+            cerrarModal(); 
+            fetchDatos(); 
+            toast.success("Producto Guardado en Inventario"); 
+        } catch (err) { 
+            toast.error("Error al guardar el producto"); 
+        } finally { 
+            setEnviando(false); 
+        }
     };
 
     const handleGuardarBaja = async (e) => {
