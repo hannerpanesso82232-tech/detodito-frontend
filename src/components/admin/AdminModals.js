@@ -10,13 +10,12 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
     // 1. Extraemos los estados
     const { 
         showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, 
-        transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, 
-        showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, 
-        showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, 
-        usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, 
-        pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, 
-        clienteEstadoCuenta, enviando, showCheatSheetModal 
-    } = states;
+        transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, 
+        productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, 
+        showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal,
+        productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal,
+         creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal, showPrintModal,
+        facturaAImprimir } = states;
     
     // 2. Extraemos los formularios
     const { 
@@ -26,16 +25,14 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
     } = forms;
     
     // 3. Extraemos los setters
-    const { 
-        setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, 
-        setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, 
-        setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, 
-        setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, 
-        setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, 
-        setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, 
-        setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, 
-        setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal 
-    } = setters;
+   const { 
+    setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, 
+    setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, 
+    setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, 
+    setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, 
+    setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, 
+    setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, 
+    setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir } = setters;
     
     // 4. Extraemos los handlers
     const { 
