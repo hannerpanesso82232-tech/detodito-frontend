@@ -1023,7 +1023,7 @@ const AdminDashboard = () => {
                                                 if(!t.fecha) return false;
                                                 const fechaTx = new Date(t.fecha);
                                                 const hoy = new Date();
-                                                return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').includes('[EFECTIVO]');
+                                               return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').toUpperCase().includes('EFECTIVO');
                                             })
                                             .reduce((acc, t) => acc + parseFloat(t.monto || 0), 0))}
                                     </h3>
@@ -1036,7 +1036,7 @@ const AdminDashboard = () => {
                                                 if(!t.fecha) return false;
                                                 const fechaTx = new Date(t.fecha);
                                                 const hoy = new Date();
-                                                return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').includes('[TRANSFERENCIA]');
+                                                return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').toUpperCase().includes('TRANSFERENCIA');
                                             })
                                             .reduce((acc, t) => acc + parseFloat(t.monto || 0), 0))}
                                     </h3>
@@ -1124,10 +1124,37 @@ const AdminDashboard = () => {
                                                 {item.es_mayor && <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Mayorista</span>}
                                                 <div className="flex items-center gap-3 mt-2">
                                                     <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-gray-200">
-                                                        <button onClick={() => updatePosQuantity(item.id, item.cantidad - 1)} className="text-gray-400 hover:text-black"><Minus size={12}/></button>
-                                                        <span className="font-black text-xs w-4 text-center">{item.cantidad}</span>
-                                                        <button onClick={() => addToPosCart(item, 1)} disabled={item.cantidad >= item.stock} className="text-gray-400 hover:text-black disabled:opacity-50"><Plus size={12}/></button>
-                                                    </div>
+    <button onClick={() => updatePosQuantity(item.id, item.cantidad - 1)} className="text-gray-400 hover:text-black"><Minus size={12}/></button>
+    
+    <input 
+        type="number" 
+        value={item.cantidad || ''} 
+        onChange={(e) => {
+            // Permitir borrar temporalmente el input para escribir un nuevo número
+            if (e.target.value === '') {
+                updatePosQuantity(item.id, '');
+                return;
+            }
+            
+            let val = parseInt(e.target.value);
+            // Evitar números negativos o cero
+            if (val < 1) val = 1;
+            // Evitar que vendan más del stock disponible
+            if (val > item.stock) val = item.stock;
+            
+            updatePosQuantity(item.id, val);
+        }}
+        onBlur={(e) => {
+            // Si el cajero borra el input y hace clic afuera, devolver a 1 por defecto
+            if (!e.target.value || parseInt(e.target.value) < 1) {
+                updatePosQuantity(item.id, 1);
+            }
+        }}
+        className="font-black text-xs w-8 md:w-10 text-center bg-gray-50/50 hover:bg-gray-100 outline-none focus:ring-2 focus:ring-blue-500 rounded transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+    />
+
+    <button onClick={() => addToPosCart(item, 1)} disabled={item.cantidad >= item.stock} className="text-gray-400 hover:text-black disabled:opacity-50"><Plus size={12}/></button>
+</div>
                                                     <button onClick={() => removeFromPosCart(item.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
                                                 </div>
                                             </div>
