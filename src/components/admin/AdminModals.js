@@ -15,7 +15,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
         showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal,
         productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal,
          creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal, showPrintModal,
-        facturaAImprimir } = states;
+        facturaAImprimir, showArqueoModal } = states;
     
     // 2. Extraemos los formularios
     const { 
@@ -32,7 +32,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
     setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, 
     setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, 
     setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, 
-    setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir } = setters;
+    setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir, setShowArqueoModal } = setters;
     
     // 4. Extraemos los handlers
     const { 
@@ -49,6 +49,9 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
 
     // 🔥 ESTADO LOCAL PARA MANEJAR LOS CÓDIGOS DE BARRAS FÁCILMENTE 🔥
     const [barcodesUI, setBarcodesUI] = useState([{ id: Math.random().toString(36).substring(7), code: '', qty: 1 }]);
+
+    // Estado local exclusivo para el cuadre de caja
+const [efectivoFisico, setEfectivoFisico] = useState('');
 
     // 🔥 DECODIFICADOR MAESTRO DE JSON (SELF-HEALING) 🔥
     const safeDecodeJSON = (rawString) => {
@@ -929,6 +932,156 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
                                 </div>
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* --- MODAL: ARQUEO DE CAJA (CUADRE) --- */}
+            {states.showArqueoModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[500] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] max-w-md w-full shadow-2xl relative animate-in zoom-in-95 duration-300">
+                        <button onClick={() => { setters.setShowArqueoModal(false); setEfectivoFisico(''); }} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
+                            <X size={16}/>
+                        </button>
+                        
+                        <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
+                            <Calculator size={32} />
+                        </div>
+                        
+                        <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-1 text-center text-gray-900">Cuadre de Caja</h2>
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-8 text-center border-b border-gray-100 pb-4">Cierre de Turno Operativo</p>
+                        
+                        {(() => {
+                            // 1. Cálculos Teóricos (Lo que dice el sistema)
+                            const hoyStr = new Date().toDateString();
+                            const txHoy = data.transacciones.filter(t => t.fecha && new Date(t.fecha).toDateString() === hoyStr);
+                            
+                            const efectivoTeorico = txHoy.filter(t => t.tipo === 'INGRESO' && (t.metodo === 'EFECTIVO' || (t.descripcion || '').toUpperCase().includes('EFECTIVO'))).reduce((acc, t) => acc + parseFloat(t.monto || 0), 0);
+                            const transferenciasTeorico = txHoy.filter(t => t.tipo === 'INGRESO' && (t.metodo === 'TRANSFERENCIA' || (t.descripcion || '').toUpperCase().includes('TRANSFERENCIA'))).reduce((acc, t) => acc + parseFloat(t.monto || 0), 0);
+                            
+                            // 2. Cálculos Físicos (Lo que dice el cajero)
+                            const fisico = parseFloat(efectivoFisico || 0);
+                            const diferencia = fisico - efectivoTeorico;
+                            const hayDescuadre = diferencia !== 0;
+
+                            const handleProcesarArqueo = (e) => {
+                                e.preventDefault();
+                                
+                                // Aquí puedes inyectar a futuro la lógica para guardar el cierre en tu base de datos (Backend)
+                                // Por ahora, generamos la tirilla térmica y cerramos.
+
+                                const printWindow = window.open('', '_blank', 'width=400,height=600');
+                                const html = `
+                                    <!DOCTYPE html><html><head><meta charset="utf-8"><title>Cierre de Caja</title>
+                                    <style>
+                                        body{font-family:'Courier New', monospace; width:80mm; margin:0 auto; padding:10px; font-size:12px; color:#000;} 
+                                        .header{text-align:center; border-bottom:1px dashed #000; padding-bottom:10px; margin-bottom:10px;} 
+                                        .row{display:flex; justify-content:space-between; margin:4px 0;} 
+                                        .bold{font-weight:bold;}
+                                        .title{font-size:16px; font-weight:bold; margin:0 0 5px 0;}
+                                        .divider{border-top:1px dashed #000; margin:8px 0;}
+                                        .alert{background:#000; color:#fff; padding:2px 4px; border-radius:2px;}
+                                    </style>
+                                    </head><body>
+                                    <div class="header">
+                                        <p class="title">REPORTE DE ARQUEO</p>
+                                        <p>CIERRE DE TURNO POS</p>
+                                        <p>${new Date().toLocaleString('es-CO')}</p>
+                                    </div>
+                                    
+                                    <p class="bold" style="text-align:center;">--- VENTAS DEL SISTEMA ---</p>
+                                    <div class="row"><span>Ventas Efectivo:</span><span>$${efectivoTeorico.toLocaleString('es-CO')}</span></div>
+                                    <div class="row"><span>Transferencias:</span><span>$${transferenciasTeorico.toLocaleString('es-CO')}</span></div>
+                                    <div class="divider"></div>
+                                    <div class="row bold"><span>TOTAL SISTEMA:</span><span>$${(efectivoTeorico + transferenciasTeorico).toLocaleString('es-CO')}</span></div>
+                                    
+                                    <div class="divider" style="margin-top:15px;"></div>
+                                    <p class="bold" style="text-align:center;">--- RESULTADO ARQUEO ---</p>
+                                    <div class="row"><span>Efectivo Esperado:</span><span>$${efectivoTeorico.toLocaleString('es-CO')}</span></div>
+                                    <div class="row"><span>Efectivo Contado:</span><span>$${fisico.toLocaleString('es-CO')}</span></div>
+                                    <div class="divider"></div>
+                                    
+                                    <div class="row bold" style="font-size:14px; margin-top:10px;">
+                                        <span>DIFERENCIA:</span>
+                                        <span class="${diferencia < 0 ? 'alert' : ''}">${diferencia > 0 ? '+' : ''}$${diferencia.toLocaleString('es-CO')}</span>
+                                    </div>
+                                    <p style="text-align:center; font-size:10px; margin-top:5px;">
+                                        (${diferencia === 0 ? 'CUADRE PERFECTO' : diferencia > 0 ? 'SOBRANTE EN CAJA' : 'FALTANTE EN CAJA'})
+                                    </p>
+                                    
+                                    <div style="text-align:center; margin-top:30px; padding-top:20px; border-top:1px solid #000;">
+                                        Firma del Cajero
+                                    </div>
+                                    <div style="text-align:center; margin-top:20px;">
+                                        ========================<br>FIN DE REPORTE<br>========================
+                                    </div>
+                                    <script>window.onload=function(){setTimeout(()=>{window.print();window.close();},300);}</script></body></html>
+                                `;
+                                printWindow.document.write(html);
+                                printWindow.document.close();
+                                
+                                setters.setShowArqueoModal(false);
+                                setEfectivoFisico('');
+                            };
+
+                            return (
+                                <form onSubmit={handleProcesarArqueo} className="space-y-6">
+                                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex justify-between items-center">
+                                        <div>
+                                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Efectivo Esperado (Sistema)</p>
+                                            <p className="text-xs font-bold text-gray-500 mt-0.5">Dinero que debería haber</p>
+                                        </div>
+                                        <p className="font-black text-xl italic">${formatCurrency(efectivoTeorico)}</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase text-blue-600 tracking-widest mb-2 block flex items-center gap-1">
+                                            ¿Cuánto efectivo físico contaste?
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-400">$</span>
+                                            <input 
+                                                required 
+                                                autoFocus
+                                                type="number" 
+                                                min="0"
+                                                step="0.01"
+                                                className="w-full bg-white border-2 border-blue-100 rounded-2xl py-4 pl-8 pr-4 font-black text-xl text-blue-900 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all placeholder:text-gray-300" 
+                                                placeholder="Ej: 150000"
+                                                value={efectivoFisico} 
+                                                onChange={e => setEfectivoFisico(e.target.value)} 
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Panel de Diferencia Dinámico */}
+                                    {efectivoFisico !== '' && (
+                                        <div className={`p-4 rounded-2xl flex items-start gap-3 border ${diferencia === 0 ? 'bg-green-50 border-green-200 text-green-700' : diferencia > 0 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                                            <div className="mt-1">
+                                                {diferencia === 0 ? <CheckCircle2 size={16}/> : <AlertCircle size={16}/>}
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black uppercase tracking-widest">
+                                                    {diferencia === 0 ? 'Cuadre Perfecto' : diferencia > 0 ? 'Sobrante en Caja' : 'Faltante en Caja'}
+                                                </p>
+                                                <p className="font-black text-lg italic mt-0.5">
+                                                    {diferencia > 0 ? '+' : ''}${formatCurrency(diferencia)}
+                                                </p>
+                                                {hayDescuadre && <p className="text-[9px] font-bold mt-1 opacity-80">La diferencia quedará registrada en el reporte final para auditoría.</p>}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <button 
+                                        type="submit" 
+                                        disabled={efectivoFisico === ''}
+                                        className="w-full bg-black text-white p-5 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-blue-600 transition-all shadow-xl disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        <Printer size={16}/> Confirmar Arqueo e Imprimir
+                                    </button>
+                                </form>
+                            );
+                        })()}
                     </div>
                 </div>
             )}

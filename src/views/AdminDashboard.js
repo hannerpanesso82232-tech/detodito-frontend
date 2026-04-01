@@ -116,6 +116,7 @@ const AdminDashboard = () => {
     const [showPrintModal, setShowPrintModal] = useState(false);
     const [facturaAImprimir, setFacturaAImprimir] = useState(null);
     const inputScannerRef = useRef(null);
+    const [showArqueoModal, setShowArqueoModal] = useState(false);
     // ----------------------------------
     
     const [searchTerm, setSearchTerm] = useState('');
@@ -1042,32 +1043,12 @@ const AdminDashboard = () => {
                                     </h3>
                                 </div>
                                 <div className="bg-black p-5 rounded-[2rem] shadow-xl flex flex-col justify-center">
-                                    <button 
-                                        onClick={() => {
-                                            if(window.confirm("¿Cerrar caja hoy? Se generará la tirilla de cierre de turno.")) {
-                                                const ef = transacciones.filter(t => new Date(t.fecha).toDateString() === new Date().toDateString() && (t.descripcion || '').includes('[EFECTIVO]')).reduce((acc, t) => acc + parseFloat(t.monto || 0), 0);
-                                                const tr = transacciones.filter(t => new Date(t.fecha).toDateString() === new Date().toDateString() && (t.descripcion || '').includes('[TRANSFERENCIA]')).reduce((acc, t) => acc + parseFloat(t.monto || 0), 0);
-                                                
-                                                const printWindow = window.open('', '_blank', 'width=400,height=600');
-                                                const html = `
-                                                    <!DOCTYPE html><html><head><meta charset="utf-8"><title>Cierre de Caja</title>
-                                                    <style>body{font-family:monospace;width:80mm;margin:0 auto;padding:10px;font-size:12px;text-transform:uppercase;} .header{text-align:center;border-bottom:1px dashed #000;padding-bottom:10px;margin-bottom:10px;} .row{display:flex;justify-content:space-between;margin:5px 0;} .bold{font-weight:bold;}</style>
-                                                    </head><body>
-                                                    <div class="header"><h3>CIERRE DE CAJA</h3><p>${new Date().toLocaleString('es-CO')}</p></div>
-                                                    <div class="row"><span>TOTAL EFECTIVO:</span><span class="bold">$${ef.toLocaleString('es-CO')}</span></div>
-                                                    <div class="row"><span>TOTAL TRANSFERENCIA:</span><span class="bold">$${tr.toLocaleString('es-CO')}</span></div>
-                                                    <div class="row" style="border-top:1px dashed #000;padding-top:10px;margin-top:10px;font-size:14px;"><span>TOTAL GENERAL:</span><span class="bold">$${(ef+tr).toLocaleString('es-CO')}</span></div>
-                                                    <div style="text-align:center;margin-top:20px;">========================<br>FIN DE TURNO<br>========================</div>
-                                                    <script>window.onload=function(){setTimeout(()=>{window.print();window.close();},300);}</script></body></html>
-                                                `;
-                                                printWindow.document.write(html);
-                                                printWindow.document.close();
-                                            }
-                                        }}
-                                        className="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-[10px] tracking-tighter hover:bg-gray-200 transition-all"
-                                    >
-                                        Imprimir Cierre de Caja
-                                    </button>
+                                   <button 
+    onClick={() => setters.setShowArqueoModal(true)}
+    className="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-[10px] tracking-tighter hover:bg-gray-200 transition-all active:scale-95 flex justify-center items-center gap-2"
+>
+    <Calculator size={16} /> Realizar Arqueo de Caja
+</button>
                                 </div>
                             </div>
                         )}
