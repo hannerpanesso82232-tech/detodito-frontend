@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
     X, Loader2, CheckCircle2, Calculator, AlertTriangle, User, Key, Settings, 
     Map, Trash2, PackageMinus, Banknote, DollarSign, Image as ImageIcon, 
-    Printer, ArrowLeftRight, ChevronRight, History, Edit, ArrowUpRight, ArrowDownRight, Tag, Plus, ScanBarcode, FileText
+    Printer, ArrowLeftRight, ChevronRight, History, Edit, ArrowUpRight, ArrowDownRight, Tag, Plus, ScanBarcode, FileText,
+    AlertCircle
 } from 'lucide-react';
 import { formatCurrency, imprimirFacturaCliente, imprimirTirillaPOS } from '../../utils/adminUtils';
 

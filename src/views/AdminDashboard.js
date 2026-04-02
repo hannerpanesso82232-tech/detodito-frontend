@@ -393,23 +393,25 @@ const resPedido = await API.post('/pedidos', {
                 }))
             };
 
-            // Pasamos los datos al modal moderno de AdminModals.js
+      // 1. Preparamos el recibo para el modal
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
 
-            // 🔥 NUEVO: ACTUALIZACIÓN OPTIMISTA DEL INVENTARIO 🔥
-            // Restamos el stock de la pantalla inmediatamente sin esperar al servidor
+            // 2. 🔥 ACTUALIZACIÓN OPTIMISTA (Frontend Forzado) 🔥
+            // Esto cambia el número en pantalla AL INSTANTE
             setProductos(prevProductos => 
                 prevProductos.map(prod => {
                     const itemVendido = posCartCalculado.find(item => item.id === prod.id);
                     if (itemVendido) {
-                        return { ...prod, stock: Math.max(0, prod.stock - itemVendido.cantidad) };
+                        // Restamos localmente lo que acabamos de vender
+                        const nuevoStock = Math.max(0, prod.stock - itemVendido.cantidad);
+                        return { ...prod, stock: nuevoStock };
                     }
                     return prod;
                 })
             );
 
-            // Vaciamos la caja después del cobro
+            // 3. Limpiamos la interfaz de caja
             setPosCart([]); 
             setPosCodigo(''); 
             setPosClienteId(''); 
@@ -417,14 +419,17 @@ const resPedido = await API.post('/pedidos', {
             setShowCobroEfectivoModal(false); 
             setEfectivoRecibido('');
             
-            // Le decimos al servidor que refresque todo en segundo plano
-            fetchDatos();
-            
+            // 4. 🔥 REFRESO CON RETRASO (Safety Delay) 🔥
+            // Esperamos 800ms antes de llamar al servidor para que a la DB le de tiempo de guardar
+            setTimeout(() => {
+                fetchDatos();
+            }, 800);
+
+            toast.success("Venta procesada y stock actualizado", { id: loadId });
+
         } catch (error) { 
-            // 🔥 Revelamos el error real que manda el backend
             const mensajeReal = error.response?.data?.error || "Error desconocido al facturar";
             toast.error(mensajeReal, { id: loadId, duration: 6000 }); 
-            console.error("Fallo en POST /pedidos:", error.response?.data);
         } finally { 
             setEnviando(false); 
         }
