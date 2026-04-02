@@ -182,20 +182,20 @@ const AdminDashboard = () => {
 
     const fetchDatos = useCallback(async () => {
         try {
-            // 🔥 CACHE-BUSTER: Forzamos al navegador a traer datos frescos SIEMPRE
-            const timestamp = new Date().getTime();
+            // 🔥 CACHE-BUSTER MAESTRO: Obliga al navegador a NO usar copias viejas
+            const ts = new Date().getTime();
             
             const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos] = await Promise.all([
-                API.get(`/productos?t=${timestamp}`).catch(() => ({ data: [] })), 
-                API.get(`/pedidos/admin/todos?t=${timestamp}`).catch(() => ({ data: [] })), 
-                API.get('/categorias').catch(() => ({ data: [] })),
-                API.get('/auth/admin/usuarios').catch(() => ({ data: [] })), 
-                API.get('/auth/config/whatsapp').catch(() => ({ data: { whatsapp: '' } })),
-                API.get(`/contabilidad/resumen?t=${timestamp}`).catch(() => ({ data: { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 } })), 
-                API.get(`/contabilidad/transacciones?t=${timestamp}`).catch(() => ({ data: [] })),
-                API.get('/pedidos/config/rutas').catch(() => ({ data: [] })),
-                API.get('/pedidos/config/horalimite').catch(() => ({ data: { hora: '20:00' } })),
-                API.get(`/creditos?t=${timestamp}`).catch(() => ({ data: [] })) 
+                API.get(`/productos?t=${ts}`).catch(() => ({ data: [] })), 
+                API.get(`/pedidos/admin/todos?t=${ts}`).catch(() => ({ data: [] })), 
+                API.get(`/categorias?t=${ts}`).catch(() => ({ data: [] })),
+                API.get(`/auth/admin/usuarios?t=${ts}`).catch(() => ({ data: [] })), 
+                API.get(`/auth/config/whatsapp?t=${ts}`).catch(() => ({ data: { whatsapp: '' } })),
+                API.get(`/contabilidad/resumen?t=${ts}`).catch(() => ({ data: { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 } })), 
+                API.get(`/contabilidad/transacciones?t=${ts}`).catch(() => ({ data: [] })),
+                API.get(`/pedidos/config/rutas?t=${ts}`).catch(() => ({ data: [] })),
+                API.get(`/pedidos/config/horalimite?t=${ts}`).catch(() => ({ data: { hora: '20:00' } })),
+                API.get(`/creditos?t=${ts}`).catch(() => ({ data: [] })) 
             ]);
             
             setProductos(resProd.data || []); 
@@ -214,14 +214,23 @@ const AdminDashboard = () => {
     useEffect(() => {
         fetchDatos();
         const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
+        
         socket.on("nuevo_pedido_admin", (data) => {
             const audio = new Audio('/alert-notification.mp3'); audio.play().catch(() => {});
             const metodoTXT = data.metodo_pago === 'CREDITO' ? '💳 FIADO' : '💵 CONTADO';
             toast(`📦 Nuevo Pedido [${metodoTXT}] de ${data.cliente || 'Cliente'}`, { icon: '🚀', style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } });
-            fetchDatos();
+            
+            // 🔥 CORRECCIÓN DE LA CONDICIÓN DE CARRERA 🔥
+            // Obligamos al socket a esperar 2 segundos antes de refrescar los datos.
+            // Esto permite que el código optimista actualice la pantalla visualmente primero.
+            setTimeout(() => {
+                fetchDatos();
+            }, 2000);
         });
+
         socket.on('stockActualizado', (data) => { setProductos(prev => (Array.isArray(prev) ? prev : []).map(p => p.id === parseInt(data.id) ? { ...p, stock: data.nuevoStock } : p)); });
         socket.on('productoActualizado', (productoModificado) => { setProductos(prev => (Array.isArray(prev) ? prev : []).map(p => p.id === productoModificado.id ? productoModificado : p)); });
+        
         return () => { if(socket) socket.disconnect(); };
     }, [fetchDatos]);
 
