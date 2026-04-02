@@ -343,10 +343,16 @@ const AdminDashboard = () => {
         setEnviando(true); const loadId = toast.loading("Facturando...");
         try {
             const resPedido = await API.post('/pedidos', {
-                productos: posCartCalculado.map(i => ({ id: i.id, cantidad: i.cantidad })),
-                direccion: 'VENTA FÍSICA EN MOSTRADOR (CAJA)',
-                metodo_pago: 'POS_LOCAL' 
-            });
+    // 🔥 INYECCIÓN DE PRECIO: Obligamos al backend a usar el precio con descuento
+    productos: posCartCalculado.map(i => ({ 
+        id: i.id, 
+        cantidad: i.cantidad,
+        precio: i.precio_aplicado 
+    })),
+    direccion: 'VENTA FÍSICA EN MOSTRADOR (CAJA)',
+    metodo_pago: 'POS_LOCAL',
+    total_forzado: posTotal // Parámetro de seguridad para asegurar el cuadre exacto
+});
             const pedidoId = resPedido.data.pedidoId;
             await API.put(`/pedidos/${pedidoId}/estado`, { estado: 'Entregado' });
 
@@ -1040,15 +1046,22 @@ const AdminDashboard = () => {
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-blue-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Transferencias (Hoy)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
-                                        ${formatCurrency(transacciones
-                                            .filter(t => {
-                                                if(!t.fecha) return false;
-                                                const fechaTx = new Date(t.fecha);
-                                                const hoy = new Date();
-                                                return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').toUpperCase().includes('TRANSFERENCIA');
-                                            })
-                                            .reduce((acc, t) => acc + parseFloat(t.monto || 0), 0))}
-                                    </h3>
+    ${formatCurrency(transacciones
+        .filter(t => {
+            if(!t.fecha) return false;
+            const esHoy = new Date(t.fecha).toDateString() === new Date().toDateString();
+            const esTransferencia = (t.descripcion || '').toUpperCase().includes('TRANSFERENCIA') || t.metodo === 'TRANSFERENCIA';
+            return esHoy && esTransferencia;
+        })
+        .reduce((acc, t) => {
+            const monto = parseFloat(t.monto || 0);
+            // Igual aquí: si devuelves por transferencia, se resta del total
+            if (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('DEVOLUCI')) {
+                return acc - Math.abs(monto);
+            }
+            return acc + monto;
+        }, 0))}
+</h3>
                                 </div>
                                 <div className="bg-black p-5 rounded-[2rem] shadow-xl flex flex-col justify-center">
                                    <button 
