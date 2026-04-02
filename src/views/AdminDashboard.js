@@ -182,18 +182,22 @@ const AdminDashboard = () => {
 
     const fetchDatos = useCallback(async () => {
         try {
+            // 🔥 CACHE-BUSTER: Forzamos al navegador a traer datos frescos SIEMPRE
+            const timestamp = new Date().getTime();
+            
             const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos] = await Promise.all([
-                API.get('/productos').catch(() => ({ data: [] })), 
-                API.get('/pedidos/admin/todos').catch(() => ({ data: [] })), 
+                API.get(`/productos?t=${timestamp}`).catch(() => ({ data: [] })), 
+                API.get(`/pedidos/admin/todos?t=${timestamp}`).catch(() => ({ data: [] })), 
                 API.get('/categorias').catch(() => ({ data: [] })),
                 API.get('/auth/admin/usuarios').catch(() => ({ data: [] })), 
                 API.get('/auth/config/whatsapp').catch(() => ({ data: { whatsapp: '' } })),
-                API.get('/contabilidad/resumen').catch(() => ({ data: { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 } })), 
-                API.get('/contabilidad/transacciones').catch(() => ({ data: [] })),
+                API.get(`/contabilidad/resumen?t=${timestamp}`).catch(() => ({ data: { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 } })), 
+                API.get(`/contabilidad/transacciones?t=${timestamp}`).catch(() => ({ data: [] })),
                 API.get('/pedidos/config/rutas').catch(() => ({ data: [] })),
                 API.get('/pedidos/config/horalimite').catch(() => ({ data: { hora: '20:00' } })),
-                API.get('/creditos').catch(() => ({ data: [] })) 
+                API.get(`/creditos?t=${timestamp}`).catch(() => ({ data: [] })) 
             ]);
+            
             setProductos(resProd.data || []); 
             setPedidos(resPed.data || []); 
             setCategorias(resCat.data || []);
@@ -393,25 +397,25 @@ const resPedido = await API.post('/pedidos', {
                 }))
             };
 
-      // 1. Preparamos el recibo para el modal
+     // 1. Guardamos una copia exacta de lo que se vendió
+            const itemsComprados = [...posCartCalculado];
+
+            // 2. Pasamos los datos al modal moderno de impresión
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
 
-            // 2. 🔥 ACTUALIZACIÓN OPTIMISTA (Frontend Forzado) 🔥
-            // Esto cambia el número en pantalla AL INSTANTE
+            // 3. 🔥 ACTUALIZACIÓN OPTIMISTA BLINDADA 🔥
             setProductos(prevProductos => 
                 prevProductos.map(prod => {
-                    const itemVendido = posCartCalculado.find(item => item.id === prod.id);
+                    const itemVendido = itemsComprados.find(item => item.id === prod.id);
                     if (itemVendido) {
-                        // Restamos localmente lo que acabamos de vender
-                        const nuevoStock = Math.max(0, prod.stock - itemVendido.cantidad);
-                        return { ...prod, stock: nuevoStock };
+                        return { ...prod, stock: Math.max(0, prod.stock - itemVendido.cantidad) };
                     }
                     return prod;
                 })
             );
 
-            // 3. Limpiamos la interfaz de caja
+            // 4. Limpiamos la interfaz de caja
             setPosCart([]); 
             setPosCodigo(''); 
             setPosClienteId(''); 
@@ -419,17 +423,16 @@ const resPedido = await API.post('/pedidos', {
             setShowCobroEfectivoModal(false); 
             setEfectivoRecibido('');
             
-            // 4. 🔥 REFRESO CON RETRASO (Safety Delay) 🔥
-            // Esperamos 800ms antes de llamar al servidor para que a la DB le de tiempo de guardar
+            // 5. Refresco con el servidor usando nuestro nuevo Anti-Caché
             setTimeout(() => {
                 fetchDatos();
             }, 800);
 
-            toast.success("Venta procesada y stock actualizado", { id: loadId });
-
         } catch (error) { 
+            // 🔥 Revelamos el error real que manda el backend
             const mensajeReal = error.response?.data?.error || "Error desconocido al facturar";
             toast.error(mensajeReal, { id: loadId, duration: 6000 }); 
+            console.error("Fallo en POST /pedidos:", error.response?.data);
         } finally { 
             setEnviando(false); 
         }
