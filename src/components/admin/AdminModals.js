@@ -955,11 +955,29 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                         
                         {(() => {
                             // 1. Cálculos Teóricos (Lo que dice el sistema)
-                            const hoyStr = new Date().toDateString();
-                            const txHoy = data.transacciones.filter(t => t.fecha && new Date(t.fecha).toDateString() === hoyStr);
-                            
-                            const efectivoTeorico = txHoy.filter(t => t.tipo === 'INGRESO' && (t.metodo === 'EFECTIVO' || (t.descripcion || '').toUpperCase().includes('EFECTIVO'))).reduce((acc, t) => acc + parseFloat(t.monto || 0), 0);
-                            const transferenciasTeorico = txHoy.filter(t => t.tipo === 'INGRESO' && (t.metodo === 'TRANSFERENCIA' || (t.descripcion || '').toUpperCase().includes('TRANSFERENCIA'))).reduce((acc, t) => acc + parseFloat(t.monto || 0), 0);
+                            const hoy = new Date();
+                            const yyyy = hoy.getFullYear();
+                            const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+                            const dd = String(hoy.getDate()).padStart(2, '0');
+                            const todayStr = `${yyyy}-${mm}-${dd}`;
+
+                            const txHoy = data.transacciones.filter(t => t.fecha && t.fecha.split('T')[0] === todayStr);
+
+                            const efectivoTeorico = txHoy
+                                .filter(t => (t.descripcion || '').toUpperCase().includes('EFECTIVO'))
+                                .reduce((acc, t) => {
+                                    const monto = parseFloat(t.monto || 0);
+                                    if (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO')) return acc - monto;
+                                    return acc + monto;
+                                }, 0);
+
+                            const transferenciasTeorico = txHoy
+                                .filter(t => (t.descripcion || '').toUpperCase().includes('TRANSFERENCIA'))
+                                .reduce((acc, t) => {
+                                    const monto = parseFloat(t.monto || 0);
+                                    if (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO')) return acc - monto;
+                                    return acc + monto;
+                                }, 0);
                             
                             // 2. Cálculos Físicos (Lo que dice el cajero)
                             const fisico = parseFloat(efectivoFisico || 0);

@@ -397,10 +397,30 @@ const resPedido = await API.post('/pedidos', {
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
 
-            setPosCart([]); setPosCodigo(''); setPosClienteId(''); setPosSearchTerm(''); 
-            setShowCobroEfectivoModal(false); setEfectivoRecibido('');
+            // 🔥 NUEVO: ACTUALIZACIÓN OPTIMISTA DEL INVENTARIO 🔥
+            // Restamos el stock de la pantalla inmediatamente sin esperar al servidor
+            setProductos(prevProductos => 
+                prevProductos.map(prod => {
+                    const itemVendido = posCartCalculado.find(item => item.id === prod.id);
+                    if (itemVendido) {
+                        return { ...prod, stock: Math.max(0, prod.stock - itemVendido.cantidad) };
+                    }
+                    return prod;
+                })
+            );
+
+            // Vaciamos la caja después del cobro
+            setPosCart([]); 
+            setPosCodigo(''); 
+            setPosClienteId(''); 
+            setPosSearchTerm(''); 
+            setShowCobroEfectivoModal(false); 
+            setEfectivoRecibido('');
+            
+            // Le decimos al servidor que refresque todo en segundo plano
             fetchDatos();
-        }   catch (error) { 
+            
+        } catch (error) { 
             // 🔥 Revelamos el error real que manda el backend
             const mensajeReal = error.response?.data?.error || "Error desconocido al facturar";
             toast.error(mensajeReal, { id: loadId, duration: 6000 }); 
@@ -408,7 +428,6 @@ const resPedido = await API.post('/pedidos', {
         } finally { 
             setEnviando(false); 
         }
-    
     };
     // ---------------------------------------------
 
