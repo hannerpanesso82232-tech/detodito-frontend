@@ -342,16 +342,16 @@ const AdminDashboard = () => {
 
         setEnviando(true); const loadId = toast.loading("Facturando...");
         try {
-            const resPedido = await API.post('/pedidos', {
-    // 🔥 INYECCIÓN DE PRECIO: Obligamos al backend a usar el precio con descuento
+  
+const resPedido = await API.post('/pedidos', {
     productos: posCartCalculado.map(i => ({ 
         id: i.id, 
         cantidad: i.cantidad,
-        precio: i.precio_aplicado 
+        precio: i.precio_aplicado  
     })),
     direccion: 'VENTA FÍSICA EN MOSTRADOR (CAJA)',
     metodo_pago: 'POS_LOCAL',
-    total_forzado: posTotal // Parámetro de seguridad para asegurar el cuadre exacto
+    total_forzado: posTotal       
 });
             const pedidoId = resPedido.data.pedidoId;
             await API.put(`/pedidos/${pedidoId}/estado`, { estado: 'Entregado' });
