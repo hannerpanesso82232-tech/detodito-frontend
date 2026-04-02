@@ -15,7 +15,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
         showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal,
         productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal,
         creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal, showPrintModal,
-        facturaAImprimir, showDevolucionModal, itemDevolucion, cantidadDevolucion 
+        facturaAImprimir, showArqueoModal, showDevolucionModal, itemDevolucion, cantidadDevolucion 
     } = states;
     
     // 2. Extraemos los formularios
@@ -26,15 +26,16 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
     } = forms;
     
     // 3. Extraemos los setters
-   const { 
-    setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, 
-    setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, 
-    setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, 
-    setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, 
-    setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, 
-    setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, 
-    setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir, setShowArqueoModa, setShowDevolucionModal, setCantidadDevolucion
- } = setters;
+    const { 
+        setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, 
+        setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, 
+        setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, 
+        setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, 
+        setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, 
+        setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, 
+        setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir, setShowArqueoModal,
+        setShowDevolucionModal, setCantidadDevolucion 
+    } = setters;
     
     // 4. Extraemos los handlers
     const { 
@@ -43,7 +44,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
         handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, 
         handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, 
         handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, 
-        handleRegistrarAbono, procesarDevolucionAPI
+        handleRegistrarAbono, handlePasarPedidoACartera, procesarDevolucionAPI 
     } = handlers;
     
     // 5. Desempaquetamos los datos
