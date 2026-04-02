@@ -149,8 +149,8 @@ const AdminDashboard = () => {
     const [showAbonoModal, setShowAbonoModal] = useState(false);
     const [showCobroModal, setShowCobroModal] = useState(false);
     const [showDevolucionModal, setShowDevolucionModal] = useState(false);
-const [itemDevolucion, setItemDevolucion] = useState(null);
-const [cantidadDevolucion, setCantidadDevolucion] = useState(1);
+    const [itemDevolucion, setItemDevolucion] = useState(null);
+    const [cantidadDevolucion, setCantidadDevolucion] = useState(1);
   
     
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
@@ -963,9 +963,8 @@ const resPedido = await API.post('/pedidos', {
    const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal, showPrintModal, facturaAImprimir, showArqueoModal, showDevolucionModal, itemDevolucion, cantidadDevolucion };
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir, setShowArqueoModal, setShowDevolucionModal, setCantidadDevolucion };
-    const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera, procesarDevolucionAPI }; 
+    const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera, procesarDevolucionAPI };
     const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones, productos };
-
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SYNCING LIVE DATA...</div>;
 
     return (
@@ -1050,51 +1049,36 @@ const resPedido = await API.post('/pedidos', {
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-green-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Efectivo en Caja (Hoy)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
-    ${formatCurrency(transacciones
-        .filter(t => {
-            if(!t.fecha) return false;
-            const esHoy = new Date(t.fecha).toDateString() === new Date().toDateString();
-            const esEfectivo = (t.descripcion || '').toUpperCase().includes('EFECTIVO') || t.metodo === 'EFECTIVO';
-            return esHoy && esEfectivo;
-        })
-        .reduce((acc, t) => {
-            const monto = parseFloat(t.monto || 0);
-            // Si la transacción es un EGRESO o una Devolución, restamos el dinero del cajón
-            if (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('DEVOLUCI')) {
-                return acc - Math.abs(monto);
-            }
-            // Si es una venta normal, sumamos el dinero
-            return acc + monto;
-        }, 0))}
-</h3>
+                                        ${formatCurrency(transacciones
+                                            .filter(t => {
+                                                if(!t.fecha) return false;
+                                                const fechaTx = new Date(t.fecha);
+                                                const hoy = new Date();
+                                                return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').includes('[EFECTIVO]');
+                                            })
+                                            .reduce((acc, t) => acc + parseFloat(t.monto || 0), 0))}
+                                    </h3>
                                 </div>
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-blue-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Transferencias (Hoy)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
-    ${formatCurrency(transacciones
-        .filter(t => {
-            if(!t.fecha) return false;
-            const esHoy = new Date(t.fecha).toDateString() === new Date().toDateString();
-            const esTransferencia = (t.descripcion || '').toUpperCase().includes('TRANSFERENCIA') || t.metodo === 'TRANSFERENCIA';
-            return esHoy && esTransferencia;
-        })
-        .reduce((acc, t) => {
-            const monto = parseFloat(t.monto || 0);
-            // Igual aquí: si devuelves por transferencia, se resta del total
-            if (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('DEVOLUCI')) {
-                return acc - Math.abs(monto);
-            }
-            return acc + monto;
-        }, 0))}
-</h3>
+                                        ${formatCurrency(transacciones
+                                            .filter(t => {
+                                                if(!t.fecha) return false;
+                                                const fechaTx = new Date(t.fecha);
+                                                const hoy = new Date();
+                                                return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').includes('[TRANSFERENCIA]');
+                                            })
+                                            .reduce((acc, t) => acc + parseFloat(t.monto || 0), 0))}
+                                    </h3>
                                 </div>
                                 <div className="bg-black p-5 rounded-[2rem] shadow-xl flex flex-col justify-center">
-                                   <button 
-    onClick={() => setters.setShowArqueoModal(true)}
-    className="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-[10px] tracking-tighter hover:bg-gray-200 transition-all active:scale-95 flex justify-center items-center gap-2"
->
-    <Calculator size={16} /> Realizar Arqueo de Caja
-</button>
+                                    <button 
+                                        onClick={() => setShowArqueoModal(true)}
+                                        className="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-[10px] tracking-tighter hover:bg-gray-200 transition-all active:scale-95 flex justify-center items-center gap-2"
+                                    >
+                                        <Calculator size={16} /> Realizar Arqueo de Caja
+                                    </button>
                                 </div>
                             </div>
                         )}
