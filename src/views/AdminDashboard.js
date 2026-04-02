@@ -1019,15 +1019,23 @@ const AdminDashboard = () => {
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-green-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Efectivo en Caja (Hoy)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
-                                        ${formatCurrency(transacciones
-                                            .filter(t => {
-                                                if(!t.fecha) return false;
-                                                const fechaTx = new Date(t.fecha);
-                                                const hoy = new Date();
-                                               return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').toUpperCase().includes('EFECTIVO');
-                                            })
-                                            .reduce((acc, t) => acc + parseFloat(t.monto || 0), 0))}
-                                    </h3>
+    ${formatCurrency(transacciones
+        .filter(t => {
+            if(!t.fecha) return false;
+            const esHoy = new Date(t.fecha).toDateString() === new Date().toDateString();
+            const esEfectivo = (t.descripcion || '').toUpperCase().includes('EFECTIVO') || t.metodo === 'EFECTIVO';
+            return esHoy && esEfectivo;
+        })
+        .reduce((acc, t) => {
+            const monto = parseFloat(t.monto || 0);
+            // Si la transacción es un EGRESO o una Devolución, restamos el dinero del cajón
+            if (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('DEVOLUCI')) {
+                return acc - Math.abs(monto);
+            }
+            // Si es una venta normal, sumamos el dinero
+            return acc + monto;
+        }, 0))}
+</h3>
                                 </div>
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-blue-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Transferencias (Hoy)</p>
