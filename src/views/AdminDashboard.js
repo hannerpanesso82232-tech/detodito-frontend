@@ -971,9 +971,24 @@ const resPedido = await API.post('/pedidos', {
     return (
         <div className="min-h-screen bg-gray-50 pb-20 px-4 md:px-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 pt-8 gap-4">
-                <div>
-                    <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter uppercase italic">HQ Dashboard</h1>
-                    <p className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.3em] flex items-center gap-2 mt-1">Control Logístico Urabá <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span></p>
+                <div className="flex justify-between w-full md:w-auto items-start">
+                    <div>
+                        <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter uppercase italic">HQ Dashboard</h1>
+                        <p className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.3em] flex items-center gap-2 mt-1">Control Logístico Urabá <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span></p>
+                    </div>
+                    {/* Botón de Salir Móvil (Solo visible para cajeros en vista pequeña) */}
+                    {esCajero && (
+                        <button 
+                            onClick={() => {
+                                localStorage.removeItem('token');
+                                window.location.href = '/login';
+                            }} 
+                            className="md:hidden bg-red-50 text-red-500 p-3 rounded-2xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
+                            title="Cerrar Turno"
+                        >
+                            <LogOut size={20} />
+                        </button>
+                    )}
                 </div>
                 
                 {/* 🔥 CONTROL DE ACCESO PARA BOTONES GLOBALES 🔥 */}
@@ -989,6 +1004,18 @@ const resPedido = await API.post('/pedidos', {
 
                         <button onClick={() => setShowConfigModal(true)} className="bg-gray-200 text-gray-900 px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-gray-300 transition-all"><Settings size={16}/> Ajustes</button>
                     </div>
+                )}
+                {/* Botón de Salir Desktop (Solo visible para cajeros) */}
+                {esCajero && (
+                    <button 
+                        onClick={() => {
+                            localStorage.removeItem('token');
+                            window.location.href = '/login';
+                        }} 
+                        className="hidden md:flex bg-red-50 text-red-500 px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest items-center gap-2 shadow-sm hover:bg-red-500 hover:text-white transition-all active:scale-95"
+                    >
+                        <LogOut size={16} /> Cerrar Turno
+                    </button>
                 )}
             </div>
 
@@ -1011,12 +1038,30 @@ const resPedido = await API.post('/pedidos', {
                     
                     {/* 🔥 FILTRO DE PESTAÑAS: EL CAJERO SOLO VE 'POS' Y 'PEDIDOS' 🔥 */}
                     {['reportes', 'pos', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => {
-                        if (esCajero && t !== 'pos' && t !== 'pedidos') return null;
-                        
-                        return (
-                            <button key={t} onClick={() => setTab(t)} className={`px-4 md:px-8 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${tab === t ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>{t === 'reportes' ? 'Analíticas' : t === 'pos' ? 'Caja (POS)' : t}</button>
-                        );
-                    })}
+    if (esCajero && t !== 'pos' && t !== 'pedidos') return null;
+    
+    // Nombres profesionales para las pestañas
+    const nombresPestanas = {
+        'reportes': 'Analíticas',
+        'pos': 'Caja (POS)',
+        'cartera': 'Cartera',
+        'finanzas': 'Contabilidad', 
+        'pedidos': 'Pedidos',
+        'productos': 'Inventario',
+        'clientes': 'Clientes',
+        'categorias': 'Categorías'
+    };
+
+    return (
+        <button 
+            key={t} 
+            onClick={() => setTab(t)} 
+            className={`px-4 md:px-8 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${tab === t ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}
+        >
+            {nombresPestanas[t]}
+        </button>
+    );
+})}
                 </div>
                 
                 {tab === 'productos' && (
@@ -1451,8 +1496,42 @@ const resPedido = await API.post('/pedidos', {
 
                 {/* --- VISTA FINANZAS --- */}
                 {tab === 'finanzas' && (
-                    <div className="space-y-6 md:space-y-8">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
+    <div className="space-y-6 md:space-y-8">
+        
+        {/* 🔥 NUEVO: RESUMEN DIARIO PARA EL ADMINISTRADOR 🔥 */}
+        {!esCajero && (() => {
+            const hoy = new Date();
+            const todayStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+            const txHoy = transacciones.filter(t => t.fecha && t.fecha.split('T')[0] === todayStr);
+
+            const efectivoHoy = txHoy.filter(t => (t.descripcion || '').toUpperCase().includes('EFECTIVO')).reduce((acc, t) => acc + (t.tipo === 'INGRESO' ? parseFloat(t.monto) : -parseFloat(t.monto)), 0);
+            const bancosHoy = txHoy.filter(t => (t.descripcion || '').toUpperCase().includes('TRANSFERENCIA')).reduce((acc, t) => acc + (t.tipo === 'INGRESO' ? parseFloat(t.monto) : -parseFloat(t.monto)), 0);
+            const egresosHoy = txHoy.filter(t => t.tipo === 'EGRESO').reduce((acc, t) => acc + parseFloat(t.monto), 0);
+
+            return (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-white p-5 rounded-[2rem] border-l-4 border-green-500 shadow-sm">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Efectivo Ingresado Hoy</p>
+                        <p className="text-2xl font-black text-gray-900 truncate">${formatCurrency(efectivoHoy)}</p>
+                    </div>
+                    <div className="bg-white p-5 rounded-[2rem] border-l-4 border-blue-500 shadow-sm">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Bancos (Transf.) Hoy</p>
+                        <p className="text-2xl font-black text-gray-900 truncate">${formatCurrency(bancosHoy)}</p>
+                    </div>
+                    <div className="bg-white p-5 rounded-[2rem] border-l-4 border-red-500 shadow-sm">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Gastos / Devoluciones Hoy</p>
+                        <p className="text-2xl font-black text-red-600 truncate">-${formatCurrency(egresosHoy)}</p>
+                    </div>
+                    <div className="bg-black p-5 rounded-[2rem] shadow-xl text-white flex flex-col justify-center">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Saldo Neto del Día</p>
+                        <p className="text-2xl font-black text-green-400 truncate">${formatCurrency(efectivoHoy + bancosHoy - egresosHoy)}</p>
+                    </div>
+                </div>
+            );
+        })()}
+
+                             {/* Panel Financiero (Buscador y Filtros) */}
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm">
                             <div><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Panel Financiero</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Busca y filtra el Libro Mayor</p></div>
                             
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
@@ -1545,8 +1624,13 @@ const resPedido = await API.post('/pedidos', {
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
-                            <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-2">Libro Mayor</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 md:mb-8">Registro detallado de transacciones</p>
+                       <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
+    <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter mb-2 flex items-center gap-2">
+        <History className="text-blue-600" size={24} /> Libro Diario
+    </h3>
+    <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 md:mb-8">
+        Registro cronológico de ingresos y egresos
+    </p>
                             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                                 {(Array.isArray(transaccionesFiltradas) ? transaccionesFiltradas : []).length === 0 && <p className="text-center py-10 text-gray-400 font-bold text-xs uppercase">No hay transacciones que coincidan con la búsqueda.</p>}
                                 {transaccionesFiltradas.map(tx => (

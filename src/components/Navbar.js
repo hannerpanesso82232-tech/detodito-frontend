@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import CartDrawer from './CartDrawer'; 
 import { 
-  ShoppingCart, User, LogOut, Store, Settings, Menu, X 
+  ShoppingCart, User, LogOut, Store, Settings, Menu, X, ArrowLeftRight
 } from 'lucide-react';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
   const { cart, updateQuantity, removeFromCart, total, cantidadTotal } = useCart();
   const navigate = useNavigate();
+  const location = useLocation(); // 🔥 NUEVO: Para saber en qué ruta estamos
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false); 
 
@@ -18,6 +19,15 @@ const Navbar = () => {
     logout();
     navigate('/login');
   };
+
+  // 🔥 NUEVO: Detectar si el usuario es cajero
+  const esCajero = user?.rol?.toUpperCase() === 'CAJERO';
+
+  // 🔥 NUEVO: Lógica de Modo Quiosco (Pantalla Completa)
+  // Si es cajero Y está en la ruta /admin, ocultamos el Navbar entero.
+  if (esCajero && location.pathname.startsWith('/admin')) {
+      return null; 
+  }
 
   return (
     <>
@@ -37,7 +47,10 @@ const Navbar = () => {
 
             {/* Menú Desktop */}
             <div className="hidden md:flex items-center gap-8">
-              <Link to="/" className="text-xs font-black uppercase tracking-widest text-gray-400 hover:text-blue-600 transition">Catálogo</Link>
+              {/* Solo muestra el catálogo si NO es cajero */}
+              {!esCajero && (
+                 <Link to="/" className="text-xs font-black uppercase tracking-widest text-gray-400 hover:text-blue-600 transition">Catálogo</Link>
+              )}
               
               {user?.rol === 'ADMIN' && (
                 <Link to="/admin" className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-400 hover:text-blue-600 transition">
@@ -45,18 +58,27 @@ const Navbar = () => {
                 </Link>
               )}
 
-              {/* Botón Carrito */}
-              <button 
-                onClick={() => setIsCartOpen(true)} 
-                className="relative p-3 text-gray-600 hover:bg-gray-100 rounded-2xl transition-all active:scale-90"
-              >
-                <ShoppingCart size={24} />
-                {cantidadTotal > 0 && (
-                  <span className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black h-5 w-5 flex items-center justify-center rounded-full border-2 border-white">
-                    {cantidadTotal}
-                  </span>
-                )}
-              </button>
+               {/* 🔥 Botón especial para que el cajero vuelva a su caja si se perdió */}
+               {esCajero && location.pathname !== '/admin' && (
+                <Link to="/admin" className="flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95">
+                  <ArrowLeftRight size={16} /> Ir a Caja
+                </Link>
+              )}
+
+              {/* Botón Carrito: Oculto para el Cajero */}
+              {!esCajero && (
+                  <button 
+                    onClick={() => setIsCartOpen(true)} 
+                    className="relative p-3 text-gray-600 hover:bg-gray-100 rounded-2xl transition-all active:scale-90"
+                  >
+                    <ShoppingCart size={24} />
+                    {cantidadTotal > 0 && (
+                      <span className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] font-black h-5 w-5 flex items-center justify-center rounded-full border-2 border-white">
+                        {cantidadTotal}
+                      </span>
+                    )}
+                  </button>
+              )}
 
               {/* Usuario */}
               <div className="flex items-center gap-4 border-l pl-8 border-gray-100">
@@ -76,19 +98,21 @@ const Navbar = () => {
               </div>
             </div>
 
-            {/* Mobile Toggle & Cart */}
+            {/* Mobile Toggle */}
             <div className="md:hidden flex items-center gap-4">
-              <button 
-                onClick={() => setIsCartOpen(true)} 
-                className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-all active:scale-90"
-              >
-                <ShoppingCart size={24} />
-                {cantidadTotal > 0 && (
-                  <span className="absolute top-0 right-0 bg-blue-600 text-white text-[9px] font-black h-4 w-4 flex items-center justify-center rounded-full border border-white">
-                    {cantidadTotal}
-                  </span>
-                )}
-              </button>
+              {!esCajero && (
+                  <button 
+                    onClick={() => setIsCartOpen(true)} 
+                    className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-all active:scale-90"
+                  >
+                    <ShoppingCart size={24} />
+                    {cantidadTotal > 0 && (
+                      <span className="absolute top-0 right-0 bg-blue-600 text-white text-[9px] font-black h-4 w-4 flex items-center justify-center rounded-full border border-white">
+                        {cantidadTotal}
+                      </span>
+                    )}
+                  </button>
+              )}
               <button className="p-2 text-gray-900" onClick={() => setIsMenuOpen(!isMenuOpen)}>
                 {isMenuOpen ? <X size={28}/> : <Menu size={28}/>}
               </button>
@@ -99,12 +123,20 @@ const Navbar = () => {
         {/* Menú Desplegable Móvil */}
         {isMenuOpen && (
           <div className="md:hidden absolute top-20 left-0 w-full bg-white border-b border-gray-100 shadow-xl py-4 px-6 flex flex-col gap-4 animate-in slide-in-from-top-2">
-            <Link to="/" onClick={() => setIsMenuOpen(false)} className="text-xs font-black uppercase tracking-widest text-gray-600 hover:text-blue-600 py-2 border-b border-gray-50">Catálogo</Link>
+            {!esCajero && (
+                <Link to="/" onClick={() => setIsMenuOpen(false)} className="text-xs font-black uppercase tracking-widest text-gray-600 hover:text-blue-600 py-2 border-b border-gray-50">Catálogo</Link>
+            )}
             
             {user?.rol === 'ADMIN' && (
               <Link to="/admin" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-600 hover:text-blue-600 py-2 border-b border-gray-50">
                 <Settings size={16} /> Panel Admin
               </Link>
+            )}
+
+            {esCajero && location.pathname !== '/admin' && (
+                <Link to="/admin" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-blue-600 py-2 border-b border-gray-50">
+                  <ArrowLeftRight size={16} /> Ir a Caja Fuerte
+                </Link>
             )}
 
             <Link to="/perfil" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 py-2 border-b border-gray-50">
@@ -125,14 +157,16 @@ const Navbar = () => {
       </nav>
 
       {/* COMPONENTE CART DRAWER */}
-      <CartDrawer 
-        isOpen={isCartOpen} 
-        onClose={() => setIsCartOpen(false)}
-        cart={cart}
-        updateQuantity={updateQuantity}
-        removeFromCart={removeFromCart}
-        total={total}
-      />
+      {!esCajero && (
+          <CartDrawer 
+            isOpen={isCartOpen} 
+            onClose={() => setIsCartOpen(false)}
+            cart={cart}
+            updateQuantity={updateQuantity}
+            removeFromCart={removeFromCart}
+            total={total}
+          />
+      )}
     </>
   );
 };
