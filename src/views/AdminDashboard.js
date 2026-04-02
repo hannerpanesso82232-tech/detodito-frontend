@@ -400,7 +400,15 @@ const resPedido = await API.post('/pedidos', {
             setPosCart([]); setPosCodigo(''); setPosClienteId(''); setPosSearchTerm(''); 
             setShowCobroEfectivoModal(false); setEfectivoRecibido('');
             fetchDatos();
-        } catch (error) { toast.error("Error al procesar la venta", { id: loadId }); } finally { setEnviando(false); }
+        }   catch (error) { 
+            // 🔥 Revelamos el error real que manda el backend
+            const mensajeReal = error.response?.data?.error || "Error desconocido al facturar";
+            toast.error(mensajeReal, { id: loadId, duration: 6000 }); 
+            console.error("Fallo en POST /pedidos:", error.response?.data);
+        } finally { 
+            setEnviando(false); 
+        }
+    
     };
     // ---------------------------------------------
 
