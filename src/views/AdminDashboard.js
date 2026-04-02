@@ -960,7 +960,8 @@ const resPedido = await API.post('/pedidos', {
     };
 
     // 🔥 INYECCIÓN 4: Pasar el estado showCheatSheetModal a AdminModals 🔥
-   const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal, showPrintModal, facturaAImprimir, showArqueoModal, showDevolucionModal, itemDevolucion, cantidadDevolucion };
+   // 🔥 CONEXIÓN DE PROPS PARA MODALES 🔥
+    const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal, showPrintModal, facturaAImprimir, showArqueoModal, showDevolucionModal, itemDevolucion, cantidadDevolucion };
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir, setShowArqueoModal, setShowDevolucionModal, setCantidadDevolucion };
     const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera, procesarDevolucionAPI };
@@ -1074,11 +1075,11 @@ const resPedido = await API.post('/pedidos', {
                                 </div>
                                 <div className="bg-black p-5 rounded-[2rem] shadow-xl flex flex-col justify-center">
                                     <button 
-                                        onClick={() => setShowArqueoModal(true)}
-                                        className="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-[10px] tracking-tighter hover:bg-gray-200 transition-all active:scale-95 flex justify-center items-center gap-2"
-                                    >
-                                        <Calculator size={16} /> Realizar Arqueo de Caja
-                                    </button>
+    onClick={() => setShowArqueoModal(true)}
+    className="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-[10px] tracking-tighter hover:bg-gray-200 transition-all active:scale-95 flex justify-center items-center gap-2"
+>
+    <Calculator size={16} /> Realizar Arqueo de Caja
+</button>
                                 </div>
                             </div>
                         )}
@@ -1758,12 +1759,13 @@ const resPedido = await API.post('/pedidos', {
             </div>
 
             {/* 🔥 PASAMOS EL showCheatSheetModal A ADMINMODALS 🔥 */}
+            {/* 🔥 CONEXIÓN OPTIMIZADA DE MODALES 🔥 */}
             <AdminModals 
-                states={{ showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal, showPrintModal, facturaAImprimir }} 
-                forms={{ formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono }} 
-                setters={{ setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir }} 
-                handlers={{ handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera }} 
-                data={{ categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones, productos }} 
+                states={statesProps} 
+                forms={formsProps} 
+                setters={settersProps} 
+                handlers={handlersProps} 
+                data={dataProps} 
             />
         </div>
     );

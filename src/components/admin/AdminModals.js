@@ -33,7 +33,7 @@ const AdminModals = ({ states, forms, setters, handlers, data }) => {
     setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, 
     setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, 
     setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, 
-    setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir, setShowArqueoModa, setShowDevolucionModal, setCantidadDevolucion
+    setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir, setShowArqueoModal, setShowDevolucionModal, setCantidadDevolucion
  } = setters;
     
     // 4. Extraemos los handlers
