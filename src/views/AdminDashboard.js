@@ -148,6 +148,9 @@ const AdminDashboard = () => {
     const [showCreditoModal, setShowCreditoModal] = useState(false);
     const [showAbonoModal, setShowAbonoModal] = useState(false);
     const [showCobroModal, setShowCobroModal] = useState(false);
+    const [showDevolucionModal, setShowDevolucionModal] = useState(false);
+const [itemDevolucion, setItemDevolucion] = useState(null);
+const [cantidadDevolucion, setCantidadDevolucion] = useState(1);
   
     
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
@@ -811,14 +814,36 @@ const resPedido = await API.post('/pedidos', {
     const actualizarEstadoPedido = async (id, nuevoEstado) => { try { await API.put(`/pedidos/${id}/estado`, { estado: nuevoEstado }); fetchDatos(); toast.success("Estado Actualizado"); } catch (err) { toast.error(err.response?.data?.error || "Error"); } };
     const actualizarRutaPedido = async (id, nuevaRuta) => { try { await API.put(`/pedidos/${id}/ruta`, { ruta: nuevaRuta }); fetchDatos(); toast.success(`Ruta actualizada`); } catch (err) { toast.error("Error al actualizar la ruta"); } };
     
-    const handleDevolucionProducto = async (pedidoId, item) => {
-        const qtyStr = window.prompt(`Reembolso / Devolución:\n\n¿Cuántas unidades de "${item.Producto?.nombre || item.nombre}" regresó el cliente?\n(Máximo disponible: ${item.cantidad})`, "1");
-        if (qtyStr === null) return; const qty = parseInt(qtyStr);
-        if (isNaN(qty) || qty <= 0 || qty > item.cantidad) return toast.error("Cantidad inválida ingresada.");
+   // 1. Esta función ahora SOLO abre el modal y guarda el producto temporalmente
+    const handleDevolucionProducto = (pedidoId, item) => {
+        setItemDevolucion({ ...item, pedidoId });
+        setCantidadDevolucion(1);
+        setShowDevolucionModal(true);
+    };
+
+    // 2. Esta NUEVA función se ejecuta cuando el administrador presiona "Confirmar" en el modal
+    const procesarDevolucionAPI = async (e) => {
+        e.preventDefault();
+        const qty = parseInt(cantidadDevolucion);
+        if (isNaN(qty) || qty <= 0 || qty > itemDevolucion.cantidad) return toast.error("Cantidad inválida ingresada.");
+        
         try {
-            setEnviando(true); await API.put(`/pedidos/${pedidoId}/devolucion`, { productoId: item.productoId || item.Producto?.id || item.producto_id, cantidadDevuelta: qty, precioUnitario: item.precioUnitario || item.precio });
-            toast.success("Devolución y Reembolso procesado con éxito"); setPedidoDetalle(null); fetchDatos();
-        } catch (err) { toast.error(err.response?.data?.error || "Error al procesar la devolución."); } finally { setEnviando(false); }
+            setEnviando(true); 
+            await API.put(`/pedidos/${itemDevolucion.pedidoId}/devolucion`, { 
+                productoId: itemDevolucion.productoId || itemDevolucion.Producto?.id || itemDevolucion.producto_id, 
+                cantidadDevuelta: qty, 
+                precioUnitario: itemDevolucion.precioUnitario || itemDevolucion.precio 
+            });
+            toast.success("Devolución y Reembolso procesado con éxito"); 
+            setShowDevolucionModal(false);
+            setItemDevolucion(null);
+            setPedidoDetalle(null); // Cerramos el modal de detalles para refrescar la vista
+            fetchDatos();
+        } catch (err) { 
+            toast.error(err.response?.data?.error || "Error al procesar la devolución."); 
+        } finally { 
+            setEnviando(false); 
+        }
     };
 
     const handleCrearUsuario = async (e) => { e.preventDefault(); setEnviando(true); try { await API.post('/auth/registro', formUsuario); setShowUsuarioModal(false); fetchDatos(); toast.success("Cliente registrado"); setFormUsuario({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30 }); } catch (err) { toast.error("Error al crear cliente"); } finally { setEnviando(false); } };

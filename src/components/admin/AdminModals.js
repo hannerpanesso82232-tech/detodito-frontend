@@ -1085,6 +1085,58 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                     </div>
                 </div>
             )}
+
+            {/* --- MODAL: PROCESAR DEVOLUCIÓN --- */}
+            {states.showDevolucionModal && states.itemDevolucion && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[600] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] max-w-sm w-full shadow-2xl relative animate-in zoom-in-95 duration-300">
+                        
+                        <button onClick={() => setters.setShowDevolucionModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 rounded-full hover:bg-black hover:text-white transition-all">
+                            <X size={16}/>
+                        </button>
+
+                        <div className="w-16 h-16 bg-red-50 text-red-500 rounded-[1.5rem] flex items-center justify-center mx-auto mb-6 shadow-inner">
+                            <ArrowLeftRight size={32} />
+                        </div>
+
+                        <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-1 text-center">Reembolso</h2>
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-6 text-center border-b border-gray-100 pb-4 line-clamp-2">
+                            {states.itemDevolucion.Producto?.nombre || states.itemDevolucion.nombre}
+                        </p>
+
+                        <form onSubmit={handlers.procesarDevolucionAPI} className="space-y-6">
+                            <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
+                                <label className="text-[10px] font-black uppercase text-red-500 tracking-widest mb-2 block">
+                                    ¿Cuántas unidades regresó?
+                                </label>
+                                <div className="flex items-center gap-4">
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max={states.itemDevolucion.cantidad}
+                                        value={states.cantidadDevolucion}
+                                        onChange={(e) => setters.setCantidadDevolucion(e.target.value)}
+                                        autoFocus
+                                        className="w-full bg-white border-2 border-red-100 rounded-xl py-3 px-4 font-black text-xl text-red-600 outline-none focus:border-red-500 focus:ring-4 focus:ring-red-500/10 transition-all text-center"
+                                    />
+                                    <div className="flex flex-col text-left shrink-0">
+                                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Máximo:</span>
+                                        <span className="text-sm font-black text-gray-700">{states.itemDevolucion.cantidad} Uds</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={states.enviando || states.cantidadDevolucion < 1 || states.cantidadDevolucion > states.itemDevolucion.cantidad}
+                                className="w-full bg-black text-white p-5 rounded-2xl font-black uppercase tracking-[0.2em] text-[10px] hover:bg-red-600 transition-all shadow-xl disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                {states.enviando ? <Loader2 className="animate-spin" size={16}/> : 'Confirmar Devolución'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </>
     );
 };
