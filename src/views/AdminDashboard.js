@@ -12,7 +12,7 @@ import {
     CalendarDays, Activity, DollarSign, Clock, Users, Settings,
     ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
     Receipt, Award, Edit, Trash2, PackageMinus, Key, CheckCircle2, ChevronRight, Briefcase, History, X,
-    Lock, Unlock, ScanBarcode, Minus, MonitorSmartphone, Calculator
+    Lock, Unlock, ScanBarcode, Minus, MonitorSmartphone, Calculator, LogOut
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
