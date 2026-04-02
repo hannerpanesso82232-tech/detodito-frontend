@@ -1044,42 +1044,80 @@ const resPedido = await API.post('/pedidos', {
                 {tab === 'pos' && (
                     <div className="flex flex-col gap-6">
                         
-                        {/* 🔥 PANEL INTELIGENTE DE CUADRE DIARIO PARA CAJEROS 🔥 */}
+                       {/* 🔥 PANEL INTELIGENTE DE CUADRE DIARIO PARA CAJEROS 🔥 */}
                         {esCajero && (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                
+                                {/* TARJETA 1: EFECTIVO */}
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-green-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Efectivo en Caja (Hoy)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
                                         ${formatCurrency(transacciones
                                             .filter(t => {
                                                 if(!t.fecha) return false;
-                                                const fechaTx = new Date(t.fecha);
+                                                // 1. Cortamos la fecha para evitar el bug de zona horaria (Timezone)
+                                                const txDate = t.fecha.split('T')[0];
+                                                
                                                 const hoy = new Date();
-                                                return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').includes('[EFECTIVO]');
+                                                const yyyy = hoy.getFullYear();
+                                                const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+                                                const dd = String(hoy.getDate()).padStart(2, '0');
+                                                const todayStr = `${yyyy}-${mm}-${dd}`;
+                                                
+                                                // 2. Filtramos: Que sea de hoy y diga EFECTIVO
+                                                const esHoy = txDate === todayStr;
+                                                const esEfectivo = (t.descripcion || '').toUpperCase().includes('EFECTIVO');
+                                                return esHoy && esEfectivo;
                                             })
-                                            .reduce((acc, t) => acc + parseFloat(t.monto || 0), 0))}
+                                            .reduce((acc, t) => {
+                                                const monto = parseFloat(t.monto || 0);
+                                                // 3. Si es EGRESO o un REEMBOLSO, le restamos el dinero
+                                                if (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO')) {
+                                                    return acc - monto;
+                                                }
+                                                // 4. Si es INGRESO normal, lo sumamos
+                                                return acc + monto;
+                                            }, 0))}
                                     </h3>
                                 </div>
+
+                                {/* TARJETA 2: TRANSFERENCIAS */}
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-blue-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Transferencias (Hoy)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
                                         ${formatCurrency(transacciones
                                             .filter(t => {
                                                 if(!t.fecha) return false;
-                                                const fechaTx = new Date(t.fecha);
+                                                const txDate = t.fecha.split('T')[0];
+                                                
                                                 const hoy = new Date();
-                                                return fechaTx.toDateString() === hoy.toDateString() && (t.descripcion || '').includes('[TRANSFERENCIA]');
+                                                const yyyy = hoy.getFullYear();
+                                                const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+                                                const dd = String(hoy.getDate()).padStart(2, '0');
+                                                const todayStr = `${yyyy}-${mm}-${dd}`;
+                                                
+                                                const esHoy = txDate === todayStr;
+                                                const esTransferencia = (t.descripcion || '').toUpperCase().includes('TRANSFERENCIA');
+                                                return esHoy && esTransferencia;
                                             })
-                                            .reduce((acc, t) => acc + parseFloat(t.monto || 0), 0))}
+                                            .reduce((acc, t) => {
+                                                const monto = parseFloat(t.monto || 0);
+                                                if (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO')) {
+                                                    return acc - monto;
+                                                }
+                                                return acc + monto;
+                                            }, 0))}
                                     </h3>
                                 </div>
+
+                                {/* TARJETA 3: ARQUEO DE CAJA */}
                                 <div className="bg-black p-5 rounded-[2rem] shadow-xl flex flex-col justify-center">
                                     <button 
-    onClick={() => setShowArqueoModal(true)}
-    className="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-[10px] tracking-tighter hover:bg-gray-200 transition-all active:scale-95 flex justify-center items-center gap-2"
->
-    <Calculator size={16} /> Realizar Arqueo de Caja
-</button>
+                                        onClick={() => setShowArqueoModal(true)}
+                                        className="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-[10px] tracking-tighter hover:bg-gray-200 transition-all active:scale-95 flex justify-center items-center gap-2"
+                                    >
+                                        <Calculator size={16} /> Realizar Arqueo de Caja
+                                    </button>
                                 </div>
                             </div>
                         )}
