@@ -1089,7 +1089,7 @@ const resPedido = await API.post('/pedidos', {
                                 </div>
                                 <div className="bg-black p-5 rounded-[2rem] shadow-xl flex flex-col justify-center">
                                    <button 
-    onClick={() => setters.setShowArqueoModal(true)}
+    onClick={() => setShowArqueoModal(true)}
     className="w-full bg-white text-black py-3 rounded-xl font-black uppercase text-[10px] tracking-tighter hover:bg-gray-200 transition-all active:scale-95 flex justify-center items-center gap-2"
 >
     <Calculator size={16} /> Realizar Arqueo de Caja
