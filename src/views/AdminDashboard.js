@@ -397,19 +397,22 @@ const resPedido = await API.post('/pedidos', {
                 }))
             };
 
-     // 1. Guardamos una copia exacta de lo que se vendió
+     // 1. Guardamos una copia exacta para que no se pierda al vaciar la caja
             const itemsComprados = [...posCartCalculado];
 
-            // 2. Pasamos los datos al modal moderno de impresión
+            // 2. Pasamos los datos al modal de impresión
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
 
-            // 3. 🔥 ACTUALIZACIÓN OPTIMISTA BLINDADA 🔥
+            // 3. 🔥 ACTUALIZACIÓN OPTIMISTA SÚPER BLINDADA 🔥
             setProductos(prevProductos => 
                 prevProductos.map(prod => {
-                    const itemVendido = itemsComprados.find(item => item.id === prod.id);
+                    // Usamos String() para asegurar que "15" y 15 coincidan perfectamente
+                    const itemVendido = itemsComprados.find(item => String(item.id) === String(prod.id));
                     if (itemVendido) {
-                        return { ...prod, stock: Math.max(0, prod.stock - itemVendido.cantidad) };
+                        // Forzamos matemáticas estrictas para evitar errores de texto
+                        const nuevoStock = Math.max(0, parseInt(prod.stock) - parseInt(itemVendido.cantidad));
+                        return { ...prod, stock: nuevoStock };
                     }
                     return prod;
                 })
@@ -423,16 +426,19 @@ const resPedido = await API.post('/pedidos', {
             setShowCobroEfectivoModal(false); 
             setEfectivoRecibido('');
             
-            // 5. Refresco con el servidor usando nuestro nuevo Anti-Caché
+            // 5. 🔥 RETRASO DE SEGURIDAD (Safety Delay) 🔥
+            // Esperamos 2.5 segundos antes de pedir datos al servidor. 
+            // Así le damos tiempo a la Base de Datos de guardar el nuevo stock en la nube.
             setTimeout(() => {
                 fetchDatos();
-            }, 800);
+            }, 2500);
+
+            toast.success("Venta procesada y stock actualizado", { id: loadId });
 
         } catch (error) { 
-            // 🔥 Revelamos el error real que manda el backend
+            // Revelamos el error real
             const mensajeReal = error.response?.data?.error || "Error desconocido al facturar";
             toast.error(mensajeReal, { id: loadId, duration: 6000 }); 
-            console.error("Fallo en POST /pedidos:", error.response?.data);
         } finally { 
             setEnviando(false); 
         }
