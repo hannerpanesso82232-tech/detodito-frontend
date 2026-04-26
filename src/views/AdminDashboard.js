@@ -228,8 +228,12 @@ const AdminDashboard = () => {
             }, 2000);
         });
 
-        socket.on('stockActualizado', (data) => { setProductos(prev => (Array.isArray(prev) ? prev : []).map(p => p.id === parseInt(data.id) ? { ...p, stock: data.nuevoStock } : p)); });
-        socket.on('productoActualizado', (productoModificado) => { setProductos(prev => (Array.isArray(prev) ? prev : []).map(p => p.id === productoModificado.id ? productoModificado : p)); });
+        socket.on('stockActualizado', (data) => { 
+    setProductos(prev => (Array.isArray(prev) ? prev : []).map(p => 
+        String(p.id) === String(data.id) ? { ...p, stock: data.nuevoStock } : p
+    )); 
+});
+        socket.on('productoActualizado', (productoModificado) => { setProductos(prev => (Array.isArray(prev) ? prev : []).map(p => String(p.id) === String(productoModificado.id) ? productoModificado : p)); });
         
         return () => { if(socket) socket.disconnect(); };
     }, [fetchDatos]);
