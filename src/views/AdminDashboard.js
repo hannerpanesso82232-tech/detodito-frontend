@@ -182,21 +182,20 @@ const AdminDashboard = () => {
 
    const fetchDatos = useCallback(async () => {
         try {
-            // 🔥 CACHE-BUSTER EXTREMO: Prohíbe al navegador usar memoria vieja
+            // 🔥 CACHE-BUSTER SEGURO: Usamos solo el timestamp en la URL para evitar bloqueos de CORS
             const ts = new Date().getTime();
-            const config = { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache', 'Expires': '0' } };
             
             const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos] = await Promise.all([
-                API.get(`/productos?t=${ts}`, config).catch(() => ({ data: [] })), 
-                API.get(`/pedidos/admin/todos?t=${ts}`, config).catch(() => ({ data: [] })), 
-                API.get(`/categorias?t=${ts}`, config).catch(() => ({ data: [] })),
-                API.get(`/auth/admin/usuarios?t=${ts}`, config).catch(() => ({ data: [] })), 
-                API.get(`/auth/config/whatsapp?t=${ts}`, config).catch(() => ({ data: { whatsapp: '' } })),
-                API.get(`/contabilidad/resumen?t=${ts}`, config).catch(() => ({ data: { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 } })), 
-                API.get(`/contabilidad/transacciones?t=${ts}`, config).catch(() => ({ data: [] })),
-                API.get(`/pedidos/config/rutas?t=${ts}`, config).catch(() => ({ data: [] })),
-                API.get(`/pedidos/config/horalimite?t=${ts}`, config).catch(() => ({ data: { hora: '20:00' } })),
-                API.get(`/creditos?t=${ts}`, config).catch(() => ({ data: [] })) 
+                API.get(`/productos?t=${ts}`).catch(() => ({ data: [] })), 
+                API.get(`/pedidos/admin/todos?t=${ts}`).catch(() => ({ data: [] })), 
+                API.get(`/categorias?t=${ts}`).catch(() => ({ data: [] })),
+                API.get(`/auth/admin/usuarios?t=${ts}`).catch(() => ({ data: [] })), 
+                API.get(`/auth/config/whatsapp?t=${ts}`).catch(() => ({ data: { whatsapp: '' } })),
+                API.get(`/contabilidad/resumen?t=${ts}`).catch(() => ({ data: { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 } })), 
+                API.get(`/contabilidad/transacciones?t=${ts}`).catch(() => ({ data: [] })),
+                API.get(`/pedidos/config/rutas?t=${ts}`).catch(() => ({ data: [] })),
+                API.get(`/pedidos/config/horalimite?t=${ts}`).catch(() => ({ data: { hora: '20:00' } })),
+                API.get(`/creditos?t=${ts}`).catch(() => ({ data: [] })) 
             ]);
             
             setProductos(resProd.data || []); 
