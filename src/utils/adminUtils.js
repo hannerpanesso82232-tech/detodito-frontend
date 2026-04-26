@@ -100,7 +100,11 @@ export const imprimirFacturaCliente = (pedido, rutasDinamicas = [], horaLimiteGl
     doc.setFont("helvetica", "bold"); doc.text(`N° DE ORDEN: #${pedido.id}`, 130, 45);
     doc.setFont("helvetica", "normal"); doc.text(`Fecha Pedido: ${new Date(pedido.fecha || new Date()).toLocaleDateString('es-ES')}`, 130, 52);
     doc.text(`Estado: ${(pedido.estado || 'Pendiente').toUpperCase()}`, 130, 58);
-    doc.setFont("helvetica", "bold"); doc.text(`Entrega: ${infoRuta.fechaFormateada}`, 130, 64); 
+    doc.setFont("helvetica", "bold"); doc.text(`Entrega: ${infoRuta.fechaFormateada}`, 130, 64);
+    doc.setFont("helvetica", "normal"); doc.text(`Condición de Pago:`, 130, 70);
+    doc.setFont("helvetica", "bold"); 
+    const esCredito = (pedido.metodo_pago || '').toUpperCase().includes('CRÉDITO');
+    doc.text(esCredito ? 'CRÉDITO (FIADO)' : 'DE CONTADO', 165, 70);
     const tableRows = (pedido.Detalles || pedido.items || []).map(item => {
         const nombreItem = item.Producto?.nombre || item.nombre || 'Item';
         const precioUnitario = parseFloat(item.precioUnitario || item.precio || 0);
@@ -234,8 +238,8 @@ export const imprimirTirillaPOS = (pedido) => {
                 <span>$${totalFormateado}</span>
             </div>
             <div class="flex-between" style="font-size: 11px; margin-top: 5px;">
-                <span>${pedido.metodo_pago.includes('CONTADO') ? 'EFECTIVO:' : 'CRÉDITO:'}</span>
-                <span>$${totalFormateado}</span>
+                <span>CONDICIÓN PAGO:</span>
+                <span>${(pedido.metodo_pago || '').toUpperCase().includes('CRÉDITO') ? 'FIADO (CARTERA)' : 'DE CONTADO'}</span>
             </div>
         </div>
 
