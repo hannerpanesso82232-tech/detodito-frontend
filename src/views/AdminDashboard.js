@@ -12,11 +12,11 @@ import {
     CalendarDays, Activity, DollarSign, Clock, Users, Settings,
     ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
     Receipt, Award, Edit, Trash2, PackageMinus, Key, CheckCircle2, ChevronRight, Briefcase, History, X,
-    Lock, Unlock, ScanBarcode, Minus, MonitorSmartphone, Calculator, LogOut
+    Lock, Unlock, ScanBarcode, Minus, MonitorSmartphone, Calculator, LogOut, AlertCircle
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
-import { formatCurrency, formatearImagen, imprimirFacturaCliente, imprimirTirillaPOS } from '../utils/adminUtils';
+import { formatCurrency, formatearImagen } from '../utils/adminUtils';
 import { useAuth } from '../context/AuthContext'; 
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
@@ -78,7 +78,6 @@ const StatCard = ({ title, value, icon, color, subtitle }) => (
 );
 
 const AdminDashboard = () => {
-    // 🔥 1. BLINDAMOS EL CONTROL DE ACCESO (Ignora mayúsculas/minúsculas) 🔥
     const { user } = useAuth();
     const esCajero = user?.rol?.toUpperCase() === 'CAJERO';
 
@@ -93,19 +92,15 @@ const AdminDashboard = () => {
     const [whatsappTienda, setWhatsappTienda] = useState('');
     const [horaLimite, setHoraLimite] = useState('20:00'); 
     
-    // 🔥 CAJERO EMPIEZA EN POS 🔥
     const [tab, setTab] = useState(esCajero ? 'pos' : 'reportes'); 
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
 
-    // 🔥 2. EFECTO DE SINCRONIZACIÓN: Fuerza la vista de Caja apenas el usuario termine de cargar 🔥
     useEffect(() => {
-        if (esCajero) {
-            setTab('pos');
-        }
+        if (esCajero) setTab('pos');
     }, [esCajero]);
 
-    // --- ESTADOS PARA LA CAJA (POS) ---
+    // --- ESTADOS POS ---
     const [posCart, setPosCart] = useState([]);
     const [posCodigo, setPosCodigo] = useState('');
     const [posClienteId, setPosClienteId] = useState('');
@@ -117,18 +112,15 @@ const AdminDashboard = () => {
     const [facturaAImprimir, setFacturaAImprimir] = useState(null);
     const inputScannerRef = useRef(null);
     const [showArqueoModal, setShowArqueoModal] = useState(false);
-    // ----------------------------------
     
+    // --- FILTROS Y MODALES ---
     const [searchTerm, setSearchTerm] = useState('');
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
-    
     const [filtroFechaPedidos, setFiltroFechaPedidos] = useState(''); 
     const [filtroTextoPedidos, setFiltroTextoPedidos] = useState(''); 
-
     const [searchTermCartera, setSearchTermCartera] = useState(''); 
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('TODOS'); 
-
     const [fechaInicioFinanzas, setFechaInicioFinanzas] = useState('');
     const [fechaFinFinanzas, setFechaFinFinanzas] = useState('');
     const [filtroClienteFinanzas, setFiltroClienteFinanzas] = useState('Todos');
@@ -152,7 +144,6 @@ const AdminDashboard = () => {
     const [itemDevolucion, setItemDevolucion] = useState(null);
     const [cantidadDevolucion, setCantidadDevolucion] = useState(1);
   
-    
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
     const [productoEditando, setProductoEditando] = useState(null);
     const [productoAEliminar, setProductoAEliminar] = useState(null);
@@ -170,8 +161,10 @@ const AdminDashboard = () => {
     const [nuevaRutaCiudad, setNuevaRutaCiudad] = useState('');
     const [nuevaRutaDia, setNuevaRutaDia] = useState('');
     const [nuevaPassword, setNuevaPassword] = useState('');
-   const [formulario, setFormulario] = useState({ nombre: '', precio: '', stock: '', stock_adicional: '', costo_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 });
-   const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30, credito_activo: true });
+    
+    // 🔥 CORRECCIÓN: costo_nuevo_lote 🔥
+    const [formulario, setFormulario] = useState({ nombre: '', precio: '', stock: '', stock_adicional: '', costo_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 });
+    const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30, credito_activo: true });
     const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30, credito_activo: true });
     const [formGasto, setFormGasto] = useState({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' });
     const [formBaja, setFormBaja] = useState({ cantidad: 1, motivo: 'Dañado/Roto' });
@@ -180,9 +173,9 @@ const AdminDashboard = () => {
 
     const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...(rutasDinamicas || []).map(r => r.dia_ruta)])];
 
-   const fetchDatos = useCallback(async () => {
+    const fetchDatos = useCallback(async () => {
         try {
-            // 🔥 CACHE-BUSTER SEGURO: Usamos solo el timestamp en la URL para evitar bloqueos de CORS
+            // 🔥 CACHE BUSTER SEGURO 🔥
             const ts = new Date().getTime();
             
             const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos] = await Promise.all([
@@ -211,8 +204,10 @@ const AdminDashboard = () => {
         } catch (err) { toast.error("Error de sincronización"); } finally { setLoading(false); }
     }, []);
 
+    // 🔥 CONEXIÓN DE SOCKETS UNIFICADA 🔥
     useEffect(() => {
-        fetchDatos();
+        fetchDatos(); // Carga inicial
+        
         const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
         
         socket.on("nuevo_pedido_admin", (data) => {
@@ -220,11 +215,11 @@ const AdminDashboard = () => {
             const metodoTXT = data.metodo_pago === 'CREDITO' ? '💳 FIADO' : '💵 CONTADO';
             toast(`📦 Nuevo Pedido [${metodoTXT}] de ${data.cliente || 'Cliente'}`, { icon: '🚀', style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } });
             
-            // Retraso para dejar que el efecto visual del stock brille primero
+            // Retraso para no competir con el efecto visual
             setTimeout(() => { fetchDatos(); }, 2500);
         });
 
-        // 🔥 ESTE ES EL QUE ACTUALIZA LA PANTALLA CUANDO COMPRA UN CLIENTE 🔥
+        // 🔥 ESTE ES EL CORAZÓN DEL STOCK EN TIEMPO REAL 🔥
         socket.on('stockActualizado', (data) => { 
             setProductos(prev => prev.map(p => 
                 String(p.id) === String(data.id) ? { ...p, stock: data.nuevoStock } : p
@@ -238,14 +233,27 @@ const AdminDashboard = () => {
         });
         
         return () => { if(socket) socket.disconnect(); };
-    }, [fetchDatos]);
+    }, [fetchDatos]); // Solo se recrea si fetchDatos cambia
 
+    // 🔥 CALCULADORA DE PRECIOS 🔥
     useEffect(() => {
-        const costoBase = parseFloat(formulario.costo_compra) || 0; const margen = parseFloat(formulario.margen_ganancia) || 0;
-        if (!productoEditando) { setPrecioCalculado(costoBase + (costoBase * (margen / 100)) || 0); } else {
-            const stockViejo = parseInt(formulario.stock) || 0; const stockNuevo = parseInt(formulario.stock_adicional) || 0; const costoNuevoLote = parseFloat(formulario.costo_nuevo_lote) || 0;
-            if (stockNuevo > 0) { const stockTotal = stockViejo + stockNuevo; const costoPromedio = ((stockViejo * costoBase) + (stockNuevo * costoNuevoLote)) / stockTotal; setPrecioCalculado(costoPromedio + (costoPromedio * (margen / 100)) || 0); } 
-            else { setPrecioCalculado(costoBase + (costoBase * (margen / 100)) || parseFloat(formulario.precio) || 0); }
+        const costoBase = parseFloat(formulario.costo_compra) || 0; 
+        const margen = parseFloat(formulario.margen_ganancia) || 0;
+        
+        if (!productoEditando) { 
+            setPrecioCalculado(costoBase + (costoBase * (margen / 100)) || 0); 
+        } else {
+            const stockViejo = parseInt(formulario.stock) || 0; 
+            const stockNuevo = parseInt(formulario.stock_adicional) || 0; 
+            const costoNuevoLote = parseFloat(formulario.costo_nuevo_lote) || 0;
+            
+            if (stockNuevo > 0) { 
+                const stockTotal = stockViejo + stockNuevo; 
+                const costoPromedio = ((stockViejo * costoBase) + (stockNuevo * costoNuevoLote)) / stockTotal; 
+                setPrecioCalculado(costoPromedio + (costoPromedio * (margen / 100)) || 0); 
+            } else { 
+                setPrecioCalculado(costoBase + (costoBase * (margen / 100)) || parseFloat(formulario.precio) || 0); 
+            }
         }
     }, [formulario.costo_compra, formulario.margen_ganancia, formulario.stock_adicional, formulario.costo_nuevo_lote, formulario.stock, formulario.precio, productoEditando]);
 
@@ -358,43 +366,35 @@ const AdminDashboard = () => {
         return (Array.isArray(productos) ? productos : []).filter(p => (p.nombre || '').toLowerCase().includes(posSearchTerm.toLowerCase())).slice(0, 20);
     }, [productos, posSearchTerm]);
 
+    // 🔥 CAJA - COBRO 🔥
     const handlePosCheckout = async (metodo, subMetodo = 'EFECTIVO') => {
         if(posCartCalculado.length === 0) return toast.error("La caja está vacía");
         if(metodo === 'CREDITO' && !posClienteId) return toast.error("Selecciona un cliente para poder fiar");
 
         setEnviando(true); const loadId = toast.loading("Facturando...");
         try {
-  
-const resPedido = await API.post('/pedidos', {
-    productos: posCartCalculado.map(i => ({ 
-        id: i.id, 
-        cantidad: i.cantidad,
-        precio: i.precio_aplicado  
-    })),
-    direccion: 'VENTA FÍSICA EN MOSTRADOR (CAJA)',
-    metodo_pago: 'POS_LOCAL',
-    total_forzado: posTotal       
-});
+            const resPedido = await API.post('/pedidos', {
+                productos: posCartCalculado.map(i => ({ id: i.id, cantidad: i.cantidad, precio: i.precio_aplicado })),
+                direccion: 'VENTA FÍSICA EN MOSTRADOR (CAJA)',
+                metodo_pago: 'POS_LOCAL',
+                total_forzado: posTotal        
+            });
+            
             const pedidoId = resPedido.data.pedidoId;
             await API.put(`/pedidos/${pedidoId}/estado`, { estado: 'Entregado' });
 
             if (metodo === 'CONTADO') {
                 await API.post('/contabilidad/gasto', { 
-                    monto: posTotal, 
-                    descripcion: `Venta Caja #${pedidoId} [${subMetodo}]`, 
-                    categoria: 'Ventas Productos', 
-                    tipo: 'INGRESO', 
-                    fecha: new Date().toISOString().split('T')[0], 
-                    pedidoId: pedidoId 
+                    monto: posTotal, descripcion: `Venta Caja #${pedidoId} [${subMetodo}]`, 
+                    categoria: 'Ventas Productos', tipo: 'INGRESO', 
+                    fecha: new Date().toISOString().split('T')[0], pedidoId: pedidoId 
                 });
-                toast.success(`Venta en ${subMetodo} cobrada`, { id: loadId });
             } else if (metodo === 'CREDITO') {
                 const cliente = (Array.isArray(usuarios) ? usuarios : []).find(u => u.id === parseInt(posClienteId));
                 const dias = parseInt(cliente?.dias_credito || 30);
                 const fechaVencimiento = new Date();
                 fechaVencimiento.setDate(fechaVencimiento.getDate() + dias);
                 await API.post('/creditos', { usuarioId: posClienteId, monto_total: posTotal, descripcion: `Venta Fiada en Caja - Orden #${pedidoId}`, fecha_vencimiento: fechaVencimiento.toISOString() });
-                toast.success("Venta anotada en la Cartera del Cliente", { id: loadId });
             }
 
             const clienteData = posClienteId ? (Array.isArray(usuarios) ? usuarios : []).find(u => u.id === parseInt(posClienteId)) : { nombre: 'VENTA CONTADO', cedula: '0000' };
@@ -412,14 +412,14 @@ const resPedido = await API.post('/pedidos', {
                 }))
             };
 
-     // 1. Guardamos una copia exacta
+            // 1. Guardamos una copia exacta
             const itemsComprados = [...posCartCalculado];
 
-            // 2. Pasamos los datos al modal de impresión
+            // 2. Modal de impresión
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
 
-            // 3. 🔥 ACTUALIZACIÓN VISUAL INMEDIATA EN CAJA 🔥
+            // 3. 🔥 ACTUALIZACIÓN VISUAL INMEDIATA (FRONTEND) 🔥
             setProductos(prevProductos => 
                 prevProductos.map(prod => {
                     const itemVendido = itemsComprados.find(item => String(item.id) === String(prod.id));
@@ -431,7 +431,7 @@ const resPedido = await API.post('/pedidos', {
                 })
             );
 
-            // 4. Limpiamos la interfaz de caja
+            // 4. Limpieza de caja
             setPosCart([]); 
             setPosCodigo(''); 
             setPosClienteId(''); 
@@ -439,7 +439,6 @@ const resPedido = await API.post('/pedidos', {
             setShowCobroEfectivoModal(false); 
             setEfectivoRecibido('');
             
-            // Ya NO llamamos a fetchDatos() aquí. El Socket de arriba lo hará en 2.5 segundos.
             toast.success("Venta procesada y stock actualizado", { id: loadId });
 
         } catch (error) { 
@@ -449,7 +448,6 @@ const resPedido = await API.post('/pedidos', {
             setEnviando(false); 
         }
     };
-    // ---------------------------------------------
 
     const kpis = useMemo(() => {
         const hoy = new Date(); let ventasHoy = 0, ventasMes = 0, pendientes = 0;
@@ -559,12 +557,8 @@ const resPedido = await API.post('/pedidos', {
     }, [transaccionesFiltradas, finanzas]);
 
     const pedidosFiltradosVisual = useMemo(() => {
-        // 🔥 FILTRO DE SEGURIDAD VISUAL: El cajero solo ve ventas POS_LOCAL 🔥
         let filtrados = Array.isArray(pedidos) ? pedidos : [];
-        
-        if (esCajero) {
-            filtrados = filtrados.filter(ped => ped.metodo_pago === 'POS_LOCAL');
-        }
+        if (esCajero) { filtrados = filtrados.filter(ped => ped.metodo_pago === 'POS_LOCAL'); }
 
         if (filtroTextoPedidos) {
             const termino = filtroTextoPedidos.toLowerCase();
@@ -709,10 +703,9 @@ const resPedido = await API.post('/pedidos', {
     const abrirModalEditar = (p) => { setProductoEditando(p); setFormulario({ nombre: p.nombre || '', precio: p.precio || '', stock: p.stock || 0, stock_adicional: '', costo_nuevo_lote: p.costo_compra || 0, categoriaId: p.categoriaId || p.categoria_id || '', descripcion: p.descripcion || '', proveedor: p.proveedor || '', costo_compra: p.costo_compra || 0, margen_ganancia: p.margen_ganancia || 0, tope_stock: p.tope_stock || 10, cantidad_mayor: p.cantidad_mayor || 0, precio_mayor: p.precio_mayor || '', codigo_barras: p.codigo_barras || '' }); setPreview(formatearImagen(p.imagen_url)); setShowModal(true); };
     const abrirModalBaja = (p) => { setProductoBaja(p); setFormBaja({ cantidad: 1, motivo: 'Dañado/Roto' }); setShowBajaModal(true); };
 
+    // 🔥 GUARDAR PRODUCTO 🔥
     const handleGuardarProducto = async (e) => {
         e.preventDefault(); 
-
-        // 🔥 1. VALIDACIÓN: EVITAR CÓDIGOS DUPLICADOS 🔥
         if (formulario.codigo_barras && formulario.codigo_barras.trim() !== '') {
             try {
                 let codigosNuevosObj = {};
@@ -726,7 +719,7 @@ const resPedido = await API.post('/pedidos', {
                 const codigosNuevos = Object.keys(codigosNuevosObj);
                 
                 for (const prod of productos) {
-                    if (productoEditando && prod.id === productoEditando.id) continue; // Ignorar el mismo producto
+                    if (productoEditando && prod.id === productoEditando.id) continue; 
                     
                     if (prod.codigo_barras) {
                         let parsedOld = prod.codigo_barras;
@@ -740,7 +733,7 @@ const resPedido = await API.post('/pedidos', {
                         
                         if (duplicado) {
                             toast.error(`❌ El código "${duplicado}" ya está asignado a: ${prod.nombre}`, { duration: 5000 });
-                            return; // ⛔ Detiene el guardado
+                            return; 
                         }
                     }
                 }
@@ -761,7 +754,7 @@ const resPedido = await API.post('/pedidos', {
             costoFinalBD = ((stockExistente * costoFinalBD) + (stockNuevo * costoNuevoLote)) / stockFinal; 
         }
 
-        // 🔥 2. LÓGICA INTELIGENTE DE PRECIO (CALCULADORA VS MANUAL) 🔥
+        // 🔥 LÓGICA INTELIGENTE DE PRECIO (CALCULADORA VS MANUAL) 🔥
         let precioFinalBD = parseFloat(formulario.precio) || 0;
         
         if (productoEditando) {
@@ -769,18 +762,15 @@ const resPedido = await API.post('/pedidos', {
             const costoCambiado = parseFloat(formulario.costo_compra) !== parseFloat(productoEditando.costo_compra);
             const precioManualEditado = parseFloat(formulario.precio) !== parseFloat(productoEditando.precio);
             
-            // Si el usuario ingresó stock nuevo o cambió márgenes/costos, y NO tecleó nada nuevo en la caja negra,
-            // entonces le damos prioridad a la calculadora para que haga su trabajo.
             if ((stockNuevo > 0 || margenCambiado || costoCambiado) && !precioManualEditado) {
                 precioFinalBD = precioCalculado;
             }
         } else {
-            // Para productos nuevos, si no escriben precio forzado, gana la calculadora
             if (precioFinalBD === 0) precioFinalBD = precioCalculado;
         }
         
         data.append('nombre', formulario.nombre); 
-        data.append('precio', precioFinalBD.toFixed(2)); // Usamos la variable ya definida
+        data.append('precio', precioFinalBD.toFixed(2)); 
         data.append('stock', stockFinal); 
         data.append('categoriaId', formulario.categoriaId); 
         data.append('descripcion', formulario.descripcion); 
@@ -819,12 +809,9 @@ const resPedido = await API.post('/pedidos', {
             const costoOriginal = parseFloat(productoBaja.costo_compra || 0);
             const margen = parseFloat(productoBaja.margen_ganancia || 0);
 
-            // 1. Descontamos el stock físicamente en la BD
             await API.put(`/productos/${productoBaja.id}/stock`, { cantidad: cantidadDañada, operacion: 'restar' });
 
-            // 🔥 2. ALGORITMO DE PRORRATEO FINANCIERO 🔥
             if (stockRestante > 0 && costoOriginal > 0) {
-                // Si quedan productos, dividimos la inversión original total entre los sobrevivientes
                 const nuevoCostoBase = (stockOriginal * costoOriginal) / stockRestante;
                 const nuevoPrecioFinal = nuevoCostoBase + (nuevoCostoBase * (margen / 100));
 
@@ -847,7 +834,6 @@ const resPedido = await API.post('/pedidos', {
                 
                 toast.success(`Merma absorbida: El costo de los ${stockRestante} restantes subió a $${formatCurrency(nuevoCostoBase)}`);
             } else {
-                // Si el stock llega a 0, la pérdida es total y debe ir al Libro Mayor
                 const costoPerdida = costoOriginal * cantidadDañada;
                 if (costoPerdida > 0) {
                     await API.post('/contabilidad/gasto', { 
@@ -875,14 +861,12 @@ const resPedido = await API.post('/pedidos', {
     const actualizarEstadoPedido = async (id, nuevoEstado) => { try { await API.put(`/pedidos/${id}/estado`, { estado: nuevoEstado }); fetchDatos(); toast.success("Estado Actualizado"); } catch (err) { toast.error(err.response?.data?.error || "Error"); } };
     const actualizarRutaPedido = async (id, nuevaRuta) => { try { await API.put(`/pedidos/${id}/ruta`, { ruta: nuevaRuta }); fetchDatos(); toast.success(`Ruta actualizada`); } catch (err) { toast.error("Error al actualizar la ruta"); } };
     
-   // 1. Esta función ahora SOLO abre el modal y guarda el producto temporalmente
     const handleDevolucionProducto = (pedidoId, item) => {
         setItemDevolucion({ ...item, pedidoId });
         setCantidadDevolucion(1);
         setShowDevolucionModal(true);
     };
 
-    // 2. Esta NUEVA función se ejecuta cuando el administrador presiona "Confirmar" en el modal
     const procesarDevolucionAPI = async (e) => {
         e.preventDefault();
         const qty = parseInt(cantidadDevolucion);
@@ -898,7 +882,7 @@ const resPedido = await API.post('/pedidos', {
             toast.success("Devolución y Reembolso procesado con éxito"); 
             setShowDevolucionModal(false);
             setItemDevolucion(null);
-            setPedidoDetalle(null); // Cerramos el modal de detalles para refrescar la vista
+            setPedidoDetalle(null);
             fetchDatos();
         } catch (err) { 
             toast.error(err.response?.data?.error || "Error al procesar la devolución."); 
@@ -1020,8 +1004,6 @@ const resPedido = await API.post('/pedidos', {
         } catch (error) { toast.error("Error al transferir factura", { id: loadingId }); }
     };
 
-    // 🔥 INYECCIÓN 4: Pasar el estado showCheatSheetModal a AdminModals 🔥
-   // 🔥 CONEXIÓN DE PROPS PARA MODALES 🔥
     const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal, showPrintModal, facturaAImprimir, showArqueoModal, showDevolucionModal, itemDevolucion, cantidadDevolucion };
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir, setShowArqueoModal, setShowDevolucionModal, setCantidadDevolucion };
@@ -1037,7 +1019,6 @@ const resPedido = await API.post('/pedidos', {
                         <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter uppercase italic">HQ Dashboard</h1>
                         <p className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.3em] flex items-center gap-2 mt-1">Control Logístico Urabá <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span></p>
                     </div>
-                    {/* Botón de Salir Móvil (Solo visible para cajeros en vista pequeña) */}
                     {esCajero && (
                         <button 
                             onClick={() => {
@@ -1052,7 +1033,6 @@ const resPedido = await API.post('/pedidos', {
                     )}
                 </div>
                 
-                {/* 🔥 CONTROL DE ACCESO PARA BOTONES GLOBALES 🔥 */}
                 {!esCajero && (
                     <div className="flex flex-wrap gap-2">
                         {tab === 'finanzas' && (<button onClick={() => { setTransaccionSeleccionada(null); setFormGasto({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' }); setShowGastoModal(true); }} className="bg-red-600 hover:bg-red-700 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl active:scale-95"><ArrowDownRight size={16} /> Movimiento Manual</button>)}
@@ -1060,13 +1040,12 @@ const resPedido = await API.post('/pedidos', {
                         
                         <button onClick={exportarManifiestoCarga} className="bg-blue-600 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl hover:bg-blue-700 transition-all"><Truck size={16}/> Extraer Ruta</button>
                         
-                        {tab === 'productos' && (<button onClick={() => { setProductoEditando(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', precio_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10, precio_mayor: '', cantidad_mayor: '', codigo_barras: '' }); setPrecioCalculado(0); setShowModal(true); }} className="bg-black hover:bg-gray-800 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl active:scale-95"><Plus size={16} /> Producto</button>)}
+                        {tab === 'productos' && (<button onClick={() => { setProductoEditando(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', costo_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10, precio_mayor: '', cantidad_mayor: '', codigo_barras: '' }); setPrecioCalculado(0); setShowModal(true); }} className="bg-black hover:bg-gray-800 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl active:scale-95"><Plus size={16} /> Producto</button>)}
                         {tab === 'clientes' && (<button onClick={() => setShowUsuarioModal(true)} className="bg-black hover:bg-gray-800 text-white px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 shadow-xl active:scale-95"><Users size={16} /> Cliente</button>)}
 
                         <button onClick={() => setShowConfigModal(true)} className="bg-gray-200 text-gray-900 px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-gray-300 transition-all"><Settings size={16}/> Ajustes</button>
                     </div>
                 )}
-                {/* Botón de Salir Desktop (Solo visible para cajeros) */}
                 {esCajero && (
                     <button 
                         onClick={() => {
@@ -1080,7 +1059,6 @@ const resPedido = await API.post('/pedidos', {
                 )}
             </div>
 
-            {/* 🔥 MÉTRICAS OCULTAS PARA EL CAJERO 🔥 */}
             {!esCajero && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
                     <StatCard title="Ventas Mes Actual" value={`$${formatCurrency(kpis.ventasMes)}`} subtitle={`Hoy: $${formatCurrency(kpis.ventasHoy)}`} icon={<DollarSign />} color="bg-green-100 text-green-600" />
@@ -1097,32 +1075,30 @@ const resPedido = await API.post('/pedidos', {
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
                     
-                    {/* 🔥 FILTRO DE PESTAÑAS: EL CAJERO SOLO VE 'POS' Y 'PEDIDOS' 🔥 */}
                     {['reportes', 'pos', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => {
-    if (esCajero && t !== 'pos' && t !== 'pedidos') return null;
-    
-    // Nombres profesionales para las pestañas
-    const nombresPestanas = {
-        'reportes': 'Analíticas',
-        'pos': 'Caja (POS)',
-        'cartera': 'Cartera',
-        'finanzas': 'Contabilidad', 
-        'pedidos': 'Pedidos',
-        'productos': 'Inventario',
-        'clientes': 'Clientes',
-        'categorias': 'Categorías'
-    };
+                        if (esCajero && t !== 'pos' && t !== 'pedidos') return null;
+                        
+                        const nombresPestanas = {
+                            'reportes': 'Analíticas',
+                            'pos': 'Caja (POS)',
+                            'cartera': 'Cartera',
+                            'finanzas': 'Contabilidad', 
+                            'pedidos': 'Pedidos',
+                            'productos': 'Inventario',
+                            'clientes': 'Clientes',
+                            'categorias': 'Categorías'
+                        };
 
-    return (
-        <button 
-            key={t} 
-            onClick={() => setTab(t)} 
-            className={`px-4 md:px-8 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${tab === t ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}
-        >
-            {nombresPestanas[t]}
-        </button>
-    );
-})}
+                        return (
+                            <button 
+                                key={t} 
+                                onClick={() => setTab(t)} 
+                                className={`px-4 md:px-8 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${tab === t ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}
+                            >
+                                {nombresPestanas[t]}
+                            </button>
+                        );
+                    })}
                 </div>
                 
                 {tab === 'productos' && (
@@ -1154,14 +1130,12 @@ const resPedido = await API.post('/pedidos', {
                         {esCajero && (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                 
-                                {/* TARJETA 1: EFECTIVO */}
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-green-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Efectivo en Caja (Hoy)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
                                         ${formatCurrency(transacciones
                                             .filter(t => {
                                                 if(!t.fecha) return false;
-                                                // 1. Cortamos la fecha para evitar el bug de zona horaria (Timezone)
                                                 const txDate = t.fecha.split('T')[0];
                                                 
                                                 const hoy = new Date();
@@ -1170,24 +1144,20 @@ const resPedido = await API.post('/pedidos', {
                                                 const dd = String(hoy.getDate()).padStart(2, '0');
                                                 const todayStr = `${yyyy}-${mm}-${dd}`;
                                                 
-                                                // 2. Filtramos: Que sea de hoy y diga EFECTIVO
                                                 const esHoy = txDate === todayStr;
                                                 const esEfectivo = (t.descripcion || '').toUpperCase().includes('EFECTIVO');
                                                 return esHoy && esEfectivo;
                                             })
                                             .reduce((acc, t) => {
                                                 const monto = parseFloat(t.monto || 0);
-                                                // 3. Si es EGRESO o un REEMBOLSO, le restamos el dinero
                                                 if (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO')) {
                                                     return acc - monto;
                                                 }
-                                                // 4. Si es INGRESO normal, lo sumamos
                                                 return acc + monto;
                                             }, 0))}
                                     </h3>
                                 </div>
 
-                                {/* TARJETA 2: TRANSFERENCIAS */}
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-blue-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Transferencias (Hoy)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
@@ -1216,7 +1186,6 @@ const resPedido = await API.post('/pedidos', {
                                     </h3>
                                 </div>
 
-                                {/* TARJETA 3: ARQUEO DE CAJA */}
                                 <div className="bg-black p-5 rounded-[2rem] shadow-xl flex flex-col justify-center">
                                     <button 
                                         onClick={() => setShowArqueoModal(true)}
@@ -1286,22 +1255,18 @@ const resPedido = await API.post('/pedidos', {
         type="number" 
         value={item.cantidad || ''} 
         onChange={(e) => {
-            // Permitir borrar temporalmente el input para escribir un nuevo número
             if (e.target.value === '') {
                 updatePosQuantity(item.id, '');
                 return;
             }
             
             let val = parseInt(e.target.value);
-            // Evitar números negativos o cero
             if (val < 1) val = 1;
-            // Evitar que vendan más del stock disponible
             if (val > item.stock) val = item.stock;
             
             updatePosQuantity(item.id, val);
         }}
         onBlur={(e) => {
-            // Si el cajero borra el input y hace clic afuera, devolver a 1 por defecto
             if (!e.target.value || parseInt(e.target.value) < 1) {
                 updatePosQuantity(item.id, 1);
             }
@@ -1411,7 +1376,6 @@ const resPedido = await API.post('/pedidos', {
                         )}
                     
                 
-                        
 
                 {/* --- VISTA CARTERA --- */}
                 {tab === 'cartera' && (
@@ -1881,7 +1845,7 @@ const resPedido = await API.post('/pedidos', {
                     </>
                 )}
 
-                {/* --- VISTA CLIENTES (¡RESTAURADA A 5 COLUMNAS!) --- */}
+                {/* --- VISTA CLIENTES --- */}
                 {tab === 'clientes' && (
                     <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left min-w-[800px]">
@@ -1941,8 +1905,6 @@ const resPedido = await API.post('/pedidos', {
                 {tab === 'categorias' && <GestionCategorias />}
             </div>
 
-            {/* 🔥 PASAMOS EL showCheatSheetModal A ADMINMODALS 🔥 */}
-            {/* 🔥 CONEXIÓN OPTIMIZADA DE MODALES 🔥 */}
             <AdminModals 
                 states={statesProps} 
                 forms={formsProps} 
