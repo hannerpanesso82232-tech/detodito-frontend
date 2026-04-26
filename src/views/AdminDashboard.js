@@ -764,9 +764,23 @@ const resPedido = await API.post('/pedidos', {
             costoFinalBD = ((stockExistente * costoFinalBD) + (stockNuevo * costoNuevoLote)) / stockFinal; 
         }
 
-        // 🔥 2. CORRECCIÓN DEL PRECIO MANUAL (AQUÍ ESTABA EL ERROR) 🔥
-        const precioForzado = parseFloat(formulario.precio);
-        const precioFinalBD = (precioForzado > 0) ? precioForzado : precioCalculado;
+        // 🔥 2. LÓGICA INTELIGENTE DE PRECIO (CALCULADORA VS MANUAL) 🔥
+        let precioFinalBD = parseFloat(formulario.precio) || 0;
+        
+        if (productoEditando) {
+            const margenCambiado = parseFloat(formulario.margen_ganancia) !== parseFloat(productoEditando.margen_ganancia);
+            const costoCambiado = parseFloat(formulario.costo_compra) !== parseFloat(productoEditando.costo_compra);
+            const precioManualEditado = parseFloat(formulario.precio) !== parseFloat(productoEditando.precio);
+            
+            // Si el usuario ingresó stock nuevo o cambió márgenes/costos, y NO tecleó nada nuevo en la caja negra,
+            // entonces le damos prioridad a la calculadora para que haga su trabajo.
+            if ((stockNuevo > 0 || margenCambiado || costoCambiado) && !precioManualEditado) {
+                precioFinalBD = precioCalculado;
+            }
+        } else {
+            // Para productos nuevos, si no escriben precio forzado, gana la calculadora
+            if (precioFinalBD === 0) precioFinalBD = precioCalculado;
+        }
         
         data.append('nombre', formulario.nombre); 
         data.append('precio', precioFinalBD.toFixed(2)); // Usamos la variable ya definida
