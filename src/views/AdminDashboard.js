@@ -182,20 +182,21 @@ const AdminDashboard = () => {
 
    const fetchDatos = useCallback(async () => {
         try {
-            // 🔥 CACHE-BUSTER MAESTRO: Obliga al navegador a NO usar copias viejas
+            // 🔥 CACHE-BUSTER EXTREMO: Prohíbe al navegador usar memoria vieja
             const ts = new Date().getTime();
+            const config = { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache', 'Expires': '0' } };
             
             const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos] = await Promise.all([
-                API.get(`/productos?t=${ts}`).catch(() => ({ data: [] })), 
-                API.get(`/pedidos/admin/todos?t=${ts}`).catch(() => ({ data: [] })), 
-                API.get(`/categorias?t=${ts}`).catch(() => ({ data: [] })),
-                API.get(`/auth/admin/usuarios?t=${ts}`).catch(() => ({ data: [] })), 
-                API.get(`/auth/config/whatsapp?t=${ts}`).catch(() => ({ data: { whatsapp: '' } })),
-                API.get(`/contabilidad/resumen?t=${ts}`).catch(() => ({ data: { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 } })), 
-                API.get(`/contabilidad/transacciones?t=${ts}`).catch(() => ({ data: [] })),
-                API.get(`/pedidos/config/rutas?t=${ts}`).catch(() => ({ data: [] })),
-                API.get(`/pedidos/config/horalimite?t=${ts}`).catch(() => ({ data: { hora: '20:00' } })),
-                API.get(`/creditos?t=${ts}`).catch(() => ({ data: [] })) 
+                API.get(`/productos?t=${ts}`, config).catch(() => ({ data: [] })), 
+                API.get(`/pedidos/admin/todos?t=${ts}`, config).catch(() => ({ data: [] })), 
+                API.get(`/categorias?t=${ts}`, config).catch(() => ({ data: [] })),
+                API.get(`/auth/admin/usuarios?t=${ts}`, config).catch(() => ({ data: [] })), 
+                API.get(`/auth/config/whatsapp?t=${ts}`, config).catch(() => ({ data: { whatsapp: '' } })),
+                API.get(`/contabilidad/resumen?t=${ts}`, config).catch(() => ({ data: { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 } })), 
+                API.get(`/contabilidad/transacciones?t=${ts}`, config).catch(() => ({ data: [] })),
+                API.get(`/pedidos/config/rutas?t=${ts}`, config).catch(() => ({ data: [] })),
+                API.get(`/pedidos/config/horalimite?t=${ts}`, config).catch(() => ({ data: { hora: '20:00' } })),
+                API.get(`/creditos?t=${ts}`, config).catch(() => ({ data: [] })) 
             ]);
             
             setProductos(resProd.data || []); 
@@ -220,20 +221,22 @@ const AdminDashboard = () => {
             const metodoTXT = data.metodo_pago === 'CREDITO' ? '💳 FIADO' : '💵 CONTADO';
             toast(`📦 Nuevo Pedido [${metodoTXT}] de ${data.cliente || 'Cliente'}`, { icon: '🚀', style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } });
             
-            // 🔥 CORRECCIÓN DE LA CONDICIÓN DE CARRERA 🔥
-            // Obligamos al socket a esperar 2 segundos antes de refrescar los datos.
-            // Esto permite que el código optimista actualice la pantalla visualmente primero.
-            setTimeout(() => {
-                fetchDatos();
-            }, 2000);
+            // Retraso para dejar que el efecto visual del stock brille primero
+            setTimeout(() => { fetchDatos(); }, 2500);
         });
 
+        // 🔥 ESTE ES EL QUE ACTUALIZA LA PANTALLA CUANDO COMPRA UN CLIENTE 🔥
         socket.on('stockActualizado', (data) => { 
-    setProductos(prev => (Array.isArray(prev) ? prev : []).map(p => 
-        String(p.id) === String(data.id) ? { ...p, stock: data.nuevoStock } : p
-    )); 
-});
-        socket.on('productoActualizado', (productoModificado) => { setProductos(prev => (Array.isArray(prev) ? prev : []).map(p => String(p.id) === String(productoModificado.id) ? productoModificado : p)); });
+            setProductos(prev => prev.map(p => 
+                String(p.id) === String(data.id) ? { ...p, stock: data.nuevoStock } : p
+            )); 
+        });
+
+        socket.on('productoActualizado', (productoModificado) => { 
+            setProductos(prev => prev.map(p => 
+                String(p.id) === String(productoModificado.id) ? productoModificado : p
+            )); 
+        });
         
         return () => { if(socket) socket.disconnect(); };
     }, [fetchDatos]);
@@ -410,20 +413,18 @@ const resPedido = await API.post('/pedidos', {
                 }))
             };
 
-     // 1. Guardamos una copia exacta para que no se pierda al vaciar la caja
+     // 1. Guardamos una copia exacta
             const itemsComprados = [...posCartCalculado];
 
             // 2. Pasamos los datos al modal de impresión
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
 
-            // 3. 🔥 ACTUALIZACIÓN OPTIMISTA SÚPER BLINDADA 🔥
+            // 3. 🔥 ACTUALIZACIÓN VISUAL INMEDIATA EN CAJA 🔥
             setProductos(prevProductos => 
                 prevProductos.map(prod => {
-                    // Usamos String() para asegurar que "15" y 15 coincidan perfectamente
                     const itemVendido = itemsComprados.find(item => String(item.id) === String(prod.id));
                     if (itemVendido) {
-                        // Forzamos matemáticas estrictas para evitar errores de texto
                         const nuevoStock = Math.max(0, parseInt(prod.stock) - parseInt(itemVendido.cantidad));
                         return { ...prod, stock: nuevoStock };
                     }
@@ -439,17 +440,10 @@ const resPedido = await API.post('/pedidos', {
             setShowCobroEfectivoModal(false); 
             setEfectivoRecibido('');
             
-            // 5. 🔥 RETRASO DE SEGURIDAD (Safety Delay) 🔥
-            // Esperamos 2.5 segundos antes de pedir datos al servidor. 
-            // Así le damos tiempo a la Base de Datos de guardar el nuevo stock en la nube.
-            setTimeout(() => {
-                fetchDatos();
-            }, 2500);
-
+            // Ya NO llamamos a fetchDatos() aquí. El Socket de arriba lo hará en 2.5 segundos.
             toast.success("Venta procesada y stock actualizado", { id: loadId });
 
         } catch (error) { 
-            // Revelamos el error real
             const mensajeReal = error.response?.data?.error || "Error desconocido al facturar";
             toast.error(mensajeReal, { id: loadId, duration: 6000 }); 
         } finally { 
