@@ -428,15 +428,25 @@ const AdminDashboard = () => {
                 }))
             };
 
-            // 1. Guardamos una copia exacta
+           // 1. Guardamos una copia exacta
             const itemsComprados = [...posCartCalculado];
 
             // 2. Modal de impresión
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
 
-            // 🔥 3. SE ELIMINÓ LA MATEMÁTICA MANUAL (Doble Resta) 🔥
-            // Ahora confiamos 100% en el WebSocket que actualiza el número exacto y oficial enviado por el Backend.
+            // 🔥 3. RESTAURAMOS LA MATEMÁTICA MANUAL (Blindaje Visual) 🔥
+            // Al hacer esto, la pantalla descuenta inmediatamente sin esperar ni depender del Socket de Render.
+            setProductos(prevProductos => 
+                prevProductos.map(prod => {
+                    const itemVendido = itemsComprados.find(item => String(item.id) === String(prod.id));
+                    if (itemVendido) {
+                        const nuevoStock = Math.max(0, parseInt(prod.stock) - parseInt(itemVendido.cantidad));
+                        return { ...prod, stock: nuevoStock };
+                    }
+                    return prod;
+                })
+            );
 
             // 4. Limpieza de caja
             setPosCart([]); 
@@ -446,7 +456,9 @@ const AdminDashboard = () => {
             setShowCobroEfectivoModal(false); 
             setEfectivoRecibido('');
             
-            // 5. 🔥 ACTUALIZAMOS FINANZAS (Pero no tocamos el catálogo de productos) 🔥
+            // 5. 🔥 ACTUALIZAMOS FINANZAS (Aislamiento de Caché) 🔥
+            // Solo pedimos las finanzas. Dejamos los productos en paz para que el servidor 
+            // no nos devuelva el "fantasma" de los 50 artículos viejos.
             setTimeout(() => {
                 fetchFinanzasYPedidos();
             }, 1500);
@@ -454,6 +466,7 @@ const AdminDashboard = () => {
             toast.success("Venta procesada y stock actualizado", { id: loadId });
 
         } catch (error) { 
+            // 🔥 Mostramos el error real en pantalla (Ej: "Stock Insuficiente") en vez de solo en la consola
             const mensajeReal = error.response?.data?.error || "Error desconocido al facturar";
             toast.error(mensajeReal, { id: loadId, duration: 6000 }); 
         } finally { 
