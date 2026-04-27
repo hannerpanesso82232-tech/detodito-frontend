@@ -95,6 +95,7 @@ const AdminDashboard = () => {
     const [tab, setTab] = useState(esCajero ? 'pos' : 'reportes'); 
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
+    const stockRealRef = useRef({});
 
     useEffect(() => {
         if (esCajero) setTab('pos');
@@ -191,8 +192,16 @@ const AdminDashboard = () => {
                 API.get(`/creditos?t=${ts}`).catch(() => ({ data: [] })) 
             ]);
             
-            setProductos(resProd.data || []); 
-            setPedidos(resPed.data || []); 
+            // 🔥 Filtramos las mentiras del caché del backend 🔥
+            const productosFrescos = (resProd.data || []).map(p => {
+                if (stockRealRef.current[p.id] !== undefined) {
+                    return { ...p, stock: stockRealRef.current[p.id] }; // Usamos nuestra memoria pura
+                }
+                return p;
+            });
+            setProductos(productosFrescos); 
+            
+            setPedidos(resPed.data || []);
             setCategorias(resCat.data || []);
             setUsuarios(resUsers.data || []); 
             setWhatsappTienda(resWa.data?.whatsapp || ''); 
@@ -219,8 +228,8 @@ const AdminDashboard = () => {
             setTimeout(() => { fetchDatos(); }, 2500);
         });
 
-        // 🔥 ESTE ES EL CORAZÓN DEL STOCK EN TIEMPO REAL 🔥
         socket.on('stockActualizado', (data) => { 
+            stockRealRef.current[data.id] = data.nuevoStock; // 🔥 Guardamos la verdad en la memoria
             setProductos(prev => prev.map(p => 
                 String(p.id) === String(data.id) ? { ...p, stock: data.nuevoStock } : p
             )); 
@@ -419,12 +428,13 @@ const AdminDashboard = () => {
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
 
-            // 3. 🔥 ACTUALIZACIÓN VISUAL INMEDIATA (FRONTEND) 🔥
+            // 3. 🔥 ACTUALIZACIÓN VISUAL INMEDIATA EN CAJA 🔥
             setProductos(prevProductos => 
                 prevProductos.map(prod => {
                     const itemVendido = itemsComprados.find(item => String(item.id) === String(prod.id));
                     if (itemVendido) {
                         const nuevoStock = Math.max(0, parseInt(prod.stock) - parseInt(itemVendido.cantidad));
+                        stockRealRef.current[prod.id] = nuevoStock; // 🔥 Bloqueamos este producto contra el caché viejo
                         return { ...prod, stock: nuevoStock };
                     }
                     return prod;
