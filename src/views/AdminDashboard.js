@@ -204,8 +204,6 @@ const AdminDashboard = () => {
     }, []);
 
     // 🔥 2. FUNCIÓN DE RECARGA PARCIAL (Protege el stock) 🔥
-    // Esta función recarga el dinero y los pedidos, pero IGNORA los productos 
-    // para que el caché del servidor no arruine el descuento en pantalla.
     const fetchFinanzasYPedidos = useCallback(async () => {
         try {
             const ts = new Date().getTime();
@@ -437,17 +435,8 @@ const AdminDashboard = () => {
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
 
-            // 3. 🔥 ACTUALIZACIÓN VISUAL INMEDIATA MATEMÁTICA 🔥
-            setProductos(prevProductos => 
-                prevProductos.map(prod => {
-                    const itemVendido = itemsComprados.find(item => String(item.id) === String(prod.id));
-                    if (itemVendido) {
-                        const nuevoStock = Math.max(0, parseInt(prod.stock) - parseInt(itemVendido.cantidad));
-                        return { ...prod, stock: nuevoStock };
-                    }
-                    return prod;
-                })
-            );
+            // 🔥 3. SE ELIMINÓ LA MATEMÁTICA MANUAL (Doble Resta) 🔥
+            // Ahora confiamos 100% en el WebSocket que actualiza el número exacto y oficial enviado por el Backend.
 
             // 4. Limpieza de caja
             setPosCart([]); 
