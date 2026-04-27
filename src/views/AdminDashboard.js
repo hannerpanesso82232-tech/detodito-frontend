@@ -95,7 +95,6 @@ const AdminDashboard = () => {
     const [tab, setTab] = useState(esCajero ? 'pos' : 'reportes'); 
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
-    const stockRealRef = useRef({});
 
     useEffect(() => {
         if (esCajero) setTab('pos');
@@ -163,7 +162,6 @@ const AdminDashboard = () => {
     const [nuevaRutaDia, setNuevaRutaDia] = useState('');
     const [nuevaPassword, setNuevaPassword] = useState('');
     
-    // 🔥 CORRECCIÓN: costo_nuevo_lote 🔥
     const [formulario, setFormulario] = useState({ nombre: '', precio: '', stock: '', stock_adicional: '', costo_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 });
     const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30, credito_activo: true });
     const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30, credito_activo: true });
@@ -174,9 +172,9 @@ const AdminDashboard = () => {
 
     const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...(rutasDinamicas || []).map(r => r.dia_ruta)])];
 
+    // 🔥 1. FUNCIÓN MAESTRA (Carga TODO al abrir la página) 🔥
     const fetchDatos = useCallback(async () => {
         try {
-            // 🔥 CACHE BUSTER SEGURO 🔥
             const ts = new Date().getTime();
             
             const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos] = await Promise.all([
@@ -192,16 +190,8 @@ const AdminDashboard = () => {
                 API.get(`/creditos?t=${ts}`).catch(() => ({ data: [] })) 
             ]);
             
-            // 🔥 Filtramos las mentiras del caché del backend 🔥
-            const productosFrescos = (resProd.data || []).map(p => {
-                if (stockRealRef.current[p.id] !== undefined) {
-                    return { ...p, stock: stockRealRef.current[p.id] }; // Usamos nuestra memoria pura
-                }
-                return p;
-            });
-            setProductos(productosFrescos); 
-            
-            setPedidos(resPed.data || []);
+            setProductos(resProd.data || []); 
+            setPedidos(resPed.data || []); 
             setCategorias(resCat.data || []);
             setUsuarios(resUsers.data || []); 
             setWhatsappTienda(resWa.data?.whatsapp || ''); 
@@ -213,9 +203,28 @@ const AdminDashboard = () => {
         } catch (err) { toast.error("Error de sincronización"); } finally { setLoading(false); }
     }, []);
 
-    // 🔥 CONEXIÓN DE SOCKETS UNIFICADA 🔥
+    // 🔥 2. FUNCIÓN DE RECARGA PARCIAL (Protege el stock) 🔥
+    // Esta función recarga el dinero y los pedidos, pero IGNORA los productos 
+    // para que el caché del servidor no arruine el descuento en pantalla.
+    const fetchFinanzasYPedidos = useCallback(async () => {
+        try {
+            const ts = new Date().getTime();
+            const [resPed, resFinanzas, resTransacciones, resCreditos] = await Promise.all([
+                API.get(`/pedidos/admin/todos?t=${ts}`).catch(() => ({ data: [] })), 
+                API.get(`/contabilidad/resumen?t=${ts}`).catch(() => ({ data: { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 } })), 
+                API.get(`/contabilidad/transacciones?t=${ts}`).catch(() => ({ data: [] })),
+                API.get(`/creditos?t=${ts}`).catch(() => ({ data: [] })) 
+            ]);
+            setPedidos(resPed.data || []); 
+            setFinanzas(resFinanzas.data || { ingresos: 0, egresos: 0, balance: 0, valorInventario: 0 }); 
+            setTransacciones(resTransacciones.data || []); 
+            setCreditos(resCreditos.data || []); 
+        } catch (err) { console.error("Error recargando finanzas", err); }
+    }, []);
+
+    // 🔥 CONEXIÓN DE SOCKETS 🔥
     useEffect(() => {
-        fetchDatos(); // Carga inicial
+        fetchDatos(); 
         
         const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
         
@@ -224,12 +233,12 @@ const AdminDashboard = () => {
             const metodoTXT = data.metodo_pago === 'CREDITO' ? '💳 FIADO' : '💵 CONTADO';
             toast(`📦 Nuevo Pedido [${metodoTXT}] de ${data.cliente || 'Cliente'}`, { icon: '🚀', style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } });
             
-            // Retraso para no competir con el efecto visual
-            setTimeout(() => { fetchDatos(); }, 2500);
+            // Usamos la recarga parcial para no sobreescribir los productos
+            setTimeout(() => { fetchFinanzasYPedidos(); }, 1500);
         });
 
+        // Este Socket actualiza el stock limpiamente
         socket.on('stockActualizado', (data) => { 
-            stockRealRef.current[data.id] = data.nuevoStock; // 🔥 Guardamos la verdad en la memoria
             setProductos(prev => prev.map(p => 
                 String(p.id) === String(data.id) ? { ...p, stock: data.nuevoStock } : p
             )); 
@@ -242,7 +251,7 @@ const AdminDashboard = () => {
         });
         
         return () => { if(socket) socket.disconnect(); };
-    }, [fetchDatos]); // Solo se recrea si fetchDatos cambia
+    }, [fetchDatos, fetchFinanzasYPedidos]);
 
     // 🔥 CALCULADORA DE PRECIOS 🔥
     useEffect(() => {
@@ -428,20 +437,19 @@ const AdminDashboard = () => {
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
 
-            // 3. 🔥 ACTUALIZACIÓN VISUAL INMEDIATA EN CAJA 🔥
+            // 3. 🔥 ACTUALIZACIÓN VISUAL INMEDIATA MATEMÁTICA 🔥
             setProductos(prevProductos => 
                 prevProductos.map(prod => {
                     const itemVendido = itemsComprados.find(item => String(item.id) === String(prod.id));
                     if (itemVendido) {
                         const nuevoStock = Math.max(0, parseInt(prod.stock) - parseInt(itemVendido.cantidad));
-                        stockRealRef.current[prod.id] = nuevoStock; // 🔥 Bloqueamos este producto contra el caché viejo
                         return { ...prod, stock: nuevoStock };
                     }
                     return prod;
                 })
             );
 
-            // 4. Limpiamos la interfaz de caja
+            // 4. Limpieza de caja
             setPosCart([]); 
             setPosCodigo(''); 
             setPosClienteId(''); 
@@ -449,13 +457,11 @@ const AdminDashboard = () => {
             setShowCobroEfectivoModal(false); 
             setEfectivoRecibido('');
             
-            // 🔥 LA RED DE SEGURIDAD (FALLBACK) 🔥
-            // Como los Sockets en la nube pueden fallar, obligamos a la app
-            // a ir a buscar los datos frescos a la Base de Datos 1.5 segundos después.
+            // 5. 🔥 ACTUALIZAMOS FINANZAS (Pero no tocamos el catálogo de productos) 🔥
             setTimeout(() => {
-                fetchDatos();
+                fetchFinanzasYPedidos();
             }, 1500);
-            
+
             toast.success("Venta procesada y stock actualizado", { id: loadId });
 
         } catch (error) { 
@@ -720,7 +726,6 @@ const AdminDashboard = () => {
     const abrirModalEditar = (p) => { setProductoEditando(p); setFormulario({ nombre: p.nombre || '', precio: p.precio || '', stock: p.stock || 0, stock_adicional: '', costo_nuevo_lote: p.costo_compra || 0, categoriaId: p.categoriaId || p.categoria_id || '', descripcion: p.descripcion || '', proveedor: p.proveedor || '', costo_compra: p.costo_compra || 0, margen_ganancia: p.margen_ganancia || 0, tope_stock: p.tope_stock || 10, cantidad_mayor: p.cantidad_mayor || 0, precio_mayor: p.precio_mayor || '', codigo_barras: p.codigo_barras || '' }); setPreview(formatearImagen(p.imagen_url)); setShowModal(true); };
     const abrirModalBaja = (p) => { setProductoBaja(p); setFormBaja({ cantidad: 1, motivo: 'Dañado/Roto' }); setShowBajaModal(true); };
 
-    // 🔥 GUARDAR PRODUCTO 🔥
     const handleGuardarProducto = async (e) => {
         e.preventDefault(); 
         if (formulario.codigo_barras && formulario.codigo_barras.trim() !== '') {
@@ -771,7 +776,6 @@ const AdminDashboard = () => {
             costoFinalBD = ((stockExistente * costoFinalBD) + (stockNuevo * costoNuevoLote)) / stockFinal; 
         }
 
-        // 🔥 LÓGICA INTELIGENTE DE PRECIO (CALCULADORA VS MANUAL) 🔥
         let precioFinalBD = parseFloat(formulario.precio) || 0;
         
         if (productoEditando) {
