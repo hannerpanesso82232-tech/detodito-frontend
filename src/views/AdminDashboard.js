@@ -431,13 +431,20 @@ const AdminDashboard = () => {
                 })
             );
 
-            // 4. Limpieza de caja
+            // 4. Limpiamos la interfaz de caja
             setPosCart([]); 
             setPosCodigo(''); 
             setPosClienteId(''); 
             setPosSearchTerm(''); 
             setShowCobroEfectivoModal(false); 
             setEfectivoRecibido('');
+            
+            // 🔥 LA RED DE SEGURIDAD (FALLBACK) 🔥
+            // Como los Sockets en la nube pueden fallar, obligamos a la app
+            // a ir a buscar los datos frescos a la Base de Datos 1.5 segundos después.
+            setTimeout(() => {
+                fetchDatos();
+            }, 1500);
             
             toast.success("Venta procesada y stock actualizado", { id: loadId });
 
