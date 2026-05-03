@@ -12,7 +12,7 @@ import {
     CalendarDays, Activity, DollarSign, Clock, Users, Settings,
     ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
     Receipt, Award, Edit, Trash2, PackageMinus, Key, CheckCircle2, ChevronRight, Briefcase, History, X,
-    Lock, Unlock, ScanBarcode, Minus, MonitorSmartphone, Calculator, LogOut, AlertCircle
+    Lock, Unlock, ScanBarcode, Minus, MonitorSmartphone, Calculator, LogOut, AlertCircle, PackagePlus
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import AdminModals from '../components/admin/AdminModals';
@@ -1665,7 +1665,7 @@ const AdminDashboard = () => {
                             <div className="bg-white rounded-[2rem] md:rounded-[3rem] shadow-sm border border-gray-100 p-6 md:p-10">
                                 <div className="flex justify-between items-center mb-6 md:mb-8">
                                     <div><h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Historial de Compras</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Ingresos de inventario a bodega</p></div>
-                                    <PackagePlusIcon className="text-green-500 hidden md:block" size={28} />
+                                    <PackagePlus size={28} className="text-green-500 hidden md:block" />
                                 </div>
                                 <div className="overflow-x-auto custom-scrollbar">
                                     <table className="w-full text-left min-w-[800px]">
