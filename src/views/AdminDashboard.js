@@ -136,6 +136,7 @@ const AdminDashboard = () => {
     const [fechaFinFinanzas, setFechaFinFinanzas] = useState('');
     const [filtroClienteFinanzas, setFiltroClienteFinanzas] = useState('Todos');
     const [filtroTextoFinanzas, setFiltroTextoFinanzas] = useState('');
+    const [cierreImprimir, setCierreImprimir] = useState(null);
 
     const [showModal, setShowModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
