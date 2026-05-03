@@ -96,6 +96,10 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
 
+    // 🔥 NUEVOS ESTADOS PARA INTELIGENCIA DE NEGOCIOS 🔥
+    const [subTabReportes, setSubTabReportes] = useState('GENERAL');
+    const [filtroMesRanking, setFiltroMesRanking] = useState('TODOS');
+
     useEffect(() => {
         if (esCajero) setTab('pos');
     }, [esCajero]);
@@ -172,7 +176,6 @@ const AdminDashboard = () => {
 
     const diasUnicosDropdown = [...new Set([...RUTAS_BASE, ...(rutasDinamicas || []).map(r => r.dia_ruta)])];
 
-    // 🔥 1. FUNCIÓN MAESTRA (Carga TODO al abrir la página) 🔥
     const fetchDatos = useCallback(async () => {
         try {
             const ts = new Date().getTime();
@@ -203,7 +206,6 @@ const AdminDashboard = () => {
         } catch (err) { toast.error("Error de sincronización"); } finally { setLoading(false); }
     }, []);
 
-    // 🔥 2. FUNCIÓN DE RECARGA PARCIAL (Protege el stock) 🔥
     const fetchFinanzasYPedidos = useCallback(async () => {
         try {
             const ts = new Date().getTime();
@@ -220,7 +222,6 @@ const AdminDashboard = () => {
         } catch (err) { console.error("Error recargando finanzas", err); }
     }, []);
 
-    // 🔥 CONEXIÓN DE SOCKETS 🔥
     useEffect(() => {
         fetchDatos(); 
         
@@ -231,11 +232,9 @@ const AdminDashboard = () => {
             const metodoTXT = data.metodo_pago === 'CREDITO' ? '💳 FIADO' : '💵 CONTADO';
             toast(`📦 Nuevo Pedido [${metodoTXT}] de ${data.cliente || 'Cliente'}`, { icon: '🚀', style: { borderRadius: '20px', background: '#000', color: '#fff', fontSize: '10px' } });
             
-            // Usamos la recarga parcial para no sobreescribir los productos
             setTimeout(() => { fetchFinanzasYPedidos(); }, 1500);
         });
 
-        // Este Socket actualiza el stock limpiamente
         socket.on('stockActualizado', (data) => { 
             setProductos(prev => prev.map(p => 
                 String(p.id) === String(data.id) ? { ...p, stock: data.nuevoStock } : p
@@ -251,7 +250,6 @@ const AdminDashboard = () => {
         return () => { if(socket) socket.disconnect(); };
     }, [fetchDatos, fetchFinanzasYPedidos]);
 
-    // 🔥 CALCULADORA DE PRECIOS 🔥
     useEffect(() => {
         const costoBase = parseFloat(formulario.costo_compra) || 0; 
         const margen = parseFloat(formulario.margen_ganancia) || 0;
@@ -289,7 +287,6 @@ const AdminDashboard = () => {
         setFechaFinFinanzas(val);
     };
 
-  // 🔥 LOGICA POS 🔥
     const handlePosScan = (e) => {
         e.preventDefault();
         const codigoBuscado = posCodigo.trim();
@@ -382,7 +379,6 @@ const AdminDashboard = () => {
         return (Array.isArray(productos) ? productos : []).filter(p => (p.nombre || '').toLowerCase().includes(posSearchTerm.toLowerCase())).slice(0, 20);
     }, [productos, posSearchTerm]);
 
-    // 🔥 CAJA - COBRO 🔥
     const handlePosCheckout = async (metodo, subMetodo = 'EFECTIVO') => {
         if(posCartCalculado.length === 0) return toast.error("La caja está vacía");
         if(metodo === 'CREDITO' && !posClienteId) return toast.error("Selecciona un cliente para poder fiar");
@@ -428,15 +424,10 @@ const AdminDashboard = () => {
                 }))
             };
 
-           // 1. Guardamos una copia exacta
             const itemsComprados = [...posCartCalculado];
-
-            // 2. Modal de impresión
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
 
-            // 🔥 3. RESTAURAMOS LA MATEMÁTICA MANUAL (Blindaje Visual) 🔥
-            // Al hacer esto, la pantalla descuenta inmediatamente sin esperar ni depender del Socket de Render.
             setProductos(prevProductos => 
                 prevProductos.map(prod => {
                     const itemVendido = itemsComprados.find(item => String(item.id) === String(prod.id));
@@ -448,7 +439,6 @@ const AdminDashboard = () => {
                 })
             );
 
-            // 4. Limpieza de caja
             setPosCart([]); 
             setPosCodigo(''); 
             setPosClienteId(''); 
@@ -456,17 +446,10 @@ const AdminDashboard = () => {
             setShowCobroEfectivoModal(false); 
             setEfectivoRecibido('');
             
-            // 5. 🔥 ACTUALIZAMOS FINANZAS (Aislamiento de Caché) 🔥
-            // Solo pedimos las finanzas. Dejamos los productos en paz para que el servidor 
-            // no nos devuelva el "fantasma" de los 50 artículos viejos.
-            setTimeout(() => {
-                fetchFinanzasYPedidos();
-            }, 1500);
-
+            setTimeout(() => { fetchFinanzasYPedidos(); }, 1500);
             toast.success("Venta procesada y stock actualizado", { id: loadId });
 
         } catch (error) { 
-            // 🔥 Mostramos el error real en pantalla (Ej: "Stock Insuficiente") en vez de solo en la consola
             const mensajeReal = error.response?.data?.error || "Error desconocido al facturar";
             toast.error(mensajeReal, { id: loadId, duration: 6000 }); 
         } finally { 
@@ -497,11 +480,55 @@ const AdminDashboard = () => {
         return data.slice(0, new Date().getMonth() + 1);
     }, [pedidos]);
 
+    // 🔥 MODIFICACIÓN: Top Ventas Filtrable por Mes 🔥
     const dataTopProductos = useMemo(() => {
         const conteo = {};
-        (Array.isArray(pedidos) ? pedidos : []).filter(p => p.estado !== 'Cancelado').forEach(ped => { (ped.Detalles || ped.items || []).forEach(item => { const nombre = item.Producto?.nombre || item.nombre || 'Item'; conteo[nombre] = (conteo[nombre] || 0) + item.cantidad; }); });
-        return Object.keys(conteo).map(key => ({ name: key, Vendidos: conteo[key] })).sort((a, b) => b.Vendidos - a.Vendidos).slice(0, 5);
-    }, [pedidos]);
+        (Array.isArray(pedidos) ? pedidos : []).filter(p => {
+            if (p.estado === 'Cancelado') return false;
+            if (filtroMesRanking !== 'TODOS') {
+                const mesPedido = new Date(p.fecha).getMonth().toString();
+                if (mesPedido !== filtroMesRanking) return false;
+            }
+            return true;
+        }).forEach(ped => { 
+            (ped.Detalles || ped.items || []).forEach(item => { 
+                const nombre = item.Producto?.nombre || item.nombre || 'Item'; 
+                conteo[nombre] = (conteo[nombre] || 0) + item.cantidad; 
+            }); 
+        });
+        return Object.keys(conteo).map(key => ({ name: key, Vendidos: conteo[key] })).sort((a, b) => b.Vendidos - a.Vendidos).slice(0, 10);
+    }, [pedidos, filtroMesRanking]);
+
+    // 🔥 NUEVO REPORTES: PROVEEDORES 🔥
+    const dataProveedores = useMemo(() => {
+        const mapa = {};
+        (Array.isArray(productos) ? productos : []).forEach(p => {
+            const prov = (p.proveedor && p.proveedor.trim() !== '') ? p.proveedor.toUpperCase() : 'NO ESPECIFICADO';
+            if (!mapa[prov]) mapa[prov] = { nombre: prov, cantidadProductos: 0, valorInventario: 0, productos: [] };
+            mapa[prov].cantidadProductos += 1;
+            mapa[prov].valorInventario += (parseInt(p.stock || 0) * parseFloat(p.costo_compra || 0));
+            mapa[prov].productos.push(p);
+        });
+        return Object.values(mapa).sort((a, b) => b.valorInventario - a.valorInventario);
+    }, [productos]);
+
+    // 🔥 NUEVO REPORTES: HISTORIAL DE COMPRAS 🔥
+    const historialComprasInventario = useMemo(() => {
+        return (Array.isArray(transacciones) ? transacciones : [])
+            .filter(tx => tx.categoria === 'Compra de Inventario' && tx.descripcion?.startsWith('COMPRA_STOCK'))
+            .map(tx => {
+                const partes = tx.descripcion.split('|');
+                return {
+                    id: tx.id,
+                    fecha: tx.fecha,
+                    cantidad: partes[1] || 0,
+                    costoUnitario: partes[2] || 0,
+                    proveedor: partes[3] || 'N/A',
+                    producto: partes[4] || 'N/A',
+                    costoTotal: tx.monto
+                };
+            }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    }, [transacciones]);
 
     const dataAgendaEntregas = useMemo(() => {
         const agenda = {};
@@ -728,6 +755,7 @@ const AdminDashboard = () => {
     const abrirModalEditar = (p) => { setProductoEditando(p); setFormulario({ nombre: p.nombre || '', precio: p.precio || '', stock: p.stock || 0, stock_adicional: '', costo_nuevo_lote: p.costo_compra || 0, categoriaId: p.categoriaId || p.categoria_id || '', descripcion: p.descripcion || '', proveedor: p.proveedor || '', costo_compra: p.costo_compra || 0, margen_ganancia: p.margen_ganancia || 0, tope_stock: p.tope_stock || 10, cantidad_mayor: p.cantidad_mayor || 0, precio_mayor: p.precio_mayor || '', codigo_barras: p.codigo_barras || '' }); setPreview(formatearImagen(p.imagen_url)); setShowModal(true); };
     const abrirModalBaja = (p) => { setProductoBaja(p); setFormBaja({ cantidad: 1, motivo: 'Dañado/Roto' }); setShowBajaModal(true); };
 
+    // 🔥 GUARDAR PRODUCTO + REGISTRO DE COMPRAS (INGRESO) 🔥
     const handleGuardarProducto = async (e) => {
         e.preventDefault(); 
         if (formulario.codigo_barras && formulario.codigo_barras.trim() !== '') {
@@ -744,7 +772,6 @@ const AdminDashboard = () => {
                 
                 for (const prod of productos) {
                     if (productoEditando && prod.id === productoEditando.id) continue; 
-                    
                     if (prod.codigo_barras) {
                         let parsedOld = prod.codigo_barras;
                         let attempts = 0;
@@ -754,16 +781,13 @@ const AdminDashboard = () => {
                         }
                         const codigosExistentes = Object.keys(parsedOld || {});
                         const duplicado = codigosNuevos.find(c => codigosExistentes.includes(c));
-                        
                         if (duplicado) {
                             toast.error(`❌ El código "${duplicado}" ya está asignado a: ${prod.nombre}`, { duration: 5000 });
                             return; 
                         }
                     }
                 }
-            } catch (err) {
-                console.error("Error al validar códigos de barras", err);
-            }
+            } catch (err) { console.error("Error al validar códigos de barras", err); }
         }
 
         setEnviando(true); 
@@ -779,12 +803,10 @@ const AdminDashboard = () => {
         }
 
         let precioFinalBD = parseFloat(formulario.precio) || 0;
-        
         if (productoEditando) {
             const margenCambiado = parseFloat(formulario.margen_ganancia) !== parseFloat(productoEditando.margen_ganancia);
             const costoCambiado = parseFloat(formulario.costo_compra) !== parseFloat(productoEditando.costo_compra);
             const precioManualEditado = parseFloat(formulario.precio) !== parseFloat(productoEditando.precio);
-            
             if ((stockNuevo > 0 || margenCambiado || costoCambiado) && !precioManualEditado) {
                 precioFinalBD = precioCalculado;
             }
@@ -813,6 +835,25 @@ const AdminDashboard = () => {
             } else { 
                 await API.post('/productos', data); 
             } 
+            
+            // 🔥 TÉCNICA DE DATA TAGGING: Guardamos el historial de compra en transacciones 🔥
+            const cantidadIngresada = productoEditando ? parseInt(formulario.stock_adicional || 0) : parseInt(formulario.stock || 0);
+            
+            if (cantidadIngresada > 0) {
+                const costoLote = productoEditando ? parseFloat(formulario.costo_nuevo_lote || 0) : parseFloat(formulario.costo_compra || 0);
+                const provStr = formulario.proveedor || 'No especificado';
+                // Creamos una etiqueta secreta que luego leeremos en los reportes
+                const descEtiqueta = `COMPRA_STOCK|${cantidadIngresada}|${costoLote}|${provStr}|${formulario.nombre}`;
+                
+                await API.post('/contabilidad/gasto', {
+                    monto: cantidadIngresada * costoLote,
+                    descripcion: descEtiqueta,
+                    categoria: 'Compra de Inventario',
+                    tipo: 'EGRESO',
+                    fecha: new Date().toISOString().split('T')[0]
+                }).catch(() => {}); // Si falla, no rompemos la app
+            }
+
             cerrarModal(); 
             fetchDatos(); 
             toast.success("Producto Guardado en Inventario"); 
@@ -1467,78 +1508,194 @@ const AdminDashboard = () => {
                     </div>
                 )}
 
-                {/* --- VISTA REPORTES --- */}
+                {/* --- VISTA REPORTES (NUEVA ARQUITECTURA) --- */}
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-                            <div className="lg:col-span-2 bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
-                                <div className="flex justify-between items-center mb-8"><div><h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Agenda de Entregas</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Rutas programadas por ciudad</p></div><CalendarDays className="text-blue-600" size={24} /></div>
-                                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                                    {(Array.isArray(dataAgendaEntregas) ? dataAgendaEntregas : []).length === 0 ? <p className="text-center text-gray-400 font-bold uppercase text-xs py-10">Sin entregas</p> : 
-                                        dataAgendaEntregas.map((agenda, i) => (
-                                            <div key={i} className="flex flex-col gap-4 bg-gray-50 p-4 md:p-5 rounded-2xl md:rounded-3xl border border-gray-100">
-                                                <div className="flex justify-between items-center">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center font-black">{agenda.cantidad}</div>
-                                                        <div><p className={`font-black uppercase italic text-xs ${agenda.reprogramado ? 'text-orange-600' : 'text-gray-900'}`}>{agenda.reprogramado ? 'REPROG.' : agenda.dia}</p><p className="text-[9px] font-bold text-gray-500 uppercase">{agenda.fecha}</p></div>
-                                                    </div>
-                                                    <span className="font-black text-lg italic text-blue-600">${formatCurrency(agenda.total)}</span>
-                                                </div>
-                                                <div className="pl-12 md:pl-16">
-                                                    <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Detalle de ruta:</p>
-                                                    <div className="flex flex-col gap-2">
-                                                        {agenda.pedidos.map((ped, idx) => (
-                                                            <div key={idx} className="bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm flex flex-col">
-                                                                <span className="text-[9px] md:text-[10px] font-black text-gray-800 uppercase">
-                                                                    {ped.Usuario?.nombre || ped.cliente || 'Consumidor Final'}
-                                                                </span>
-                                                                <span className="text-[8px] md:text-[9px] font-bold text-gray-500 mt-0.5 truncate">
-                                                                    📍 {ped.Usuario?.ciudad || 'Ciudad N/A'} - {ped.direccion || ped.Usuario?.direccion || 'Sin dirección'}
-                                                                </span>
+                        
+                        {/* Submenú de Reportes */}
+                        <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
+                            <button onClick={() => setSubTabReportes('GENERAL')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'GENERAL' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Ventas y Entregas</button>
+                            <button onClick={() => setSubTabReportes('PROVEEDORES')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'PROVEEDORES' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Proveedores</button>
+                            <button onClick={() => setSubTabReportes('COMPRAS')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'COMPRAS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Historial Compras</button>
+                        </div>
+
+                        {/* --- SUB-VISTA: VENTAS Y ENTREGAS (Original) --- */}
+                        {subTabReportes === 'GENERAL' && (
+                            <>
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+                                    <div className="lg:col-span-2 bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
+                                        <div className="flex justify-between items-center mb-8"><div><h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Agenda de Entregas</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Rutas programadas por ciudad</p></div><CalendarDays className="text-blue-600" size={24} /></div>
+                                        <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                            {(Array.isArray(dataAgendaEntregas) ? dataAgendaEntregas : []).length === 0 ? <p className="text-center text-gray-400 font-bold uppercase text-xs py-10">Sin entregas</p> : 
+                                                dataAgendaEntregas.map((agenda, i) => (
+                                                    <div key={i} className="flex flex-col gap-4 bg-gray-50 p-4 md:p-5 rounded-2xl md:rounded-3xl border border-gray-100">
+                                                        <div className="flex justify-between items-center">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center font-black">{agenda.cantidad}</div>
+                                                                <div><p className={`font-black uppercase italic text-xs ${agenda.reprogramado ? 'text-orange-600' : 'text-gray-900'}`}>{agenda.reprogramado ? 'REPROG.' : agenda.dia}</p><p className="text-[9px] font-bold text-gray-500 uppercase">{agenda.fecha}</p></div>
                                                             </div>
-                                                        ))}
+                                                            <span className="font-black text-lg italic text-blue-600">${formatCurrency(agenda.total)}</span>
+                                                        </div>
+                                                        <div className="pl-12 md:pl-16">
+                                                            <p className="text-[8px] md:text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Detalle de ruta:</p>
+                                                            <div className="flex flex-col gap-2">
+                                                                {agenda.pedidos.map((ped, idx) => (
+                                                                    <div key={idx} className="bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm flex flex-col">
+                                                                        <span className="text-[9px] md:text-[10px] font-black text-gray-800 uppercase">
+                                                                            {ped.Usuario?.nombre || ped.cliente || 'Consumidor Final'}
+                                                                        </span>
+                                                                        <span className="text-[8px] md:text-[9px] font-bold text-gray-500 mt-0.5 truncate">
+                                                                            📍 {ped.Usuario?.ciudad || 'Ciudad N/A'} - {ped.direccion || ped.Usuario?.direccion || 'Sin dirección'}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                ))}
+                                        </div>
+                                    </div>
+                                    <div className="bg-black text-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl flex flex-col">
+                                        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                                            <div>
+                                                <h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Top Ventas</h3>
                                             </div>
-                                        ))}
+                                            <select 
+                                                value={filtroMesRanking} 
+                                                onChange={e => setFiltroMesRanking(e.target.value)}
+                                                className="bg-gray-800 border-none text-white text-[9px] uppercase tracking-widest font-bold p-2 rounded-lg outline-none w-full md:w-auto"
+                                            >
+                                                <option value="TODOS">HISTÓRICO</option>
+                                                <option value="0">ENERO</option>
+                                                <option value="1">FEBRERO</option>
+                                                <option value="2">MARZO</option>
+                                                <option value="3">ABRIL</option>
+                                                <option value="4">MAYO</option>
+                                                <option value="5">JUNIO</option>
+                                                <option value="6">JULIO</option>
+                                                <option value="7">AGOSTO</option>
+                                                <option value="8">SEPTIEMBRE</option>
+                                                <option value="9">OCTUBRE</option>
+                                                <option value="10">NOVIEMBRE</option>
+                                                <option value="11">DICIEMBRE</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex-1 flex flex-col justify-center gap-4">
+                                            {(Array.isArray(dataTopProductos) ? dataTopProductos : []).length === 0 && <p className="text-gray-500 text-center text-[10px] uppercase font-bold tracking-widest">Sin datos en este mes</p>}
+                                            {dataTopProductos.map((prod, i) => (
+                                                <div key={i} className="flex justify-between items-center border-b border-gray-800 pb-3 last:border-0">
+                                                    <span className="text-[10px] font-bold text-gray-300 uppercase truncate pr-4">{i+1}. {prod.name}</span>
+                                                    <span className="text-xs font-black text-white">{prod.Vendidos} u.</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8 mt-6">
+                                    <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
+                                        <div className="mb-6"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Crecimiento Mensual</h3></div>
+                                        <div style={{ width: '100%', height: 300 }}>
+                                            <ResponsiveContainer width="100%" height={300}>
+                                                <AreaChart data={dataVentasMensuales}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                    <XAxis dataKey="name" tick={{fontSize: 10, fontWeight: 'bold'}} />
+                                                    <Tooltip formatter={(value) => `$${formatCurrency(value)}`} />
+                                                    <Area type="monotone" dataKey="Ventas" stroke="#2563eb" strokeWidth={4} fill="#2563eb33" />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
+                                        <div className="mb-6"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Pedidos por Zona</h3></div>
+                                        <div style={{ width: '100%', height: 300 }}>
+                                            <ResponsiveContainer width="100%" height={300}>
+                                                <BarChart data={dataGraficoRutas}>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                    <XAxis dataKey="name" tick={{fontSize: 10, fontWeight: 'bold'}} />
+                                                    <Tooltip />
+                                                    <Bar dataKey="pedidos" fill="#000" radius={[10, 10, 10, 10]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {/* --- SUB-VISTA: PROVEEDORES --- */}
+                        {subTabReportes === 'PROVEEDORES' && (
+                            <div className="grid grid-cols-1 gap-6 md:gap-8">
+                                <div className="bg-blue-600 text-white p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-lg flex flex-col md:flex-row justify-between items-center gap-4 relative overflow-hidden">
+                                    <div className="absolute right-0 top-0 opacity-10"><Briefcase size={200} className="-mr-10 -mt-10"/></div>
+                                    <div className="z-10 text-center md:text-left">
+                                        <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter">{dataProveedores.length}</h3>
+                                        <p className="text-[10px] md:text-xs font-bold text-blue-200 uppercase tracking-widest mt-1">Proveedores Registrados</p>
+                                    </div>
+                                    <div className="z-10 text-center md:text-right">
+                                        <p className="text-[10px] md:text-xs font-bold text-blue-200 uppercase tracking-widest mt-1">Capital Total Invertido</p>
+                                        <h3 className="text-2xl md:text-4xl font-black italic tracking-tighter">${formatCurrency(dataProveedores.reduce((acc, p) => acc + p.valorInventario, 0))}</h3>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white rounded-[2rem] md:rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
+                                    <table className="w-full text-left min-w-[600px]">
+                                        <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-[0.2em] border-b border-gray-100">
+                                            <tr>
+                                                <th className="px-6 py-6">Proveedor</th>
+                                                <th className="px-6 py-6 text-center">Variedad de Productos</th>
+                                                <th className="px-6 py-6 text-right">Inversión en Bodega</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {dataProveedores.map((prov, i) => (
+                                                <tr key={i} className="hover:bg-gray-50/50 transition-all">
+                                                    <td className="px-6 py-5 font-black text-gray-900 uppercase text-xs">{prov.nombre}</td>
+                                                    <td className="px-6 py-5 text-center"><span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">{prov.cantidadProductos} Ítems</span></td>
+                                                    <td className="px-6 py-5 text-right font-black italic text-green-600">${formatCurrency(prov.valorInventario)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
-                            <div className="bg-black text-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 shadow-2xl flex flex-col">
-                                <div className="flex justify-between items-center mb-6"><div><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Top Ventas</h3></div><Activity className="text-blue-400" size={24} /></div>
-                                <div className="flex-1 flex flex-col justify-center gap-4">
-                                    {(Array.isArray(dataTopProductos) ? dataTopProductos : []).length === 0 && <p className="text-gray-500 text-center text-xs">Sin datos aún</p>}
-                                    {dataTopProductos.map((prod, i) => (<div key={i} className="flex justify-between items-center border-b border-gray-800 pb-3 last:border-0"><span className="text-[10px] font-bold text-gray-300 uppercase truncate pr-4">{i+1}. {prod.name}</span><span className="text-xs font-black text-white">{prod.Vendidos} u.</span></div>))}
+                        )}
+
+                        {/* --- SUB-VISTA: HISTORIAL DE COMPRAS --- */}
+                        {subTabReportes === 'COMPRAS' && (
+                            <div className="bg-white rounded-[2rem] md:rounded-[3rem] shadow-sm border border-gray-100 p-6 md:p-10">
+                                <div className="flex justify-between items-center mb-6 md:mb-8">
+                                    <div><h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Historial de Compras</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Ingresos de inventario a bodega</p></div>
+                                    <PackagePlusIcon className="text-green-500 hidden md:block" size={28} />
+                                </div>
+                                <div className="overflow-x-auto custom-scrollbar">
+                                    <table className="w-full text-left min-w-[800px]">
+                                        <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-widest border-b">
+                                            <tr>
+                                                <th className="px-4 py-4 rounded-tl-xl">Fecha</th>
+                                                <th className="px-4 py-4">Producto</th>
+                                                <th className="px-4 py-4">Proveedor</th>
+                                                <th className="px-4 py-4 text-center">Cantidad</th>
+                                                <th className="px-4 py-4 text-right">Costo Unit.</th>
+                                                <th className="px-4 py-4 text-right rounded-tr-xl">Inversión</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {historialComprasInventario.length === 0 && (<tr><td colSpan="6" className="py-8 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">Aún no hay compras registradas</td></tr>)}
+                                            {historialComprasInventario.map((compra, i) => (
+                                                <tr key={i} className="hover:bg-gray-50 transition-all group">
+                                                    <td className="px-4 py-4 text-[10px] font-bold text-gray-500 uppercase">{new Date(compra.fecha).toLocaleDateString('es-ES')}</td>
+                                                    <td className="px-4 py-4 font-black uppercase text-gray-900 text-[10px] md:text-xs truncate max-w-[200px]">{compra.producto}</td>
+                                                    <td className="px-4 py-4 font-bold text-blue-600 text-[9px] md:text-[10px] uppercase tracking-widest flex items-center gap-1.5"><Briefcase size={12}/>{compra.proveedor}</td>
+                                                    <td className="px-4 py-4 text-center"><span className="bg-green-100 text-green-700 px-2 py-1 rounded font-black uppercase text-[10px]">+{compra.cantidad}</span></td>
+                                                    <td className="px-4 py-4 text-right font-bold text-gray-500 text-[10px] md:text-xs">${formatCurrency(compra.costoUnitario)}</td>
+                                                    <td className="px-4 py-4 text-right font-black italic text-red-500 text-xs md:text-sm">-${formatCurrency(compra.costoTotal)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
-                        </div>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-                            <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
-                                <div className="mb-6"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Crecimiento Mensual</h3></div>
-                                <div style={{ width: '100%', height: 300 }}>
-                                    <ResponsiveContainer width="100%" height={300}>
-                                        <AreaChart data={dataVentasMensuales}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                            <XAxis dataKey="name" tick={{fontSize: 10, fontWeight: 'bold'}} />
-                                            <Tooltip formatter={(value) => `$${formatCurrency(value)}`} />
-                                            <Area type="monotone" dataKey="Ventas" stroke="#2563eb" strokeWidth={4} fill="#2563eb33" />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                            <div className="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-10 border border-gray-100 shadow-sm">
-                                <div className="mb-6"><h3 className="text-lg md:text-xl font-black uppercase italic tracking-tighter">Pedidos por Zona</h3></div>
-                                <div style={{ width: '100%', height: 300 }}>
-                                    <ResponsiveContainer width="100%" height={300}>
-                                        <BarChart data={dataGraficoRutas}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                            <XAxis dataKey="name" tick={{fontSize: 10, fontWeight: 'bold'}} />
-                                            <Tooltip />
-                                            <Bar dataKey="pedidos" fill="#000" radius={[10, 10, 10, 10]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 )}
 
@@ -1681,30 +1838,39 @@ const AdminDashboard = () => {
     </p>
                             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                                 {(Array.isArray(transaccionesFiltradas) ? transaccionesFiltradas : []).length === 0 && <p className="text-center py-10 text-gray-400 font-bold text-xs uppercase">No hay transacciones que coincidan con la búsqueda.</p>}
-                                {transaccionesFiltradas.map(tx => (
-                                    <div key={tx.id} className="flex justify-between items-center p-4 md:p-5 rounded-2xl md:rounded-3xl border border-gray-50 hover:bg-gray-50 transition-colors group">
-                                        <div className="flex items-center gap-3 md:gap-4">
-                                            <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center ${tx.tipo === 'INGRESO' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>{tx.tipo === 'INGRESO' ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}</div>
-                                            <div><p className="font-black text-xs md:text-sm uppercase text-gray-900 line-clamp-1">{tx.descripcion}</p><p className="text-[8px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">{new Date(tx.fecha).toLocaleDateString()} • {tx.categoria}</p></div>
+                                {transaccionesFiltradas.map(tx => {
+                                    // 🔥 FORMATEAMOS EL TEXTO PARA QUE EL LIBRO DIARIO NO SE VEA FEO 🔥
+                                    let descripcionLimpia = tx.descripcion;
+                                    if (tx.descripcion && tx.descripcion.startsWith('COMPRA_STOCK')) {
+                                        const partes = tx.descripcion.split('|');
+                                        descripcionLimpia = `INGRESO DE STOCK: ${partes[1]} Uds. de ${partes[4]}`;
+                                    }
+
+                                    return (
+                                        <div key={tx.id} className="flex justify-between items-center p-4 md:p-5 rounded-2xl md:rounded-3xl border border-gray-50 hover:bg-gray-50 transition-colors group">
+                                            <div className="flex items-center gap-3 md:gap-4">
+                                                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl flex items-center justify-center ${tx.tipo === 'INGRESO' ? 'bg-green-50 text-green-500' : 'bg-red-50 text-red-500'}`}>{tx.tipo === 'INGRESO' ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}</div>
+                                                <div><p className="font-black text-xs md:text-sm uppercase text-gray-900 line-clamp-1">{descripcionLimpia}</p><p className="text-[8px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">{new Date(tx.fecha).toLocaleDateString()} • {tx.categoria}</p></div>
+                                            </div>
+                                            <div className="flex items-center gap-2 md:gap-4">
+                                                <span className={`font-black text-sm md:text-lg italic ${tx.tipo === 'INGRESO' ? 'text-green-600' : 'text-red-600'}`}>{tx.tipo === 'INGRESO' ? '+' : '-'}${formatCurrency(tx.monto)}</span>
+                                                {!tx.pedidoId && (
+                                                    <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 flex gap-1 md:gap-2 transition-opacity">
+                                                        <button onClick={() => {
+                                                            setTransaccionSeleccionada(tx);
+                                                            let fechaSegura = '';
+                                                            try { fechaSegura = tx.fecha ? new Date(tx.fecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]; } 
+                                                            catch(e) { fechaSegura = new Date().toISOString().split('T')[0]; }
+                                                            setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: fechaSegura }); 
+                                                            setShowEditTransaccionModal(true); 
+                                                        }} className="p-1.5 md:p-2 text-blue-500 hover:bg-blue-100 rounded-lg"><Edit size={14}/></button>
+                                                        <button onClick={() => { setTransaccionSeleccionada(tx); setShowDeleteTransaccionModal(true); }} className="p-1.5 md:p-2 text-red-500 hover:bg-red-100 rounded-lg"><Trash2 size={14}/></button>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-2 md:gap-4">
-                                            <span className={`font-black text-sm md:text-lg italic ${tx.tipo === 'INGRESO' ? 'text-green-600' : 'text-red-600'}`}>{tx.tipo === 'INGRESO' ? '+' : '-'}${formatCurrency(tx.monto)}</span>
-                                            {!tx.pedidoId && (
-                                                <div className="opacity-100 md:opacity-0 md:group-hover:opacity-100 flex gap-1 md:gap-2 transition-opacity">
-                                                    <button onClick={() => {
-                                                        setTransaccionSeleccionada(tx);
-                                                        let fechaSegura = '';
-                                                        try { fechaSegura = tx.fecha ? new Date(tx.fecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]; } 
-                                                        catch(e) { fechaSegura = new Date().toISOString().split('T')[0]; }
-                                                        setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: fechaSegura }); 
-                                                        setShowEditTransaccionModal(true); 
-                                                    }} className="p-1.5 md:p-2 text-blue-500 hover:bg-blue-100 rounded-lg"><Edit size={14}/></button>
-                                                    <button onClick={() => { setTransaccionSeleccionada(tx); setShowDeleteTransaccionModal(true); }} className="p-1.5 md:p-2 text-red-500 hover:bg-red-100 rounded-lg"><Trash2 size={14}/></button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
@@ -1739,193 +1905,6 @@ const AdminDashboard = () => {
                         </table>
                     </div>
                 )}
-
-                {/* --- VISTA PEDIDOS --- */}
-                {tab === 'pedidos' && (
-                    <>
-                        <div className="flex flex-col sm:flex-row justify-between mb-4 items-stretch sm:items-center gap-3">
-                            <h2 className="text-xl font-black uppercase italic tracking-tighter">Filtros de Búsqueda</h2>
-                            
-                            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                                <div className="relative flex-1 sm:w-64">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Buscar ciudad, dirección, cliente o ID..." 
-                                        value={filtroTextoPedidos}
-                                        onChange={(e) => setFiltroTextoPedidos(e.target.value)}
-                                        className="w-full pl-10 pr-10 py-2.5 bg-white border border-blue-200 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" 
-                                    />
-                                    {filtroTextoPedidos && (
-                                        <button onClick={() => setFiltroTextoPedidos('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 transition-colors">
-                                            <X size={14} />
-                                        </button>
-                                    )}
-                                </div>
-
-                                <div className="flex items-center gap-2 bg-white border border-blue-200 p-1.5 rounded-xl shadow-sm w-full sm:w-auto">
-                                    <div className="bg-blue-50 p-2 rounded-lg text-blue-600"><CalendarDays size={16} /></div>
-                                    <input 
-                                        type="date" 
-                                        value={filtroFechaPedidos}
-                                        onChange={(e) => setFiltroFechaPedidos(e.target.value)}
-                                        className="border-none bg-transparent text-[10px] md:text-xs font-black uppercase text-gray-700 outline-none cursor-pointer pr-2 w-full"
-                                    />
-                                    {filtroFechaPedidos && (
-                                        <button onClick={() => setFiltroFechaPedidos('')} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white p-1.5 rounded-lg transition-colors mr-1" title="Limpiar filtro"><X size={14} /></button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                            {(Array.isArray(pedidosFiltradosVisual) ? pedidosFiltradosVisual : []).length === 0 && (
-                                <div className="col-span-1 md:col-span-2 lg:col-span-3 text-center py-10 bg-white rounded-3xl border border-gray-100 shadow-sm">
-                                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400"><Search size={24}/></div>
-                                    <p className="text-gray-500 font-bold text-xs uppercase tracking-widest">No hay pedidos que coincidan con tu búsqueda.</p>
-                                </div>
-                            )}
-                            {(Array.isArray(pedidosFiltradosVisual) ? pedidosFiltradosVisual : []).map(ped => {
-                                const infoRuta = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
-                                const items = ped.Detalles || ped.items || [];
-                                
-                                const yaEnCartera = (creditos || []).some(c => c.descripcion === `Factura Pedido #${ped.id}`);
-                                const yaEnFinanzas = (transacciones || []).some(t => t.pedidoId === ped.id || t.descripcion === `Pago de Contado - Pedido #${ped.id}` || t.descripcion === `Venta - Orden #${ped.id}`);
-                                const estaLiquidado = yaEnCartera || yaEnFinanzas;
-
-                                return (
-                                    <div key={ped.id} className="bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden flex flex-col justify-between">
-                                        <div>
-                                            <div className={`absolute top-0 left-0 w-full py-1.5 md:py-2 text-center border-b ${infoRuta.reprogramado ? 'bg-orange-500 border-orange-600' : 'bg-black border-black'}`}>
-                                                <span className="text-[8px] md:text-[9px] font-black text-white uppercase tracking-widest flex items-center justify-center gap-2">
-                                                    {infoRuta.reprogramado ? <><AlertTriangle size={10} /> REPROGRAMADO: {infoRuta.diaNombre}</> : <><Truck size={10} /> RUTA: {infoRuta.diaNombre?.toUpperCase()}</>}
-                                                </span>
-                                            </div>
-                                            
-                                            <div className="flex justify-between items-start mb-4 mt-6">
-                                                <div className="flex flex-col gap-2">
-                                                    <span className="text-[8px] md:text-[9px] font-black bg-gray-100 text-black px-3 py-1.5 md:px-4 md:py-2 rounded-full uppercase italic border tracking-tighter w-fit">ID #{ped.id}</span>
-                                                    <span className={`text-[8px] md:text-[9px] font-black px-3 py-1.5 md:px-4 md:py-2 rounded-full uppercase italic border tracking-tighter w-fit flex items-center gap-1 ${ped.metodo_pago === 'CREDITO' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-green-100 text-green-700 border-green-200'}`}>
-                                                        {ped.metodo_pago === 'CREDITO' ? <><Banknote size={10}/> FIADO (CRÉDITO)</> : <><DollarSign size={10}/> DE CONTADO</>}
-                                                    </span>
-                                                </div>
-                                                <button onClick={() => setPedidoDetalle(ped)} className="p-2 md:p-3 bg-gray-50 group-hover:bg-black group-hover:text-white rounded-xl md:rounded-2xl transition-all"><Eye size={14} /></button>
-                                            </div>
-                                            
-                                            <div className="mb-4 border-b border-gray-50 pb-4"><p className="text-[9px] md:text-[10px] font-black uppercase text-blue-600 mb-1 tracking-widest">{ped.Usuario?.nombre || 'CLIENTE DIRECTO'}</p><p className="text-[10px] md:text-[11px] font-bold text-gray-700 leading-tight">📍 {ped.direccion || ped.Usuario?.direccion || 'Sin dirección'}</p><p className="text-[8px] md:text-[9px] font-black text-gray-400 mt-1 uppercase">Ciudad: {ped.Usuario?.ciudad || 'No especificada'}</p><p className={`text-[8px] md:text-[9px] font-bold mt-2 p-1.5 md:p-2 rounded-lg inline-block ${infoRuta.reprogramado ? 'text-orange-700 bg-orange-100' : 'text-orange-500 bg-orange-50'}`}>📆 Llegará el: {infoRuta.fechaFormateada}</p></div>
-                                            <div className="mb-6"><p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Contenido:</p><ul className="text-[9px] md:text-[10px] font-bold text-gray-600 space-y-1 mb-4">{items.slice(0, 3).map((item, idx) => (<li key={idx} className="truncate">• {item.cantidad}x {item.Producto?.nombre || item.nombre}</li>))}{items.length > 3 && <li className="text-blue-500">+ {items.length - 3} artículos más</li>}</ul><h4 className="text-2xl md:text-3xl font-black text-gray-900 italic tracking-tighter">${formatCurrency(ped.total)}</h4></div>
-                                        </div>
-                                        <div className="space-y-3 bg-gray-50 p-3 md:p-4 rounded-2xl md:rounded-3xl">
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Forzar Día</label>
-                                                    <select value={(!infoRuta.reprogramado && infoRuta.diaNombre) ? infoRuta.diaNombre : ''} onChange={(e) => actualizarRutaPedido(ped.id, e.target.value)} className="w-full border border-gray-200 rounded-xl text-[9px] md:text-[10px] font-bold uppercase p-2 outline-none bg-white cursor-pointer mt-1">
-                                                        <option value="A CONVENIR">A CONVENIR</option>
-                                                        {diasUnicosDropdown.map(r => <option key={r} value={r}>{r}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[8px] md:text-[9px] font-black text-orange-500 uppercase tracking-widest ml-1 md:ml-2 flex items-center gap-1"><CalendarDays size={10}/> Reprogramar</label>
-                                                    <input 
-                                                        type="date" 
-                                                        value={infoRuta.reprogramado ? infoRuta.diaNombre : ''} 
-                                                        onChange={(e) => actualizarRutaPedido(ped.id, e.target.value)} 
-                                                        className="w-full border border-orange-200 text-orange-700 rounded-xl text-[9px] md:text-[10px] font-bold uppercase p-1.5 outline-none bg-orange-50 cursor-pointer mt-1" 
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div className="pt-2 mt-2 border-t border-gray-200">
-                                                <label className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1 md:ml-2">Estado Logístico</label>
-                                                
-                                                <select 
-                                                    value={ped.estado || ''} 
-                                                    disabled={ped.estado === 'Cancelado' && ped.cancelado_por === 'CLIENTE'}
-                                                    onChange={(e) => {
-                                                        if (e.target.value === 'Entregado') {
-                                                            if (estaLiquidado) actualizarEstadoPedido(ped.id, 'Entregado');
-                                                            else { setPedidoACobrar(ped); setShowCobroModal(true); }
-                                                        } else { actualizarEstadoPedido(ped.id, e.target.value); }
-                                                    }} 
-                                                    className={`w-full border-none rounded-xl text-[9px] md:text-[10px] font-black uppercase p-2 md:p-3 outline-none cursor-pointer mt-1 ${(ped.estado === 'Cancelado' && ped.cancelado_por === 'CLIENTE') ? 'bg-red-100 text-red-500 cursor-not-allowed' : 'bg-black text-white'}`}
-                                                >
-                                                    <option value="Pendiente">⏳ PENDIENTE (Bodega)</option>
-                                                    <option value="Enviado">🚚 EN RUTA (Camión)</option>
-                                                    <option value="Entregado">✅ ENTREGADO</option>
-                                                    <option value="Cancelado">❌ CANCELADO</option>
-                                                </select>
-                                                
-                                                {ped.estado === 'Cancelado' && ped.cancelado_por === 'CLIENTE' && (
-                                                    <p className="text-[8px] text-red-500 font-bold mt-1.5 flex items-center gap-1 uppercase tracking-widest leading-tight">
-                                                        <Lock size={10} /> Cancelado por el cliente
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </>
-                )}
-
-                {/* --- VISTA CLIENTES --- */}
-                {tab === 'clientes' && (
-                    <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden overflow-x-auto custom-scrollbar">
-                        <table className="w-full text-left min-w-[800px]">
-                            <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-[0.2em] border-b border-gray-100">
-                                <tr>
-                                    <th className="px-4 py-4 md:px-8 md:py-6">Usuario / Cédula</th>
-                                    <th className="px-4 py-4 md:px-8 md:py-6 text-center">Crédito</th>
-                                    <th className="px-4 py-4 md:px-8 md:py-6">Teléfono / Ciudad</th>
-                                    <th className="px-4 py-4 md:px-8 md:py-6 text-center">Rol</th>
-                                    <th className="px-4 py-4 md:px-8 md:py-6 text-right">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-50">
-                                {(Array.isArray(usuarios) ? usuarios : []).map(u => (
-                                    <tr key={u.id} className="hover:bg-gray-50/50 transition-all">
-                                        <td className="px-4 py-4 md:px-8 md:py-5">
-                                            <p className="font-black text-gray-900 uppercase text-[10px] md:text-xs">{u.nombre}</p>
-                                            <p className="text-[9px] md:text-[10px] text-gray-500 font-bold">CC: {u.cedula || 'Sin cédula'}</p>
-                                        </td>
-                                        
-                                        <td className="px-4 py-4 md:px-8 md:py-5 text-center">
-                                            {parseFloat(u.limite_credito) > 0 ? (
-                                                <div className="bg-green-50 text-green-600 px-3 py-1 rounded-lg inline-block text-left mb-2 w-full max-w-[120px]">
-                                                    <p className="text-[9px] font-black uppercase tracking-widest">Límite: ${formatCurrency(u.limite_credito)}</p>
-                                                    <p className="text-[8px] font-bold uppercase mt-0.5">{u.dias_credito} Días plazo</p>
-                                                </div>
-                                            ) : (
-                                                <span className="bg-gray-100 text-gray-400 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest block mb-2 w-fit mx-auto">Estricto Contado</span>
-                                            )}
-
-                                            <button 
-                                                onClick={() => handleToggleCredito(u)}
-                                                className={`mx-auto w-full max-w-[120px] py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 ${u.credito_activo !== false ? 'bg-black text-white hover:bg-red-600' : 'bg-red-100 text-red-600 hover:bg-green-500 hover:text-white'}`}
-                                            >
-                                                {u.credito_activo !== false ? <><Unlock size={10}/> Crédito Activo</> : <><Lock size={10}/> Suspendido</>}
-                                            </button>
-                                        </td>
-                                        
-                                        <td className="px-4 py-4 md:px-8 md:py-5">
-                                            <p className="text-[9px] md:text-[10px] font-bold text-gray-600">{u.telefono || 'N/A'}</p>
-                                            <p className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mt-0.5">{u.ciudad || 'No definida'}</p>
-                                        </td>
-                                        <td className="px-4 py-4 md:px-8 md:py-5 text-center">
-                                            <span className={`text-[8px] md:text-[9px] font-black uppercase px-2 py-1 md:px-3 rounded-lg ${u.rol === 'ADMIN' ? 'bg-purple-100 text-purple-600' : 'bg-gray-100 text-gray-500'}`}>{u.rol}</span>
-                                        </td>
-                                        <td className="px-4 py-4 md:px-8 md:py-5 text-right flex justify-end gap-1 md:gap-2">
-                                            <button onClick={() => abrirModalEditarUsuario(u)} className="p-2 md:p-2.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-xl transition-all"><Edit size={14} /></button>
-                                            <button onClick={() => { setUsuarioSeleccionado(u); setShowPasswordModal(true); }} className="p-2 md:p-2.5 bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white rounded-xl transition-all"><Key size={14} /></button>
-                                            <button onClick={() => { setUsuarioAEliminar(u); }} className="p-2 md:p-2.5 bg-red-50 text-red-500 hover:bg-red-600 hover:text-white rounded-xl transition-all"><Trash2 size={14} /></button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-                {tab === 'categorias' && <GestionCategorias />}
             </div>
 
             <AdminModals 
