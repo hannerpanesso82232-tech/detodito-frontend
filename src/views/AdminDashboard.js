@@ -12,7 +12,7 @@ import {
     CalendarDays, Activity, DollarSign, Clock, Users, Settings,
     ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
     Receipt, Award, Edit, Trash2, PackageMinus, Key, CheckCircle2, ChevronRight, Briefcase, History, X,
-    Lock, Unlock, ScanBarcode, Minus, MonitorSmartphone, Calculator, LogOut, AlertCircle, PackagePlus, ReceiptText, Printer
+   Lock, Unlock, ScanBarcode, Minus, MonitorSmartphone, Calculator, LogOut, AlertCircle, PackagePlus, Printer
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import GestionProveedores from '../components/admin/GestionProveedores';
@@ -1574,7 +1574,7 @@ const AdminDashboard = () => {
                             <div className="bg-white rounded-[2rem] md:rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
                                 <div className="p-6 md:p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                                     <div>
-                                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter flex items-center gap-2"><ReceiptText size={24} className="text-blue-600"/> Historial de Ventas (Auditoría)</h3>
+                                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter flex items-center gap-2"><Receipt size={24} className="text-blue-600"/> Historial de Ventas (Auditoría)</h3>
                                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Registro de comprobantes de POS</p>
                                     </div>
                                 </div>
