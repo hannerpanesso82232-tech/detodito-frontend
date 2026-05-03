@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import API from '../../services/api';
 import toast from 'react-hot-toast';
 import { Plus, Edit, Trash2, Briefcase, Loader2, X } from 'lucide-react';
 
-const GestionProveedores = () => {
+const GestionProveedores = ({ onUpdate }) => {
     const [proveedores, setProveedores] = useState([]);
     const [loading, setLoading] = useState(true);
+    
+    // Estados para la pantalla
     const [enviando, setEnviando] = useState(false);
+    // 🔥 EL CANDADO ABSOLUTO (Memoria síncrona, inquebrantable) 🔥
+    const enviandoRef = useRef(false); 
+    
     const [showModal, setShowModal] = useState(false);
     const [provEditando, setProvEditando] = useState(null);
     const [formulario, setFormulario] = useState({ nombre: '', contacto: '', telefono: '', email: '', direccion: '' });
@@ -15,10 +20,10 @@ const GestionProveedores = () => {
         try {
             const res = await API.get('/proveedores');
             setProveedores(res.data);
-        } catch (error) { 
-            toast.error("Error al cargar proveedores"); 
-        } finally { 
-            setLoading(false); 
+        } catch (error) {
+            console.error("No se pudieron cargar los proveedores", error);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -27,11 +32,11 @@ const GestionProveedores = () => {
     const guardarProveedor = async (e) => {
         e.preventDefault(); 
         
-        // 🔥 EL CANDADO ANTI-DOBLE CLIC 🔥
-        // Si ya está enviando, aborta cualquier clic adicional inmediatamente
-        if (enviando) return; 
-        
-        setEnviando(true);
+        // 🛑 CIERRE DE PUERTA INMEDIATO (Vence al doble clic) 🛑
+        if (enviandoRef.current) return; 
+        enviandoRef.current = true; // Bloquea la RAM instantáneamente
+        setEnviando(true); // Cambia el botón visualmente
+
         try {
             if (provEditando) {
                 await API.put(`/proveedores/${provEditando.id}`, formulario);
@@ -44,13 +49,14 @@ const GestionProveedores = () => {
             setProvEditando(null); 
             setFormulario({ nombre: '', contacto: '', telefono: '', email: '', direccion: '' });
             fetchProveedores();
-            if (onUpdate) onUpdate(); // Avisa al dashboard global
+            if (onUpdate) onUpdate(); // Refresca el panel principal
         } catch (error) { 
-            // 🔥 AHORA SÍ LEEMOS LA MENTE DEL SERVIDOR 🔥
-            // Si hay un error (ej: duplicado), te mostrará el motivo real
-            const mensajeReal = error.response?.data?.error || "Error al guardar proveedor";
-            toast.error(mensajeReal); 
+            // Mostramos el error real del backend si ocurre
+            const msg = error.response?.data?.error || "Error al procesar la solicitud.";
+            toast.error(msg); 
         } finally { 
+            // 🔓 ABRIMOS LA PUERTA AL TERMINAR 🔓
+            enviandoRef.current = false; 
             setEnviando(false); 
         }
     };
@@ -61,7 +67,7 @@ const GestionProveedores = () => {
             await API.delete(`/proveedores/${id}`); 
             toast.success("Proveedor eliminado"); 
             fetchProveedores(); 
-            if (onUpdate) onUpdate(); // 🔥 AVISA AL DASHBOARD QUE ACTUALICE LA LISTA 🔥
+            if (onUpdate) onUpdate(); 
         } catch (error) { 
             toast.error("Error al eliminar proveedor"); 
         }
@@ -126,7 +132,7 @@ const GestionProveedores = () => {
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Teléfono / WhatsApp</label>
                                 <input value={formulario.telefono} onChange={e=>setFormulario({...formulario, telefono: e.target.value})} placeholder="Ej: 3001234567" className="w-full bg-gray-50 border-none p-4 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500 mt-1 transition-all"/>
                             </div>
-                            <button type="submit" disabled={enviando} className="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-black transition-all mt-4 flex justify-center items-center gap-2 shadow-lg active:scale-95">
+                            <button type="submit" disabled={enviando} className="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-black transition-all mt-4 flex justify-center items-center gap-2 shadow-lg active:scale-95 disabled:opacity-50">
                                 {enviando ? <Loader2 size={16} className="animate-spin" /> : 'Guardar Proveedor'}
                             </button>
                         </form>
