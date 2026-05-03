@@ -26,6 +26,11 @@ const GestionProveedores = () => {
 
     const guardarProveedor = async (e) => {
         e.preventDefault(); 
+        
+        // 🔥 EL CANDADO ANTI-DOBLE CLIC 🔥
+        // Si ya está enviando, aborta cualquier clic adicional inmediatamente
+        if (enviando) return; 
+        
         setEnviando(true);
         try {
             if (provEditando) {
@@ -39,9 +44,12 @@ const GestionProveedores = () => {
             setProvEditando(null); 
             setFormulario({ nombre: '', contacto: '', telefono: '', email: '', direccion: '' });
             fetchProveedores();
-            if (onUpdate) onUpdate(); // 🔥 AVISA AL DASHBOARD QUE ACTUALICE LA LISTA 🔥
+            if (onUpdate) onUpdate(); // Avisa al dashboard global
         } catch (error) { 
-            toast.error("Error al guardar proveedor"); 
+            // 🔥 AHORA SÍ LEEMOS LA MENTE DEL SERVIDOR 🔥
+            // Si hay un error (ej: duplicado), te mostrará el motivo real
+            const mensajeReal = error.response?.data?.error || "Error al guardar proveedor";
+            toast.error(mensajeReal); 
         } finally { 
             setEnviando(false); 
         }
