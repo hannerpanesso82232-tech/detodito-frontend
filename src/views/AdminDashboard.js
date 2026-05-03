@@ -22,6 +22,13 @@ import { useAuth } from '../context/AuthContext';
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
 
+// 🔥 NUEVA FUNCIÓN: Reloj blindado para Zona Horaria Local (Evita que a las 7PM pase a mañana) 🔥
+const getLocalCurrentDate = () => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().split('T')[0];
+};
+
 const calcularFechaReal = (rutaGuardada, ciudadCliente, direccionCliente, rutasDB = [], fechaCreacionStr = null, horaLimite = "20:00") => {
     let diaRuta = rutaGuardada;
 
@@ -96,7 +103,6 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [enviando, setEnviando] = useState(false);
 
-    // 🔥 ESTADOS PARA INTELIGENCIA DE NEGOCIOS 🔥
     const [subTabReportes, setSubTabReportes] = useState('GENERAL');
     const [filtroMesRanking, setFiltroMesRanking] = useState('TODOS');
 
@@ -104,7 +110,6 @@ const AdminDashboard = () => {
         if (esCajero) setTab('pos');
     }, [esCajero]);
 
-    // --- ESTADOS POS ---
     const [posCart, setPosCart] = useState([]);
     const [posCodigo, setPosCodigo] = useState('');
     const [posClienteId, setPosClienteId] = useState('');
@@ -117,7 +122,6 @@ const AdminDashboard = () => {
     const inputScannerRef = useRef(null);
     const [showArqueoModal, setShowArqueoModal] = useState(false);
     
-    // --- FILTROS Y MODALES ---
     const [searchTerm, setSearchTerm] = useState('');
     const [filtroCategoria, setFiltroCategoria] = useState('todas');
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
@@ -399,7 +403,8 @@ const AdminDashboard = () => {
                 await API.post('/contabilidad/gasto', { 
                     monto: posTotal, descripcion: `Venta Caja #${pedidoId} [${subMetodo}]`, 
                     categoria: 'Ventas Productos', tipo: 'INGRESO', 
-                    fecha: new Date().toISOString().split('T')[0], pedidoId: pedidoId 
+                    fecha: getLocalCurrentDate(), // 🔥 Fecha blindada
+                    pedidoId: pedidoId 
                 });
             } else if (metodo === 'CREDITO') {
                 const cliente = (Array.isArray(usuarios) ? usuarios : []).find(u => u.id === parseInt(posClienteId));
@@ -427,6 +432,17 @@ const AdminDashboard = () => {
             const itemsComprados = [...posCartCalculado];
             setFacturaAImprimir(facturaObj);
             setShowPrintModal(true);
+
+            setProductos(prevProductos => 
+                prevProductos.map(prod => {
+                    const itemVendido = itemsComprados.find(item => String(item.id) === String(prod.id));
+                    if (itemVendido) {
+                        const nuevoStock = Math.max(0, parseInt(prod.stock) - parseInt(itemVendido.cantidad));
+                        return { ...prod, stock: nuevoStock };
+                    }
+                    return prod;
+                })
+            );
 
             setPosCart([]); 
             setPosCodigo(''); 
@@ -833,7 +849,7 @@ const AdminDashboard = () => {
                     descripcion: descEtiqueta,
                     categoria: 'Compra de Inventario',
                     tipo: 'EGRESO',
-                    fecha: new Date().toISOString().split('T')[0]
+                    fecha: getLocalCurrentDate() // 🔥 Fecha blindada
                 }).catch(() => {});
             }
 
@@ -888,7 +904,7 @@ const AdminDashboard = () => {
                         descripcion: `Pérdida total por baja (${formBaja.motivo}): ${cantidadDañada}x ${productoBaja.nombre}`, 
                         categoria: 'Mercancía', 
                         tipo: 'EGRESO', 
-                        fecha: new Date().toISOString().split('T')[0] 
+                        fecha: getLocalCurrentDate() // 🔥 Fecha blindada
                     });
                 }
                 toast.success("Stock en cero. Pérdida registrada directo en contabilidad.");
@@ -961,8 +977,8 @@ const AdminDashboard = () => {
     const abrirModalEditarTransaccion = (tx) => { 
         setTransaccionSeleccionada(tx); 
         let fechaSegura = '';
-        try { fechaSegura = tx.fecha ? new Date(tx.fecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]; } 
-        catch(e) { fechaSegura = new Date().toISOString().split('T')[0]; }
+        try { fechaSegura = tx.fecha ? tx.fecha.split('T')[0] : getLocalCurrentDate(); } 
+        catch(e) { fechaSegura = getLocalCurrentDate(); }
         setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: fechaSegura }); 
         setShowEditTransaccionModal(true); 
     };
@@ -1016,7 +1032,7 @@ const AdminDashboard = () => {
         try {
             await API.put(`/pedidos/${pedidoACobrar.id}/estado`, { estado: 'Entregado' });
             if (tipoPago === 'CONTADO') {
-                await API.post('/contabilidad/gasto', { monto: pedidoACobrar.total, descripcion: `Pago de Contado - Pedido #${pedidoACobrar.id}`, categoria: 'Ventas Productos', tipo: 'INGRESO', fecha: new Date().toISOString().split('T')[0], pedidoId: pedidoACobrar.id });
+                await API.post('/contabilidad/gasto', { monto: pedidoACobrar.total, descripcion: `Pago de Contado - Pedido #${pedidoACobrar.id}`, categoria: 'Ventas Productos', tipo: 'INGRESO', fecha: getLocalCurrentDate(), pedidoId: pedidoACobrar.id });
                 toast.success("Pedido Entregado. Dinero registrado en finanzas.", { id: loadingId });
             } else if (tipoPago === 'CREDITO') {
                 const dias = parseInt(cliente?.dias_credito || 30);
@@ -1169,8 +1185,7 @@ const AdminDashboard = () => {
                                             .filter(t => {
                                                 if(!t.fecha) return false;
                                                 const txDate = t.fecha.split('T')[0];
-                                                const hoy = new Date();
-                                                const todayStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+                                                const todayStr = getLocalCurrentDate();
                                                 return txDate === todayStr && (t.descripcion || '').toUpperCase().includes('EFECTIVO');
                                             })
                                             .reduce((acc, t) => acc + (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO') ? -parseFloat(t.monto || 0) : parseFloat(t.monto || 0)), 0))}
@@ -1184,8 +1199,7 @@ const AdminDashboard = () => {
                                             .filter(t => {
                                                 if(!t.fecha) return false;
                                                 const txDate = t.fecha.split('T')[0];
-                                                const hoy = new Date();
-                                                const todayStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+                                                const todayStr = getLocalCurrentDate();
                                                 return txDate === todayStr && (t.descripcion || '').toUpperCase().includes('TRANSFERENCIA');
                                             })
                                             .reduce((acc, t) => acc + (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO') ? -parseFloat(t.monto || 0) : parseFloat(t.monto || 0)), 0))}
@@ -1561,8 +1575,7 @@ const AdminDashboard = () => {
                 {tab === 'finanzas' && (
                     <div className="space-y-6 md:space-y-8">
                         {!esCajero && (() => {
-                            const hoy = new Date();
-                            const todayStr = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+                            const todayStr = getLocalCurrentDate();
                             const txHoy = transacciones.filter(t => t.fecha && t.fecha.split('T')[0] === todayStr);
 
                             const efectivoHoy = txHoy.filter(t => (t.descripcion || '').toUpperCase().includes('EFECTIVO')).reduce((acc, t) => acc + (t.tipo === 'INGRESO' ? parseFloat(t.monto) : -parseFloat(t.monto)), 0);
@@ -1632,8 +1645,8 @@ const AdminDashboard = () => {
                                                         <button onClick={() => {
                                                             setTransaccionSeleccionada(tx);
                                                             let fechaSegura = '';
-                                                            try { fechaSegura = tx.fecha ? new Date(tx.fecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]; } 
-                                                            catch(e) { fechaSegura = new Date().toISOString().split('T')[0]; }
+                                                            try { fechaSegura = tx.fecha ? tx.fecha.split('T')[0] : getLocalCurrentDate(); } 
+                                                            catch(e) { fechaSegura = getLocalCurrentDate(); }
                                                             setFormGasto({ monto: tx.monto, descripcion: tx.descripcion, categoria: tx.categoria, tipo: tx.tipo, fecha: fechaSegura }); 
                                                             setShowEditTransaccionModal(true); 
                                                         }} className="p-1.5 md:p-2 text-blue-500 hover:bg-blue-100 rounded-lg"><Edit size={14}/></button>
