@@ -15,6 +15,7 @@ import {
     Lock, Unlock, ScanBarcode, Minus, MonitorSmartphone, Calculator, LogOut, AlertCircle, PackagePlus
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
+import GestionProveedores from '../components/admin/GestionProveedores'; // 🔥 IMPORTAMOS EL NUEVO COMPONENTE 🔥
 import AdminModals from '../components/admin/AdminModals';
 import { formatCurrency, formatearImagen } from '../utils/adminUtils';
 import { useAuth } from '../context/AuthContext'; 
@@ -22,7 +23,7 @@ import { useAuth } from '../context/AuthContext';
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
 
-// 🔥 NUEVA FUNCIÓN: Reloj blindado para Zona Horaria Local (Evita que a las 7PM pase a mañana) 🔥
+// Reloj blindado para Zona Horaria Local (Evita que a las 7PM pase a mañana)
 const getLocalCurrentDate = () => {
     const d = new Date();
     d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
@@ -92,6 +93,7 @@ const AdminDashboard = () => {
     const [pedidos, setPedidos] = useState([]);
     const [categorias, setCategorias] = useState([]);
     const [usuarios, setUsuarios] = useState([]);
+    const [proveedoresDB, setProveedoresDB] = useState([]); // 🔥 ESTADO DE PROVEEDORES 🔥
     const [rutasDinamicas, setRutasDinamicas] = useState([]); 
     const [creditos, setCreditos] = useState([]); 
     const [transacciones, setTransacciones] = useState([]);
@@ -184,7 +186,8 @@ const AdminDashboard = () => {
         try {
             const ts = new Date().getTime();
             
-            const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos] = await Promise.all([
+            // 🔥 AÑADIDO: Petición a /proveedores 🔥
+            const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos, resProveedores] = await Promise.all([
                 API.get(`/productos?t=${ts}`).catch(() => ({ data: [] })), 
                 API.get(`/pedidos/admin/todos?t=${ts}`).catch(() => ({ data: [] })), 
                 API.get(`/categorias?t=${ts}`).catch(() => ({ data: [] })),
@@ -194,7 +197,8 @@ const AdminDashboard = () => {
                 API.get(`/contabilidad/transacciones?t=${ts}`).catch(() => ({ data: [] })),
                 API.get(`/pedidos/config/rutas?t=${ts}`).catch(() => ({ data: [] })),
                 API.get(`/pedidos/config/horalimite?t=${ts}`).catch(() => ({ data: { hora: '20:00' } })),
-                API.get(`/creditos?t=${ts}`).catch(() => ({ data: [] })) 
+                API.get(`/creditos?t=${ts}`).catch(() => ({ data: [] })),
+                API.get(`/proveedores?t=${ts}`).catch(() => ({ data: [] })) 
             ]);
             
             setProductos(resProd.data || []); 
@@ -207,6 +211,7 @@ const AdminDashboard = () => {
             setRutasDinamicas(resRutas.data || []);
             setHoraLimite(resHora.data?.hora || '20:00');
             setCreditos(resCreditos.data || []); 
+            setProveedoresDB(resProveedores.data || []); // 🔥 GUARDAMOS PROVEEDORES 🔥
         } catch (err) { toast.error("Error de sincronización"); } finally { setLoading(false); }
     }, []);
 
@@ -403,7 +408,7 @@ const AdminDashboard = () => {
                 await API.post('/contabilidad/gasto', { 
                     monto: posTotal, descripcion: `Venta Caja #${pedidoId} [${subMetodo}]`, 
                     categoria: 'Ventas Productos', tipo: 'INGRESO', 
-                    fecha: getLocalCurrentDate(), // 🔥 Fecha blindada
+                    fecha: getLocalCurrentDate(), 
                     pedidoId: pedidoId 
                 });
             } else if (metodo === 'CREDITO') {
@@ -849,7 +854,7 @@ const AdminDashboard = () => {
                     descripcion: descEtiqueta,
                     categoria: 'Compra de Inventario',
                     tipo: 'EGRESO',
-                    fecha: getLocalCurrentDate() // 🔥 Fecha blindada
+                    fecha: getLocalCurrentDate() // Fecha blindada
                 }).catch(() => {});
             }
 
@@ -904,7 +909,7 @@ const AdminDashboard = () => {
                         descripcion: `Pérdida total por baja (${formBaja.motivo}): ${cantidadDañada}x ${productoBaja.nombre}`, 
                         categoria: 'Mercancía', 
                         tipo: 'EGRESO', 
-                        fecha: getLocalCurrentDate() // 🔥 Fecha blindada
+                        fecha: getLocalCurrentDate() // Fecha blindada
                     });
                 }
                 toast.success("Stock en cero. Pérdida registrada directo en contabilidad.");
@@ -1071,7 +1076,9 @@ const AdminDashboard = () => {
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir, setShowArqueoModal, setShowDevolucionModal, setCantidadDevolucion };
     const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera, procesarDevolucionAPI };
-    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones, productos };
+    
+    // 🔥 DATA PROPS ACTUALIZADO 🔥
+    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones, productos, proveedoresDB };
     
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SINCRONIZANDO EN TIEMPO REAL...</div>;
 
@@ -1135,9 +1142,10 @@ const AdminDashboard = () => {
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
-                    {['reportes', 'pos', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias'].map((t) => {
+                    {/* 🔥 AÑADIDA LA PESTAÑA PROVEEDORES 🔥 */}
+                    {['reportes', 'pos', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias', 'proveedores'].map((t) => {
                         if (esCajero && t !== 'pos' && t !== 'pedidos') return null;
-                        const nombresPestanas = { 'reportes': 'Analíticas', 'pos': 'Caja (POS)', 'cartera': 'Cartera', 'finanzas': 'Contabilidad', 'pedidos': 'Pedidos', 'productos': 'Inventario', 'clientes': 'Clientes', 'categorias': 'Categorías' };
+                        const nombresPestanas = { 'reportes': 'Analíticas', 'pos': 'Caja (POS)', 'cartera': 'Cartera', 'finanzas': 'Contabilidad', 'pedidos': 'Pedidos', 'productos': 'Inventario', 'clientes': 'Clientes', 'categorias': 'Categorías', 'proveedores': 'Proveedores' };
                         return (
                             <button 
                                 key={t} 
@@ -1170,10 +1178,8 @@ const AdminDashboard = () => {
                 )}
             </div>
 
-            {/* 🔥 CONTENEDOR PRINCIPAL DE PESTAÑAS 🔥 */}
             <div className="animate-in fade-in duration-500">
-                
-                {/* --- VISTA POS --- */}
+                {/* --- VISTA CAJA POS --- */}
                 {tab === 'pos' && (
                     <div className="flex flex-col gap-6">
                         {esCajero && (
@@ -1849,6 +1855,9 @@ const AdminDashboard = () => {
 
                 {/* --- VISTA CATEGORÍAS --- */}
                 {tab === 'categorias' && <GestionCategorias />}
+
+                {/* 🔥 VISTA PROVEEDORES 🔥 */}
+                {tab === 'proveedores' && <GestionProveedores />}
                 
             </div>
 

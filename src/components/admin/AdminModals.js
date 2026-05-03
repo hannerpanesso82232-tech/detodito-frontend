@@ -173,9 +173,18 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                                 <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">NOMBRE</label>
                                 <input required type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-sm" value={formulario.nombre || ''} onChange={e => setFormulario({...formulario, nombre: e.target.value})} />
                             </div>
-                            <div className="col-span-2 md:col-span-1">
-                                <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">PROVEEDOR / MARCA</label>
-                                <input type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-sm" value={formulario.proveedor || ''} onChange={e => setFormulario({...formulario, proveedor: e.target.value})} />
+                            <div>
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 block mb-1">Proveedor (Opcional)</label>
+                                <select 
+                                    value={forms.formulario.proveedor || ''} 
+                                    onChange={(e) => setters.setFormulario({ ...forms.formulario, proveedor: e.target.value })}
+                                    className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl p-3 md:p-4 text-[10px] md:text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+                                >
+                                    <option value="">-- SELECCIONA PROVEEDOR --</option>
+                                    {data.proveedoresDB && data.proveedoresDB.map(prov => (
+                                        <option key={prov.id} value={prov.nombre}>{prov.nombre}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div className="col-span-2 md:col-span-1">
                                 <label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1">CATEGORÍA</label>
