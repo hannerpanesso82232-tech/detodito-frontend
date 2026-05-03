@@ -12,7 +12,7 @@ import {
     CalendarDays, Activity, DollarSign, Clock, Users, Settings,
     ArrowUpRight, ArrowDownRight, Wallet, Filter, Map, Banknote, FileText,
     Receipt, Award, Edit, Trash2, PackageMinus, Key, CheckCircle2, ChevronRight, Briefcase, History, X,
-    Lock, Unlock, ScanBarcode, Minus, MonitorSmartphone, Calculator, LogOut, AlertCircle, PackagePlus
+    Lock, Unlock, ScanBarcode, Minus, MonitorSmartphone, Calculator, LogOut, AlertCircle, PackagePlus, ReceiptText, Printer
 } from 'lucide-react';
 import GestionCategorias from '../components/admin/GestionCategorias';
 import GestionProveedores from '../components/admin/GestionProveedores';
@@ -111,7 +111,6 @@ const AdminDashboard = () => {
         if (esCajero) setTab('pos');
     }, [esCajero]);
 
-    // 🔥 NUEVOS ESTADOS PARA PAGOS MIXTOS 🔥
     const [posCart, setPosCart] = useState([]);
     const [posCodigo, setPosCodigo] = useState('');
     const [posClienteId, setPosClienteId] = useState('');
@@ -366,11 +365,18 @@ const AdminDashboard = () => {
 
     const removeFromPosCart = (id) => { setPosCart(prev => prev.filter(item => item.id !== id)); };
 
+    // 🔥 LOGICA CEREBRAL: PRECIO MAYORISTA AUTOMATICO 🔥
     const posCartCalculado = useMemo(() => {
+        const clienteRegistradoSeleccionado = posClienteId !== '';
+
         return (posCart || []).map(item => {
             const metaMayor = parseInt(item.cantidad_mayor) || 0;
             const tienePrecioMayor = metaMayor > 0 && item.precio_mayor !== null;
-            const aplicaDescuento = tienePrecioMayor && item.cantidad >= metaMayor;
+            
+            // EL DESCUENTO APLICA SI:
+            // 1. Lleva la cantidad mayor estipulada
+            // 2. O si es un cliente registrado en la base de datos
+            const aplicaDescuento = tienePrecioMayor && (item.cantidad >= metaMayor || clienteRegistradoSeleccionado);
             const precioFinal = aplicaDescuento ? parseFloat(item.precio_mayor) : parseFloat(item.precio);
 
             return {
@@ -380,7 +386,7 @@ const AdminDashboard = () => {
                 subtotal: precioFinal * item.cantidad
             };
         });
-    }, [posCart]);
+    }, [posCart, posClienteId]); // <-- Sensible a cambios de cliente
 
     const posTotal = useMemo(() => posCartCalculado.reduce((acc, item) => acc + item.subtotal, 0), [posCartCalculado]);
     
@@ -389,7 +395,6 @@ const AdminDashboard = () => {
         return (Array.isArray(productos) ? productos : []).filter(p => (p.nombre || '').toLowerCase().includes(posSearchTerm.toLowerCase())).slice(0, 20);
     }, [productos, posSearchTerm]);
 
-    // 🔥 LOGICA CEREBRAL DE PAGOS MIXTOS 🔥
     const handlePosCheckout = async (metodo, detallesPago = { efectivo: 0, transferencia: 0 }) => {
         if(posCartCalculado.length === 0) return toast.error("La caja está vacía");
         if(metodo === 'CREDITO' && !posClienteId) return toast.error("Selecciona un cliente para poder fiar");
@@ -397,6 +402,7 @@ const AdminDashboard = () => {
         setEnviando(true); const loadId = toast.loading("Facturando...");
         try {
             const resPedido = await API.post('/pedidos', {
+                usuarioId: posClienteId || null, // Guardamos a quién se le vendió
                 productos: posCartCalculado.map(i => ({ id: i.id, cantidad: i.cantidad, precio: i.precio_aplicado })),
                 direccion: 'VENTA FÍSICA EN MOSTRADOR (CAJA)',
                 metodo_pago: 'POS_LOCAL',
@@ -409,7 +415,6 @@ const AdminDashboard = () => {
             if (metodo === 'CONTADO') {
                 const { efectivo, transferencia } = detallesPago;
                 
-                // Registramos lo que entró exactamente en billetes (sin contar el cambio que devolvimos)
                 if (efectivo > 0) {
                     await API.post('/contabilidad/gasto', { 
                         monto: efectivo, descripcion: `Venta Caja #${pedidoId} [EFECTIVO]`, 
@@ -418,8 +423,6 @@ const AdminDashboard = () => {
                         pedidoId: pedidoId 
                     });
                 }
-                
-                // Registramos lo que entró exactamente por Bancos / Transferencia
                 if (transferencia > 0) {
                     await API.post('/contabilidad/gasto', { 
                         monto: transferencia, descripcion: `Venta Caja #${pedidoId} [TRANSFERENCIA]`, 
@@ -436,7 +439,6 @@ const AdminDashboard = () => {
                 await API.post('/creditos', { usuarioId: posClienteId, monto_total: posTotal, descripcion: `Venta Fiada en Caja - Orden #${pedidoId}`, fecha_vencimiento: fechaVencimiento.toISOString() });
             }
 
-            // Calculamos el nombre exacto del método de pago para imprimirlo en el ticket
             let textoMetodoRecibo = 'CONTADO';
             if (metodo === 'CREDITO') {
                 textoMetodoRecibo = 'CRÉDITO (FIADO)';
@@ -447,7 +449,7 @@ const AdminDashboard = () => {
                 else if (transferencia > 0) textoMetodoRecibo = 'CONTADO (TRANSFERENCIA)';
             }
 
-            const clienteData = posClienteId ? (Array.isArray(usuarios) ? usuarios : []).find(u => u.id === parseInt(posClienteId)) : { nombre: 'VENTA CONTADO', cedula: '0000' };
+            const clienteData = posClienteId ? (Array.isArray(usuarios) ? usuarios : []).find(u => u.id === parseInt(posClienteId)) : { nombre: 'VENTA CONTADO (PUBLICO)', cedula: '0000' };
             const facturaObj = {
                 id: pedidoId,
                 total: posTotal,
@@ -477,7 +479,6 @@ const AdminDashboard = () => {
                 })
             );
 
-            // Limpieza general de la caja
             setPosCart([]); 
             setPosCodigo(''); 
             setPosClienteId(''); 
@@ -566,6 +567,13 @@ const AdminDashboard = () => {
                 };
             }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
     }, [transacciones]);
+
+    // 🔥 NUEVO DATA MEMO: HISTORIAL DE VENTAS (TICKETS POS) 🔥
+    const historialDeVentasCaja = useMemo(() => {
+        return (Array.isArray(pedidos) ? pedidos : [])
+            .filter(p => p.metodo_pago === 'POS_LOCAL') // Solo ventas de la caja registradora
+            .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    }, [pedidos]);
 
     const dataAgendaEntregas = useMemo(() => {
         const agenda = {};
@@ -1270,14 +1278,26 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                             <div className="bg-white rounded-[2rem] shadow-2xl border border-gray-100 flex flex-col h-full max-h-[800px]">
-                                <div className="p-6 border-b border-gray-100 bg-gray-50/50 shrink-0"><h2 className="text-2xl font-black uppercase italic tracking-tighter flex items-center gap-2"><ShoppingCart size={24} className="text-blue-600"/> Cuenta Actual</h2></div>
+                                <div className="p-6 border-b border-gray-100 bg-gray-50/50 shrink-0">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h2 className="text-2xl font-black uppercase italic tracking-tighter flex items-center gap-2"><ShoppingCart size={24} className="text-blue-600"/> Cuenta Actual</h2>
+                                    </div>
+                                    {/* 🔥 SELECTOR DE CLIENTE (Activa Precio Mayorista Inmediato) 🔥 */}
+                                    <div>
+                                        <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-1 block flex items-center gap-1"><Users size={12}/> Cliente (Aplica Precio Mayorista)</label>
+                                        <select value={posClienteId} onChange={e => setPosClienteId(e.target.value)} className="w-full bg-white p-3 rounded-lg font-bold text-xs outline-none border border-gray-200 cursor-pointer focus:ring-2 focus:ring-blue-500 transition-all">
+                                            <option value="">-- CLIENTE PÚBLICO (Precio Normal) --</option>
+                                            {(Array.isArray(usuarios) ? usuarios : []).map(u => <option key={u.id} value={u.id}>{u.nombre} - CC: {u.cedula || 'N/A'}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
                                 <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                                     {posCartCalculado.length === 0 ? <p className="text-center text-gray-400 font-black uppercase text-[10px] tracking-widest py-20">Escanea productos para empezar</p> : 
                                         posCartCalculado.map(item => (
                                             <div key={item.id} className="flex gap-4 items-center bg-gray-50 p-3 rounded-2xl border border-gray-100">
                                                 <div className="flex-1">
                                                     <h4 className="font-black text-xs uppercase text-gray-900 line-clamp-1">{item.nombre}</h4>
-                                                    {item.es_mayor && <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Mayorista</span>}
+                                                    {item.es_mayor && <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Precio Especial</span>}
                                                     <div className="flex items-center gap-3 mt-2">
                                                         <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-gray-200">
                                                             <button onClick={() => updatePosQuantity(item.id, item.cantidad - 1)} className="text-gray-400 hover:text-black"><Minus size={12}/></button>
@@ -1311,13 +1331,8 @@ const AdminDashboard = () => {
                                             {enviando ? <Loader2 className="animate-spin" size={16} /> : <DollarSign size={16}/>} Pagar y Facturar
                                         </button>
                                         <div className="bg-orange-50 p-4 rounded-xl border border-orange-200">
-                                            <label className="text-[9px] font-black text-orange-800 uppercase tracking-widest mb-2 block flex items-center gap-1"><Banknote size={12}/> Fiar a Cliente</label>
-                                            <select value={posClienteId} onChange={e => setPosClienteId(e.target.value)} className="w-full bg-white p-3 rounded-lg font-bold text-xs outline-none mb-3 border border-orange-100">
-                                                <option value="">-- Seleccionar Cliente --</option>
-                                                {(Array.isArray(usuarios) ? usuarios : []).map(u => <option key={u.id} value={u.id}>{u.nombre} (Cupo: ${formatCurrency(u.limite_credito)})</option>)}
-                                            </select>
-                                            <button onClick={() => handlePosCheckout('CREDITO')} disabled={enviando || posCartCalculado.length === 0 || !posClienteId} className="w-full bg-orange-500 text-white py-3 rounded-lg font-black uppercase tracking-widest text-[9px] hover:bg-black transition-all disabled:opacity-50 active:scale-95 flex items-center justify-center">
-                                                {enviando ? <Loader2 className="animate-spin" size={14} /> : 'Cargar a Cartera'}
+                                            <button onClick={() => handlePosCheckout('CREDITO')} disabled={enviando || posCartCalculado.length === 0 || !posClienteId} className="w-full bg-orange-500 text-white py-3 rounded-lg font-black uppercase tracking-widest text-[9px] hover:bg-black transition-all disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2">
+                                                {enviando ? <Loader2 className="animate-spin" size={14} /> : <><Banknote size={14}/> Fiar a este cliente</>}
                                             </button>
                                         </div>
                                     </div>
@@ -1325,9 +1340,8 @@ const AdminDashboard = () => {
                             </div>
                         </div>
 
-                        {/* 🔥 NUEVO MODAL DE PAGOS MIXTOS 🔥 */}
+                        {/* MODAL DE PAGOS MIXTOS */}
                         {showCobroEfectivoModal && (() => {
-                            // Matemáticas en tiempo real
                             const pagoEfec = parseFloat(pagoEfectivo || 0);
                             const pagoTrans = parseFloat(pagoTransferencia || 0);
                             const totalPagado = pagoEfec + pagoTrans;
@@ -1336,11 +1350,7 @@ const AdminDashboard = () => {
                             const cambio = totalPagado > posTotal ? totalPagado - posTotal : 0;
                             const habilitarCobro = totalPagado >= posTotal && !enviando;
 
-                            // Lógica de Inteligencia Contable:
-                            // Si el cliente dio un billete de 100k para pagar 60k (y 40k los dio en transferencia),
-                            // el ingreso real de la tienda en efectivo es solo lo que faltaba para cubrir la factura.
-                            // NO registramos el billete completo, registramos el billete MENOS el cambio devuelto.
-                            const ingresoTransferencia = Math.min(pagoTrans, posTotal); // Asumimos que no transfieren de más
+                            const ingresoTransferencia = Math.min(pagoTrans, posTotal); 
                             const ingresoEfectivo = Math.max(0, posTotal - ingresoTransferencia);
 
                             return (
@@ -1469,6 +1479,8 @@ const AdminDashboard = () => {
                     <div className="space-y-6 md:space-y-8">
                         <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
                             <button onClick={() => setSubTabReportes('GENERAL')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'GENERAL' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Ventas y Entregas</button>
+                            {/* 🔥 NUEVA SUB PESTAÑA: HISTORIAL DE VENTAS 🔥 */}
+                            <button onClick={() => setSubTabReportes('HISTORIAL_VENTAS')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'HISTORIAL_VENTAS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Historial Ventas</button>
                             <button onClick={() => setSubTabReportes('PROVEEDORES')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'PROVEEDORES' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Proveedores</button>
                             <button onClick={() => setSubTabReportes('COMPRAS')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'COMPRAS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Historial Compras</button>
                         </div>
@@ -1555,6 +1567,62 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
                             </>
+                        )}
+
+                        {/* 🔥 NUEVO SUB-PANEL: HISTORIAL DE VENTAS 🔥 */}
+                        {subTabReportes === 'HISTORIAL_VENTAS' && (
+                            <div className="bg-white rounded-[2rem] md:rounded-[3rem] shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="p-6 md:p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                    <div>
+                                        <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter flex items-center gap-2"><ReceiptText size={24} className="text-blue-600"/> Historial de Ventas (Auditoría)</h3>
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Registro de comprobantes de POS</p>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto custom-scrollbar">
+                                    <table className="w-full text-left min-w-[800px]">
+                                        <thead className="bg-white text-gray-400 text-[9px] uppercase font-black tracking-widest border-b">
+                                            <tr>
+                                                <th className="px-6 py-4">COMPROBANTE</th>
+                                                <th className="px-6 py-4">FECHA / HORA</th>
+                                                <th className="px-6 py-4">CLIENTE / CAJERO</th>
+                                                <th className="px-6 py-4 text-center">MÉTODO PAGO</th>
+                                                <th className="px-6 py-4 text-right">TOTAL</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {historialDeVentasCaja.length === 0 && (<tr><td colSpan="5" className="py-10 text-center text-gray-400 text-xs font-bold uppercase tracking-widest">Aún no hay ventas de caja registradas</td></tr>)}
+                                            {historialDeVentasCaja.map((venta) => {
+                                                const d = new Date(venta.fecha);
+                                                const fecha = d.toLocaleDateString('es-CO', {day: '2-digit', month: '2-digit', year: 'numeric'});
+                                                const hora = d.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'});
+                                                return (
+                                                    <tr key={venta.id} className="hover:bg-gray-50 transition-all cursor-pointer" onClick={() => setPedidoDetalle(venta)}>
+                                                        <td className="px-6 py-4">
+                                                            <span className="font-black text-xs md:text-sm text-gray-900 bg-gray-100 px-3 py-1 rounded-lg uppercase tracking-widest">#{String(venta.id).padStart(6, '0')}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <p className="text-xs font-bold text-gray-900">{fecha}</p>
+                                                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{hora}</p>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <p className="text-xs font-bold text-gray-900 uppercase truncate max-w-[200px]">{venta.Usuario?.nombre || 'CLIENTE PÚBLICO'}</p>
+                                                            <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest truncate max-w-[200px]">Cajero: Administrador</p>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${venta.metodo_pago === 'CREDITO' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                                                                {venta.metodo_pago || 'CONTADO'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right font-black italic text-gray-900 text-sm md:text-base">
+                                                            ${formatCurrency(venta.total)}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         )}
 
                         {subTabReportes === 'PROVEEDORES' && (
@@ -1912,6 +1980,103 @@ const AdminDashboard = () => {
                 handlers={handlersProps} 
                 data={dataProps} 
             />
+
+            {/* 🔥 MODAL: REPORTE PDF DE AUDITORÍA (ESTILO VENDRIX) 🔥 */}
+            {cierreImprimir && (
+                <div className="fixed inset-0 bg-gray-900/90 z-[999] flex items-center justify-center p-4">
+                    <div className="bg-white max-w-2xl w-full h-[90vh] rounded-xl flex flex-col shadow-2xl relative">
+                        {/* Cabecera del Visor PDF */}
+                        <div className="flex justify-between items-center bg-gray-100 p-4 border-b rounded-t-xl shrink-0">
+                            <h3 className="font-black text-sm uppercase text-gray-800 flex items-center gap-2"><Printer size={16}/> Visor de Auditoría</h3>
+                            <div className="flex gap-2">
+                                <button onClick={() => {
+                                    const printContent = document.getElementById('reporte-cierre-pdf').innerHTML;
+                                    const originalContent = document.body.innerHTML;
+                                    document.body.innerHTML = printContent;
+                                    window.print();
+                                    document.body.innerHTML = originalContent;
+                                    window.location.reload();
+                                }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors">
+                                    Imprimir / PDF
+                                </button>
+                                <button onClick={() => setCierreImprimir(null)} className="bg-gray-200 hover:bg-red-500 hover:text-white px-3 py-2 rounded-lg transition-colors"><X size={16}/></button>
+                            </div>
+                        </div>
+                        
+                        {/* Contenido Imprimible */}
+                        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-white">
+                            <div id="reporte-cierre-pdf" className="text-black font-sans w-full bg-white print:p-0 print:m-0">
+                                {/* Encabezado Ticket */}
+                                <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-end">
+                                    <div>
+                                        <h1 className="text-3xl font-black tracking-tighter uppercase italic">HQ POS</h1>
+                                        <p className="text-xs font-bold text-gray-600 mt-1">Av. Principal 123 • Tel: 3001234567</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <h2 className="text-lg font-black text-blue-600">REPORTE DE CIERRE DE CAJA</h2>
+                                        <p className="text-xs font-bold mt-1">N° de Sesión: <span className="font-black">#{String(cierreImprimir.id).padStart(6, '0')}</span></p>
+                                        <p className="text-xs font-bold">Cajero: <span className="font-black">{cierreImprimir.Cajero?.nombre || 'Administrador'}</span></p>
+                                        <p className="text-xs text-gray-500 mt-1">Apertura: {new Date(cierreImprimir.fecha_apertura).toLocaleString('es-CO')}</p>
+                                        <p className="text-xs text-gray-500">Cierre: {cierreImprimir.fecha_cierre ? new Date(cierreImprimir.fecha_cierre).toLocaleString('es-CO') : 'NO CERRADA'}</p>
+                                    </div>
+                                </div>
+
+                                {/* 1. Flujo de Efectivo */}
+                                <h3 className="text-xs font-black bg-gray-100 p-2 uppercase tracking-widest mb-4">1. FLUJO DE EFECTIVO (GAVETA)</h3>
+                                <div className="space-y-2 text-sm border-b border-gray-200 pb-4 mb-6">
+                                    <div className="flex justify-between"><span className="text-gray-600">Fondo Inicial (Apertura)</span><span className="font-bold">${formatCurrency(cierreImprimir.saldo_inicial)}</span></div>
+                                    <div className="flex justify-between"><span className="text-gray-600">(+) Ingresos por Ventas (Efectivo)</span><span className="font-bold text-green-600">+$ {formatCurrency(cierreImprimir.ingresos_efectivo)}</span></div>
+                                    <div className="flex justify-between"><span className="text-gray-600">(-) Egresos Manuales / Gastos</span><span className="font-bold text-red-600">-$ {formatCurrency(cierreImprimir.egresos_efectivo)}</span></div>
+                                    <div className="flex justify-between mt-4 pt-2 border-t font-black"><span className="uppercase">Efectivo Esperado por Sistema</span><span>${formatCurrency(cierreImprimir.efectivo_esperado)}</span></div>
+                                    <div className="flex justify-between font-black text-blue-600"><span className="uppercase">Efectivo Físico Declarado</span><span>${formatCurrency(cierreImprimir.efectivo_declarado || 0)}</span></div>
+                                </div>
+
+                                {/* Estado del Cuadre */}
+                                {cierreImprimir.estado === 'CERRADA' && (
+                                    <div className={`p-4 rounded-lg mb-6 border-2 ${parseFloat(cierreImprimir.descuadre) === 0 ? 'border-green-500 bg-green-50' : parseFloat(cierreImprimir.descuadre) > 0 ? 'border-orange-500 bg-orange-50' : 'border-red-500 bg-red-50'}`}>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <span className="font-black text-xs uppercase tracking-widest">ESTADO DEL CUADRE</span>
+                                            <span className={`font-black text-lg ${parseFloat(cierreImprimir.descuadre) === 0 ? 'text-green-600' : parseFloat(cierreImprimir.descuadre) > 0 ? 'text-orange-600' : 'text-red-600'}`}>
+                                                {parseFloat(cierreImprimir.descuadre) === 0 ? 'EXACTO' : parseFloat(cierreImprimir.descuadre) > 0 ? `SOBRANTE DE $${formatCurrency(cierreImprimir.descuadre)}` : `FALTANTE DE $${formatCurrency(Math.abs(cierreImprimir.descuadre))}`}
+                                            </span>
+                                        </div>
+                                        {parseFloat(cierreImprimir.descuadre) !== 0 && (
+                                            <div className="mt-2 pt-2 border-t border-black/10">
+                                                <span className="text-[10px] font-bold uppercase text-gray-500">Observaciones del Cajero:</span>
+                                                <p className="text-sm font-bold italic mt-1">{cierreImprimir.observaciones || 'Sin justificación.'}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* 2. Ingresos Digitales */}
+                                <h3 className="text-xs font-black bg-gray-100 p-2 uppercase tracking-widest mb-4">2. INGRESOS DIGITALES (Bancos)</h3>
+                                <div className="space-y-2 text-sm border-b border-gray-200 pb-4 mb-6">
+                                    <div className="flex justify-between"><span className="text-gray-600">Transferencias Bancarias</span><span className="font-bold">${formatCurrency(cierreImprimir.ingresos_transferencia)}</span></div>
+                                </div>
+
+                                {/* TOTAL */}
+                                <div className="bg-black text-white p-6 rounded-xl flex justify-between items-center mb-10">
+                                    <span className="font-black text-xs uppercase tracking-widest">TOTAL RECAUDADO (Efectivo + Digital)</span>
+                                    <span className="font-black text-3xl italic tracking-tighter">${formatCurrency(parseFloat(cierreImprimir.ingresos_efectivo || 0) + parseFloat(cierreImprimir.ingresos_transferencia || 0))}</span>
+                                </div>
+
+                                {/* Firmas */}
+                                <div className="grid grid-cols-2 gap-8 mt-16 pt-8">
+                                    <div className="text-center border-t border-black pt-2">
+                                        <p className="font-black uppercase text-xs">{cierreImprimir.Cajero?.nombre || 'Administrador'}</p>
+                                        <p className="text-[10px] text-gray-500 uppercase font-bold mt-1">Firma del Cajero</p>
+                                    </div>
+                                    <div className="text-center border-t border-black pt-2">
+                                        <p className="font-black uppercase text-xs">ADMINISTRACIÓN</p>
+                                        <p className="text-[10px] text-gray-500 uppercase font-bold mt-1">Firma de Conformidad</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
