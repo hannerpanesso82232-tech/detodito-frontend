@@ -39,6 +39,7 @@ const GestionProveedores = () => {
             setProvEditando(null); 
             setFormulario({ nombre: '', contacto: '', telefono: '', email: '', direccion: '' });
             fetchProveedores();
+            if (onUpdate) onUpdate(); // 🔥 AVISA AL DASHBOARD QUE ACTUALICE LA LISTA 🔥
         } catch (error) { 
             toast.error("Error al guardar proveedor"); 
         } finally { 
@@ -52,6 +53,7 @@ const GestionProveedores = () => {
             await API.delete(`/proveedores/${id}`); 
             toast.success("Proveedor eliminado"); 
             fetchProveedores(); 
+            if (onUpdate) onUpdate(); // 🔥 AVISA AL DASHBOARD QUE ACTUALICE LA LISTA 🔥
         } catch (error) { 
             toast.error("Error al eliminar proveedor"); 
         }

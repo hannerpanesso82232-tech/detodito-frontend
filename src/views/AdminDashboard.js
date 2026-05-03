@@ -1857,7 +1857,7 @@ const AdminDashboard = () => {
                 {tab === 'categorias' && <GestionCategorias />}
 
                 {/* 🔥 VISTA PROVEEDORES 🔥 */}
-                {tab === 'proveedores' && <GestionProveedores />}
+                {tab === 'proveedores' && <GestionProveedores onUpdate={fetchDatos} />}
                 
             </div>
 
