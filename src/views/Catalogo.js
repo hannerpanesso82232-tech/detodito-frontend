@@ -251,11 +251,6 @@ const Catalogo = () => {
                                             </p>
                                         </div>
                                         <div className="flex flex-col items-end mt-1 md:mt-0">
-                                            {esClienteVIP && (
-                                                <p className="text-[9px] md:text-[10px] text-gray-400 font-bold line-through leading-none">
-                                                    ${Number(p.precio).toLocaleString('es-CO')}
-                                                </p>
-                                            )}
                                             <p className={`font-black text-xs md:text-lg italic tracking-tighter ${esClienteVIP ? 'text-green-600' : 'text-black'}`}>
                                                 ${Number(precioMostrar).toLocaleString('es-CO')}
                                             </p>
@@ -325,13 +320,8 @@ const Catalogo = () => {
                                                 </div>
 
                                                 <div className="text-right">
-                                                    {item.es_mayor && (
-                                                        <p className="text-[9px] text-gray-400 font-bold line-through">
-                                                            ${parseFloat(item.precio).toLocaleString()} c/u
-                                                        </p>
-                                                    )}
                                                     <p className={`font-black text-sm italic ${item.es_mayor ? 'text-green-600' : 'text-gray-900'}`}>
-                                                        ${parseFloat(item.precio_aplicado).toLocaleString()} <span className="text-[8px] font-bold text-gray-400">c/u</span>
+                                                        ${parseFloat(item.precio_aplicado || item.precio).toLocaleString('es-CO')} <span className="text-[8px] font-bold text-gray-400">c/u</span>
                                                     </p>
                                                 </div>
                                             </div>

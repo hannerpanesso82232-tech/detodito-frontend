@@ -246,9 +246,18 @@ const Carrito = () => {
                         <button onClick={() => removeFromCart(item.id)} className="text-gray-300 hover:text-red-500 transition-colors p-2"><Trash2 size={18} className="md:w-5 md:h-5"/></button>
                     </div>
                   </div>
-                  <div className="text-center sm:text-right w-full sm:w-auto mt-2 sm:mt-0 border-t sm:border-0 border-gray-100 pt-3 sm:pt-0">
-                    <p className="font-black text-xl md:text-2xl italic tracking-tighter text-gray-900">${(item.precio * item.cantidad).toLocaleString()}</p>
-                    <p className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest">Unit: ${parseFloat(item.precio).toLocaleString()}</p>
+                  <div className="text-center sm:text-right w-full sm:w-auto mt-2 sm:mt-0 border-t sm:border-0 border-gray-100 pt-3 sm:pt-0 flex flex-col items-center sm:items-end">
+                    {item.es_mayor && (
+                        <span className="text-[8px] md:text-[9px] bg-green-100 text-green-700 px-2 py-0.5 rounded uppercase font-black tracking-widest mb-1 w-fit">
+                            Precio VIP
+                        </span>
+                    )}
+                    <p className={`font-black text-xl md:text-2xl italic tracking-tighter ${item.es_mayor ? 'text-green-600' : 'text-gray-900'}`}>
+                        ${((item.precio_aplicado || item.precio) * item.cantidad).toLocaleString('es-CO')}
+                    </p>
+                    <div className="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">
+                        <span>Unit: ${parseFloat(item.precio_aplicado || item.precio).toLocaleString('es-CO')}</span>
+                    </div>
                   </div>
                 </div>
               ))
@@ -380,7 +389,7 @@ const Carrito = () => {
                         <span className="text-gray-900 font-black uppercase text-[10px] md:text-[11px] leading-tight mb-1 line-clamp-1">{item.nombre}</span>
                         <span className="text-[9px] md:text-[10px] text-blue-600 font-bold">CANT: {item.cantidad}</span>
                       </div>
-                      <span className="font-black text-gray-900 italic shrink-0">${(item.precio * item.cantidad).toLocaleString()}</span>
+                      <span className="font-black text-gray-900 italic shrink-0">${((item.precio_aplicado || item.precio) * item.cantidad).toLocaleString('es-CO')}</span>
                     </div>
                   ))}
                 </div>
