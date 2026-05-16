@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import API from '../services/api';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import { 
     Search, Heart, X, Plus, Minus, 
     ChevronRight, ShoppingBag, MapPin 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { io } from "socket.io-client"; 
+
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 
@@ -39,6 +41,7 @@ const SkeletonCard = () => (
 );
 
 const Catalogo = () => {
+    const { user } = useAuth();
     const [productos, setProductos] = useState([]);
     const [categorias, setCategorias] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -191,6 +194,10 @@ const Catalogo = () => {
                         productosFiltrados.map(p => {
                             const metaMayor = parseInt(p.cantidad_mayor) || 0;
                             const tienePrecioMayor = metaMayor > 0 && p.precio_mayor !== null;
+                            
+                            // 🔥 Verificamos si el cliente tiene derecho a descuento VIP 🔥
+                            const esClienteVIP = user != null && tienePrecioMayor;
+                            const precioMostrar = esClienteVIP ? p.precio_mayor : p.precio;
 
                             return (
                             <div key={p.id} className="group relative bg-white p-2 md:p-4 rounded-2xl md:rounded-[2.5rem] border border-transparent hover:border-gray-100 transition-all hover:shadow-2xl flex flex-col h-full">
@@ -243,9 +250,16 @@ const Catalogo = () => {
                                                 {p.Categoria?.nombre || 'General'}
                                             </p>
                                         </div>
-                                        <p className="font-black text-xs md:text-lg italic text-black tracking-tighter mt-1 md:mt-0">
-                                            ${Number(p.precio).toLocaleString('es-CO')}
-                                        </p>
+                                        <div className="flex flex-col items-end mt-1 md:mt-0">
+                                            {esClienteVIP && (
+                                                <p className="text-[9px] md:text-[10px] text-gray-400 font-bold line-through leading-none">
+                                                    ${Number(p.precio).toLocaleString('es-CO')}
+                                                </p>
+                                            )}
+                                            <p className={`font-black text-xs md:text-lg italic tracking-tighter ${esClienteVIP ? 'text-green-600' : 'text-black'}`}>
+                                                ${Number(precioMostrar).toLocaleString('es-CO')}
+                                            </p>
+                                        </div>
                                     </div>
                                     
                                     <p className="text-[9px] md:text-xs text-gray-500 font-medium line-clamp-2 mt-1 mb-3 md:mb-4 flex-1">

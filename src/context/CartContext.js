@@ -142,8 +142,10 @@ export const CartProvider = ({ children }) => {
             // Verificamos si el producto tiene configurado un precio al por mayor
             const tienePrecioMayor = metaMayor > 0 && item.precio_mayor !== null && item.precio_mayor !== undefined;
             
-            // Verificamos si la cantidad que lleva el cliente alcanza para el descuento
-            const aplicaDescuentoMayor = tienePrecioMayor && cantidad >= metaMayor;
+            // EL DESCUENTO APLICA SI:
+            // 1. Lleva la cantidad mayor estipulada
+            // 2. O SI EL USUARIO TIENE SESIÓN INICIADA ('user' no es nulo)
+            const aplicaDescuentoMayor = tienePrecioMayor && (cantidad >= metaMayor || user != null);
             
             // Elegimos el precio final a cobrar
             const precioFinal = aplicaDescuentoMayor ? parseFloat(item.precio_mayor) : parseFloat(item.precio);
@@ -155,7 +157,7 @@ export const CartProvider = ({ children }) => {
                 subtotal: precioFinal * cantidad
             };
         });
-    }, [cart]);
+    }, [cart, user]); // 🔥 Agregamos 'user' a las dependencias para que recalcule si inicia o cierra sesión
 
     // 🔥 MODIFICADO: Ahora soporta agregar MÚLTIPLES cantidades de golpe (para los escáneres de cajas)
     const addToCart = (producto, cantidadAgregada = 1) => {
