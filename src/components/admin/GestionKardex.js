@@ -53,48 +53,52 @@ const GestionKardex = () => {
             </div>
 
             <div className="overflow-x-auto custom-scrollbar p-6 md:p-8">
-                <table className="w-full text-left min-w-[1000px]">
-                    <thead className="bg-gray-50 text-gray-400 text-[9px] uppercase font-black tracking-widest border-b">
+                <table className="w-full text-left min-w-[1200px] border-collapse">
+                    <thead className="bg-gray-50 text-gray-500 text-[9px] uppercase font-black tracking-widest border-b">
                         <tr>
-                            <th className="px-4 py-4">Fecha / Ref.</th>
-                            <th className="px-4 py-4">Producto</th>
-                            <th className="px-4 py-4 text-center">Movimiento</th>
-                            <th className="px-4 py-4 text-center">Cant.</th>
-                            <th className="px-4 py-4 bg-blue-50/50 text-center" colSpan="2">Valores Unitarios</th>
-                            <th className="px-4 py-4 bg-gray-100 text-center" colSpan="2">Saldos Finales (FOTO)</th>
-                            <th className="px-4 py-4 text-right">Sucursales</th>
+                            <th className="px-4 py-4" rowSpan="2">Fecha / Ref.</th>
+                            <th className="px-4 py-4" rowSpan="2">Producto</th>
+                            <th className="px-4 py-4 text-center" rowSpan="2">Movimiento</th>
+                            <th className="px-4 py-3 border-l border-gray-200 text-center bg-gray-100/50" colSpan="2">ANTES (Histórico)</th>
+                            <th className="px-4 py-3 border-l border-blue-200 text-center bg-blue-50/50" colSpan="3">OPERACIÓN (Nuevo Movimiento)</th>
+                            <th className="px-4 py-3 border-l border-green-200 text-center bg-green-50/50" colSpan="2">DESPUÉS (Saldos)</th>
                         </tr>
-                        <tr className="text-[8px] bg-gray-50/50">
-                            <th colSpan="4"></th>
-                            <th className="px-4 py-2 text-center text-gray-500 bg-blue-50/30">Costo Operación</th>
-                            <th className="px-4 py-2 text-center text-gray-500 bg-blue-50/30">Valor Total</th>
-                            <th className="px-4 py-2 text-center text-gray-800 bg-gray-100/50">Stock Disp.</th>
-                            <th className="px-4 py-2 text-center text-gray-800 bg-gray-100/50">Costo Promedio</th>
-                            <th></th>
+                        <tr className="text-[8px]">
+                            {/* ANTES */}
+                            <th className="px-4 py-2 border-l border-gray-200 text-center">Stock</th>
+                            <th className="px-4 py-2 text-center">Costo Prom.</th>
+                            {/* OPERACION */}
+                            <th className="px-4 py-2 border-l border-blue-200 text-center text-blue-700">Cant.</th>
+                            <th className="px-4 py-2 text-center text-blue-700">Costo Unit.</th>
+                            <th className="px-4 py-2 text-center text-blue-700">Total</th>
+                            {/* DESPUES */}
+                            <th className="px-4 py-2 border-l border-green-200 text-center text-green-700">Stock Final</th>
+                            <th className="px-4 py-2 text-center text-green-700">Nuevo Costo Prom.</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-50">
-                        {historialFiltrado.length === 0 && <tr><td colSpan="9" className="text-center py-10 text-xs font-bold text-gray-400 uppercase">Sin movimientos registrados</td></tr>}
+                    <tbody className="divide-y divide-gray-100">
+                        {historialFiltrado.length === 0 && <tr><td colSpan="10" className="text-center py-10 text-xs font-bold text-gray-400 uppercase">Sin movimientos registrados</td></tr>}
                         {historialFiltrado.map(h => (
                             <tr key={h.id} className="hover:bg-gray-50 transition-colors group">
-                                <td className="px-4 py-3">
+                                <td className="px-4 py-4">
                                     <p className="font-bold text-[9px] text-gray-500">{new Date(h.fecha).toLocaleDateString('es-CO')} {new Date(h.fecha).toLocaleTimeString('es-CO', {hour:'2-digit', minute:'2-digit'})}</p>
                                     <p className="font-black text-[9px] text-gray-900 uppercase mt-0.5">{h.referencia || 'N/A'}</p>
                                 </td>
-                                <td className="px-4 py-3 font-black text-[10px] md:text-xs uppercase text-gray-900 truncate max-w-[200px]">{h.Producto?.nombre}</td>
-                                <td className="px-4 py-3 text-center">{getTipoBadge(h.tipo)}</td>
-                                <td className={`px-4 py-3 text-center font-black text-xs ${h.tipo === 'ENTRADA' || h.tipo==='DEVOLUCION' ? 'text-green-600' : 'text-red-600'}`}>{h.tipo === 'SALIDA' ? '-' : '+'}{h.cantidad}</td>
+                                <td className="px-4 py-4 font-black text-[10px] md:text-xs uppercase text-gray-900 truncate max-w-[200px]">{h.Producto?.nombre}</td>
+                                <td className="px-4 py-4 text-center">{getTipoBadge(h.tipo)}</td>
                                 
-                                <td className="px-4 py-3 text-center font-bold text-[10px] text-gray-600 bg-blue-50/10">${formatCurrency(h.costo_unitario)}</td>
-                                <td className="px-4 py-3 text-center font-black italic text-gray-900 text-xs bg-blue-50/10">${formatCurrency(h.valor_total)}</td>
-                                
-                                <td className="px-4 py-3 text-center font-black text-xs text-blue-600 bg-gray-50">{h.saldo_stock_momento} <span className="text-[8px] text-gray-400">uds</span></td>
-                                <td className="px-4 py-3 text-center font-black italic text-gray-900 text-xs bg-gray-50">${formatCurrency(h.saldo_costo_promedio)}</td>
-                                
-                                <td className="px-4 py-3 text-right">
-                                    <p className="text-[8px] font-black uppercase text-gray-400 flex items-center justify-end gap-1"><MapPin size={8}/> Origen: <span className="text-gray-900">{h.sucursal_origen}</span></p>
-                                    <p className="text-[8px] font-black uppercase text-gray-400 flex items-center justify-end gap-1 mt-0.5"><MapPin size={8}/> Destino: <span className="text-blue-600">{h.sucursal_destino}</span></p>
-                                </td>
+                                {/* ANTES */}
+                                <td className="px-4 py-4 border-l border-gray-100 text-center font-bold text-gray-500 bg-gray-50/30">{h.stock_anterior} uds</td>
+                                <td className="px-4 py-4 text-center font-bold text-gray-500 bg-gray-50/30">${formatCurrency(h.costo_anterior)}</td>
+
+                                {/* OPERACIÓN */}
+                                <td className={`px-4 py-4 border-l border-blue-100 text-center font-black text-xs bg-blue-50/10 ${h.tipo === 'ENTRADA' || h.tipo==='DEVOLUCION' ? 'text-green-600' : 'text-red-600'}`}>{h.tipo === 'SALIDA' ? '-' : '+'}{h.cantidad}</td>
+                                <td className="px-4 py-4 text-center font-bold text-[10px] text-blue-800 bg-blue-50/10">${formatCurrency(h.costo_unitario)}</td>
+                                <td className="px-4 py-4 text-center font-black italic text-blue-900 text-xs bg-blue-50/10">${formatCurrency(h.valor_total)}</td>
+
+                                {/* DESPUÉS */}
+                                <td className="px-4 py-4 border-l border-green-100 text-center font-black text-xs text-green-700 bg-green-50/30">{h.saldo_stock_momento} uds</td>
+                                <td className="px-4 py-4 text-center font-black italic text-green-800 text-xs bg-green-50/30">${formatCurrency(h.saldo_costo_promedio)}</td>
                             </tr>
                         ))}
                     </tbody>

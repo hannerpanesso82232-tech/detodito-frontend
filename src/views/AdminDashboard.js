@@ -874,6 +874,8 @@ const AdminDashboard = () => {
         data.append('descripcion', formulario.descripcion); 
         data.append('proveedor', formulario.proveedor || 'No especificado'); 
         data.append('costo_compra', costoFinalBD.toFixed(2)); 
+        const costoLoteReal = productoEditando && stockNuevo > 0 ? parseFloat(formulario.costo_nuevo_lote || 0) : parseFloat(formulario.costo_compra || 0);
+        data.append('costo_operacion', costoLoteReal.toFixed(2));
         data.append('margen_ganancia', parseFloat(formulario.margen_ganancia || 0)); 
         data.append('tope_stock', parseInt(formulario.tope_stock || 10)); 
         
