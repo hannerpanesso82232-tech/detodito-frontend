@@ -580,26 +580,30 @@ const AdminDashboard = () => {
 
     const dataAgendaEntregas = useMemo(() => {
         const agenda = {};
-        (Array.isArray(pedidos) ? pedidos : []).filter(p => p.estado === 'Pendiente').forEach(ped => {
-            const info = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
-            if(info && info.fechaFormateada) {
-                const clave = info.fechaFormateada;
-                if (!agenda[clave]) { agenda[clave] = { dia: info.diaNombre, fecha: info.fechaFormateada, cantidad: 0, total: 0, pedidos: [], reprogramado: info.reprogramado }; }
-                agenda[clave].cantidad += 1; agenda[clave].total += parseFloat(ped.total || 0); agenda[clave].pedidos.push(ped);
-            }
-        });
+        (Array.isArray(pedidos) ? pedidos : [])
+            .filter(p => p.estado === 'Pendiente' && p.metodo_pago !== 'POS_LOCAL') // 🔥 Ignoramos las ventas de la caja
+            .forEach(ped => {
+                const info = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
+                if(info && info.fechaFormateada) {
+                    const clave = info.fechaFormateada;
+                    if (!agenda[clave]) { agenda[clave] = { dia: info.diaNombre, fecha: info.fechaFormateada, cantidad: 0, total: 0, pedidos: [], reprogramado: info.reprogramado }; }
+                    agenda[clave].cantidad += 1; agenda[clave].total += parseFloat(ped.total || 0); agenda[clave].pedidos.push(ped);
+                }
+            });
         return Object.values(agenda).sort((a, b) => b.cantidad - a.cantidad);
     }, [pedidos, rutasDinamicas, horaLimite]);
 
     const dataGraficoRutas = useMemo(() => {
         const conteo = {};
-        (Array.isArray(pedidos) ? pedidos : []).forEach(ped => { 
-            const info = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
-            if(info && info.diaNombre) {
-                const ruta = info.diaNombre.toUpperCase(); 
-                if(!conteo[ruta]) conteo[ruta] = 0; conteo[ruta]++; 
-            }
-        });
+        (Array.isArray(pedidos) ? pedidos : [])
+            .filter(p => p.metodo_pago !== 'POS_LOCAL') // 🔥 Ignoramos las ventas de la caja
+            .forEach(ped => { 
+                const info = calcularFechaReal(ped.ruta, ped.Usuario?.ciudad, ped.direccion, rutasDinamicas, ped.fecha, horaLimite);
+                if(info && info.diaNombre) {
+                    const ruta = info.diaNombre.toUpperCase(); 
+                    if(!conteo[ruta]) conteo[ruta] = 0; conteo[ruta]++; 
+                }
+            });
         return Object.keys(conteo).map(key => ({ name: key, pedidos: conteo[key] })).filter(i => i.pedidos > 0);
     }, [pedidos, rutasDinamicas, horaLimite]);
 
@@ -658,7 +662,9 @@ const AdminDashboard = () => {
 
     const pedidosFiltradosVisual = useMemo(() => {
         let filtrados = Array.isArray(pedidos) ? pedidos : [];
-        if (esCajero) { filtrados = filtrados.filter(ped => ped.metodo_pago === 'POS_LOCAL'); }
+        
+        // 🔥 SEPARACIÓN OMNICANAL: Ocultamos los tickets de la caja en la gestión de despachos 🔥
+        filtrados = filtrados.filter(ped => ped.metodo_pago !== 'POS_LOCAL');
 
         if (filtroTextoPedidos) {
             const termino = filtroTextoPedidos.toLowerCase();
@@ -684,7 +690,7 @@ const AdminDashboard = () => {
             });
         }
         return filtrados;
-    }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos, filtroTextoPedidos, esCajero]);
+    }, [pedidos, rutasDinamicas, horaLimite, filtroFechaPedidos, filtroTextoPedidos]);
 
     const clientesCartera = useMemo(() => {
         const mapa = {};
