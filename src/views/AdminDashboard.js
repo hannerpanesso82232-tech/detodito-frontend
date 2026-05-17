@@ -1252,30 +1252,16 @@ const AdminDashboard = () => {
                         {esCajero && (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-green-500 shadow-sm">
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Efectivo en Caja (Hoy)</p>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Efectivo Ventas (Mi Turno)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
-                                        ${formatCurrency(transacciones
-                                            .filter(t => {
-                                                if(!t.fecha) return false;
-                                                const txDate = t.fecha.split('T')[0];
-                                                const todayStr = getLocalCurrentDate();
-                                                return txDate === todayStr && (t.descripcion || '').toUpperCase().includes('EFECTIVO');
-                                            })
-                                            .reduce((acc, t) => acc + (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO') ? -parseFloat(t.monto || 0) : parseFloat(t.monto || 0)), 0))}
+                                        ${formatCurrency(calculosArqueo.ingresosEfectivo)}
                                     </h3>
                                 </div>
 
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-blue-500 shadow-sm">
-                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Transferencias (Hoy)</p>
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Transferencias (Mi Turno)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
-                                        ${formatCurrency(transacciones
-                                            .filter(t => {
-                                                if(!t.fecha) return false;
-                                                const txDate = t.fecha.split('T')[0];
-                                                const todayStr = getLocalCurrentDate();
-                                                return txDate === todayStr && (t.descripcion || '').toUpperCase().includes('TRANSFERENCIA');
-                                            })
-                                            .reduce((acc, t) => acc + (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO') ? -parseFloat(t.monto || 0) : parseFloat(t.monto || 0)), 0))}
+                                        ${formatCurrency(calculosArqueo.ingresosTransf)}
                                     </h3>
                                 </div>
 
