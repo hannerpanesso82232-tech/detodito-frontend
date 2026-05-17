@@ -19,6 +19,8 @@ import GestionProveedores from '../components/admin/GestionProveedores';
 import AdminModals from '../components/admin/AdminModals';
 import { formatCurrency, formatearImagen } from '../utils/adminUtils';
 import { useAuth } from '../context/AuthContext'; 
+import GestionRRHH from '../components/admin/GestionRRHH';
+import GestionKardex from '../components/admin/GestionKardex';
 
 const SOCKET_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
 const RUTAS_BASE = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "A CONVENIR"];
@@ -1166,10 +1168,10 @@ const AdminDashboard = () => {
 
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
-                    {['reportes', 'pos', 'cartera', 'finanzas', 'pedidos', 'productos', 'clientes', 'categorias', 'proveedores'].map((t) => {
-                        if (esCajero && t !== 'pos' && t !== 'pedidos') return null;
-                        const nombresPestanas = { 'reportes': 'Analíticas', 'pos': 'Caja (POS)', 'cartera': 'Cartera', 'finanzas': 'Contabilidad', 'pedidos': 'Pedidos', 'productos': 'Inventario', 'clientes': 'Clientes', 'categorias': 'Categorías', 'proveedores': 'Proveedores' };
-                        return (
+                    {['reportes', 'pos', 'cartera', 'finanzas', 'pedidos', 'productos', 'kardex', 'rrhh', 'clientes', 'categorias', 'proveedores'].map((t) => {
+                     if (esCajero && t !== 'pos' && t !== 'pedidos') return null;
+                            const nombresPestanas = { 'reportes': 'Analíticas', 'pos': 'Caja (POS)', 'cartera': 'Cartera', 'finanzas': 'Contabilidad', 'pedidos': 'Pedidos', 'productos': 'Inventario', 'kardex': 'Kardex Valorizado', 'rrhh': 'RRHH & Nómina', 'clientes': 'Clientes', 'categorias': 'Categorías', 'proveedores': 'Proveedores' };
+                             return (
                             <button 
                                 key={t} onClick={() => setTab(t)} 
                                 className={`px-4 md:px-8 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${tab === t ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}
@@ -1969,8 +1971,14 @@ const AdminDashboard = () => {
                 {/* --- VISTA CATEGORÍAS --- */}
                 {tab === 'categorias' && <GestionCategorias />}
 
-                {/* 🔥 VISTA PROVEEDORES 🔥 */}
+                {/*  VISTA PROVEEDORES  */}
                 {tab === 'proveedores' && <GestionProveedores onUpdate={fetchDatos} />}
+
+                {/*  VISTA KARDEX  */}
+                {tab === 'kardex' && <GestionKardex />}
+
+                {/*  VISTA RRHH  */}
+                {tab === 'rrhh' && <GestionRRHH />}
                 
             </div>
 
