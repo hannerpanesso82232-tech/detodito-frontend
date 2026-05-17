@@ -116,6 +116,11 @@ const AdminDashboard = () => {
         }
     }, [esCajero]);
 
+    const [cajaActiva, setCajaActiva] = useState(null);
+    const [historialCajas, setHistorialCajas] = useState([]);
+    const [montoApertura, setMontoApertura] = useState('');
+    const [efectivoDeclarado, setEfectivoDeclarado] = useState('');
+    const [observacionesCierre, setObservacionesCierre] = useState('');
     const [posCart, setPosCart] = useState([]);
     const [posCodigo, setPosCodigo] = useState('');
     const [posClienteId, setPosClienteId] = useState('');
@@ -193,7 +198,7 @@ const AdminDashboard = () => {
         try {
             const ts = new Date().getTime();
             
-            const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos, resProveedores] = await Promise.all([
+            const [resProd, resPed, resCat, resUsers, resWa, resFinanzas, resTransacciones, resRutas, resHora, resCreditos, resProveedores, resCaja, resCajaHistorial] = await Promise.all([
                 API.get(`/productos?t=${ts}`).catch(() => ({ data: [] })), 
                 API.get(`/pedidos/admin/todos?t=${ts}`).catch(() => ({ data: [] })), 
                 API.get(`/categorias?t=${ts}`).catch(() => ({ data: [] })),
@@ -204,7 +209,10 @@ const AdminDashboard = () => {
                 API.get(`/pedidos/config/rutas?t=${ts}`).catch(() => ({ data: [] })),
                 API.get(`/pedidos/config/horalimite?t=${ts}`).catch(() => ({ data: { hora: '20:00' } })),
                 API.get(`/creditos?t=${ts}`).catch(() => ({ data: [] })),
-                API.get(`/proveedores?t=${ts}`).catch(() => ({ data: [] })) 
+                API.get(`/proveedores?t=${ts}`).catch(() => ({ data: [] })),
+                // 🔥 AQUÍ CONECTAMOS EL BACKEND DE CAJA 🔥
+                API.get(`/caja/activa?t=${ts}`).catch(() => ({ data: null })), 
+                API.get(`/caja/historial?t=${ts}`).catch(() => ({ data: [] })) 
             ]);
             
             setProductos(resProd.data || []); 
@@ -218,7 +226,15 @@ const AdminDashboard = () => {
             setHoraLimite(resHora.data?.hora || '20:00');
             setCreditos(resCreditos.data || []); 
             setProveedoresDB(resProveedores.data || []); 
-        } catch (err) { toast.error("Error de sincronización"); } finally { setLoading(false); }
+            
+            // 🔥 GUARDAMOS LOS DATOS DE CAJA EN MEMORIA 🔥
+            setCajaActiva(resCaja.data); 
+            setHistorialCajas(resCajaHistorial.data || []);
+        } catch (err) { 
+            toast.error("Error de sincronización"); 
+        } finally { 
+            setLoading(false); 
+        }
     }, []);
 
     const fetchFinanzasYPedidos = useCallback(async () => {
@@ -1507,6 +1523,7 @@ const AdminDashboard = () => {
                             <button onClick={() => setSubTabReportes('HISTORIAL_VENTAS')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'HISTORIAL_VENTAS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Historial Ventas</button>
                             {!esCajero && <button onClick={() => setSubTabReportes('HISTORIAL_CIERRES')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'HISTORIAL_CIERRES' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Auditoría de Caja</button>}
                             {!esCajero && <button onClick={() => setSubTabReportes('PROVEEDORES')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'PROVEEDORES' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Proveedores</button>}
+                            {!esCajero && <button onClick={() => setSubTabReportes('COMPRAS')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'COMPRAS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Historial Compras</button>}
                         </div>
 
                         {subTabReportes === 'GENERAL' && (
