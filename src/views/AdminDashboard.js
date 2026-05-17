@@ -1255,14 +1255,34 @@ const AdminDashboard = () => {
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-green-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Efectivo Ventas (Mi Turno)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
-                                        ${formatCurrency(calculosArqueo.ingresosEfectivo)}
+                                        ${formatCurrency(transacciones
+                                            .filter(t => {
+                                                if(!t.fecha) return false;
+                                                const txDate = t.fecha.split('T')[0];
+                                                if (txDate !== getLocalCurrentDate()) return false;
+                                                if (!(t.descripcion || '').toUpperCase().includes('EFECTIVO')) return false;
+                                                // 🔥 MAGIA: Validamos que la venta le pertenezca a ESTE CAJERO
+                                                const pedidoAsociado = pedidos.find(p => p.id === t.pedidoId);
+                                                return pedidoAsociado && String(pedidoAsociado.usuarioId) === String(user?.id);
+                                            })
+                                            .reduce((acc, t) => acc + (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO') ? -parseFloat(t.monto || 0) : parseFloat(t.monto || 0)), 0))}
                                     </h3>
                                 </div>
 
                                 <div className="bg-white p-5 rounded-[2rem] border-b-4 border-blue-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Transferencias (Mi Turno)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
-                                        ${formatCurrency(calculosArqueo.ingresosTransf)}
+                                        ${formatCurrency(transacciones
+                                            .filter(t => {
+                                                if(!t.fecha) return false;
+                                                const txDate = t.fecha.split('T')[0];
+                                                if (txDate !== getLocalCurrentDate()) return false;
+                                                if (!(t.descripcion || '').toUpperCase().includes('TRANSFERENCIA')) return false;
+                                                // 🔥 MAGIA: Validamos que la venta le pertenezca a ESTE CAJERO
+                                                const pedidoAsociado = pedidos.find(p => p.id === t.pedidoId);
+                                                return pedidoAsociado && String(pedidoAsociado.usuarioId) === String(user?.id);
+                                            })
+                                            .reduce((acc, t) => acc + (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO') ? -parseFloat(t.monto || 0) : parseFloat(t.monto || 0)), 0))}
                                     </h3>
                                 </div>
 
