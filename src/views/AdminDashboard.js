@@ -110,7 +110,10 @@ const AdminDashboard = () => {
     const [filtroMesRanking, setFiltroMesRanking] = useState('TODOS');
 
     useEffect(() => {
-        if (esCajero) setTab('pos');
+        if (esCajero) {
+            setTab('pos');
+            setSubTabReportes('HISTORIAL_VENTAS');
+        }
     }, [esCajero]);
 
     const [posCart, setPosCart] = useState([]);
@@ -1177,8 +1180,8 @@ const AdminDashboard = () => {
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
                     {['reportes', 'pos', 'cartera', 'finanzas', 'pedidos', 'productos', 'kardex', 'rrhh', 'clientes', 'categorias', 'proveedores'].map((t) => {
-                     if (esCajero && t !== 'pos' && t !== 'pedidos') return null;
-                            const nombresPestanas = { 'reportes': 'Analíticas', 'pos': 'Caja (POS)', 'cartera': 'Cartera', 'finanzas': 'Contabilidad', 'pedidos': 'Pedidos', 'productos': 'Inventario', 'kardex': 'Kardex Valorizado', 'rrhh': 'RRHH & Nómina', 'clientes': 'Clientes', 'categorias': 'Categorías', 'proveedores': 'Proveedores' };
+                        if (esCajero && !['pos', 'pedidos', 'reportes'].includes(t)) return null;
+                        const nombresPestanas = { 'reportes': esCajero ? 'Historial de Caja' : 'Analíticas', 'pos': 'Caja (POS)', 'cartera': 'Cartera', 'finanzas': 'Contabilidad', 'pedidos': 'Pedidos', 'productos': 'Inventario', 'kardex': 'Kardex Valorizado', 'rrhh': 'RRHH & Nómina', 'clientes': 'Clientes', 'categorias': 'Categorías', 'proveedores': 'Proveedores' };
                              return (
                             <button 
                                 key={t} onClick={() => setTab(t)} 
@@ -1489,11 +1492,11 @@ const AdminDashboard = () => {
                 {tab === 'reportes' && (
                     <div className="space-y-6 md:space-y-8">
                         <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
-                            <button onClick={() => setSubTabReportes('GENERAL')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'GENERAL' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Ventas y Entregas</button>
-                            {/* 🔥 NUEVA SUB PESTAÑA: HISTORIAL DE VENTAS 🔥 */}
+                            {!esCajero && <button onClick={() => setSubTabReportes('GENERAL')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'GENERAL' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Ventas y Entregas</button>}
                             <button onClick={() => setSubTabReportes('HISTORIAL_VENTAS')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'HISTORIAL_VENTAS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Historial Ventas</button>
-                            <button onClick={() => setSubTabReportes('PROVEEDORES')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'PROVEEDORES' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Proveedores</button>
-                            <button onClick={() => setSubTabReportes('COMPRAS')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'COMPRAS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Historial Compras</button>
+                            <button onClick={() => setSubTabReportes('HISTORIAL_CIERRES')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'HISTORIAL_CIERRES' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Auditoría de Caja</button>
+                            {!esCajero && <button onClick={() => setSubTabReportes('PROVEEDORES')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'PROVEEDORES' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Proveedores</button>}
+                            {!esCajero && <button onClick={() => setSubTabReportes('COMPRAS')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'COMPRAS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Historial Compras</button>}
                         </div>
 
                         {subTabReportes === 'GENERAL' && (
