@@ -574,12 +574,22 @@ const AdminDashboard = () => {
             }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
     }, [transacciones]);
 
-    // 🔥 NUEVO DATA MEMO: HISTORIAL DE VENTAS (TICKETS POS) 🔥
     const historialDeVentasCaja = useMemo(() => {
-        return (Array.isArray(pedidos) ? pedidos : [])
-            .filter(p => p.metodo_pago === 'POS_LOCAL') // Solo ventas de la caja registradora
-            .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    }, [pedidos]);
+        let ventasCaja = (Array.isArray(pedidos) ? pedidos : [])
+            .filter(p => p.metodo_pago && p.metodo_pago.includes('POS_LOCAL'));
+
+        // 🔥 Filtro estricto para CAJERO: Solo ve ventas de HOY y hechas por ÉL MISMO 🔥
+        if (esCajero) {
+            const hoyStr = getLocalCurrentDate();
+            ventasCaja = ventasCaja.filter(p => {
+                const fechaPedido = p.fecha ? p.fecha.split('T')[0] : '';
+                const esDelCajero = String(p.usuarioId || p.usuario_id) === String(user?.id);
+                return fechaPedido === hoyStr && esDelCajero;
+            });
+        }
+
+        return ventasCaja.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    }, [pedidos, esCajero, user]);
 
     const dataAgendaEntregas = useMemo(() => {
         const agenda = {};
@@ -1180,8 +1190,9 @@ const AdminDashboard = () => {
             <div className="flex flex-col md:flex-row justify-between items-center mb-6 md:mb-8 gap-4">
                 <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
                     {['reportes', 'pos', 'cartera', 'finanzas', 'pedidos', 'productos', 'kardex', 'rrhh', 'clientes', 'categorias', 'proveedores'].map((t) => {
-                        if (esCajero && !['pos', 'pedidos', 'reportes'].includes(t)) return null;
-                        const nombresPestanas = { 'reportes': esCajero ? 'Historial de Caja' : 'Analíticas', 'pos': 'Caja (POS)', 'cartera': 'Cartera', 'finanzas': 'Contabilidad', 'pedidos': 'Pedidos', 'productos': 'Inventario', 'kardex': 'Kardex Valorizado', 'rrhh': 'RRHH & Nómina', 'clientes': 'Clientes', 'categorias': 'Categorías', 'proveedores': 'Proveedores' };
+                        // 🔥 El cajero SOLO ve POS y su propio Historial 🔥
+                        if (esCajero && t !== 'pos' && t !== 'reportes') return null;
+                        const nombresPestanas = { 'reportes': esCajero ? 'Historial de Ventas' : 'Analíticas', 'pos': 'Caja (POS)', 'cartera': 'Cartera', 'finanzas': 'Contabilidad', 'pedidos': 'Pedidos', 'productos': 'Inventario', 'kardex': 'Kardex Valorizado', 'rrhh': 'RRHH & Nómina', 'clientes': 'Clientes', 'categorias': 'Categorías', 'proveedores': 'Proveedores' };
                              return (
                             <button 
                                 key={t} onClick={() => setTab(t)} 
@@ -1494,9 +1505,8 @@ const AdminDashboard = () => {
                         <div className="flex gap-2 p-1 bg-gray-200/50 rounded-2xl w-full md:w-fit border border-gray-100 overflow-x-auto custom-scrollbar">
                             {!esCajero && <button onClick={() => setSubTabReportes('GENERAL')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'GENERAL' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Ventas y Entregas</button>}
                             <button onClick={() => setSubTabReportes('HISTORIAL_VENTAS')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'HISTORIAL_VENTAS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Historial Ventas</button>
-                            <button onClick={() => setSubTabReportes('HISTORIAL_CIERRES')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'HISTORIAL_CIERRES' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Auditoría de Caja</button>
+                            {!esCajero && <button onClick={() => setSubTabReportes('HISTORIAL_CIERRES')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'HISTORIAL_CIERRES' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Auditoría de Caja</button>}
                             {!esCajero && <button onClick={() => setSubTabReportes('PROVEEDORES')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'PROVEEDORES' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Proveedores</button>}
-                            {!esCajero && <button onClick={() => setSubTabReportes('COMPRAS')} className={`px-4 md:px-6 py-2 md:py-3 rounded-xl font-black uppercase text-[9px] md:text-[10px] tracking-[0.2em] transition-all whitespace-nowrap ${subTabReportes === 'COMPRAS' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}>Historial Compras</button>}
                         </div>
 
                         {subTabReportes === 'GENERAL' && (
@@ -1619,8 +1629,10 @@ const AdminDashboard = () => {
                                                             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{hora}</p>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            <p className="text-xs font-bold text-gray-900 uppercase truncate max-w-[200px]">{venta.Usuario?.nombre || 'CLIENTE PÚBLICO'}</p>
-                                                            <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest truncate max-w-[200px]">Cajero: Administrador</p>
+                                                            <p className="text-xs font-bold text-gray-900 uppercase truncate max-w-[200px]">CLIENTE MOSTRADOR</p>
+                                                            <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest truncate max-w-[200px]">
+                                                                Cajero: {venta.Usuario?.nombre || 'Administrador'}
+                                                            </p>
                                                         </td>
                                                         <td className="px-6 py-4 text-center">
                                                             <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${venta.metodo_pago === 'CREDITO' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
