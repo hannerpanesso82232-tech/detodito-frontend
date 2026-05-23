@@ -678,9 +678,26 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                             <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Ciudad</label><input type="text" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.ciudad || ''} onChange={e => setFormEditUsuario({...formEditUsuario, ciudad: e.target.value})} /></div>
                             <div><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Rol del Sistema</label>
                                 <select className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 text-xs md:text-sm" value={formEditUsuario.rol || 'CLIENTE'} onChange={e => setFormEditUsuario({...formEditUsuario, rol: e.target.value})}>
-                                    <option value="CLIENTE">CLIENTE REGULAR</option><option value="ADMIN">ADMINISTRADOR</option><option value="COMPRAS">ENCARGADO DE COMPRAS</option>
+                                    <option value="CLIENTE">CLIENTE REGULAR</option>
+                                    <option value="ADMIN">ADMINISTRADOR</option>
                                     <option value="CAJERO">CAJERO POS</option>
                                 </select>
+                                {/* 🔥 SELECTOR DE SUCURSAL (Solo visible si es Cajero) 🔥 */}
+                            {forms.formUsuario.rol === 'CAJERO' && (
+                                <div className="mt-4">
+                                    <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-2 block mb-1">Asignar a Sucursal</label>
+                                    <select 
+                                        value={forms.formUsuario.sucursalId || ''} 
+                                        onChange={e => setters.setFormUsuario({...forms.formUsuario, sucursalId: e.target.value})} 
+                                        className="w-full bg-blue-50 text-blue-700 p-4 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                    >
+                                        <option value="">Bodega Central (Sin Sucursal)</option>
+                                        {(data.sucursales || []).map(s => (
+                                            <option key={s.id} value={s.id}>{s.nombre}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             </div>
                             <div className="sm:col-span-2"><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Dirección Exacta</label><textarea rows="2" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 resize-none text-xs md:text-sm" value={formEditUsuario.direccion || ''} onChange={e => setFormEditUsuario({...formEditUsuario, direccion: e.target.value})} /></div>
                             
@@ -715,9 +732,25 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                             <select className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-black text-xs md:text-sm cursor-pointer" value={formUsuario.rol || 'CLIENTE'} onChange={e => setFormUsuario({...formUsuario, rol: e.target.value})}>
                                 <option value="CLIENTE">CLIENTE REGULAR</option>
                                 <option value="ADMIN">ADMINISTRADOR</option>
-                                <option value="COMPRAS">ENCARGADO DE COMPRAS</option>
                                 <option value="CAJERO">CAJERO POS</option>
                             </select>
+
+                            {/* 🔥 SELECTOR DE SUCURSAL (Solo visible si es Cajero) 🔥 */}
+                            {forms.formUsuario.rol === 'CAJERO' && (
+                                <div className="mt-4">
+                                    <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-2 block mb-1">Asignar a Sucursal</label>
+                                    <select 
+                                        value={forms.formUsuario.sucursalId || ''} 
+                                        onChange={e => setters.setFormUsuario({...forms.formUsuario, sucursalId: e.target.value})} 
+                                        className="w-full bg-blue-50 text-blue-700 p-4 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                    >
+                                        <option value="">Bodega Central (Sin Sucursal)</option>
+                                        {(data.sucursales || []).map(s => (
+                                            <option key={s.id} value={s.id}>{s.nombre}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-2 gap-3 md:gap-4"><input type="text" placeholder="Ciudad (Ej: Carepa)" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.ciudad || ''} onChange={e => setFormUsuario({...formUsuario, ciudad: e.target.value})} /><input type="text" placeholder="Teléfono" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.telefono || ''} onChange={e => setFormUsuario({...formUsuario, telefono: e.target.value})} /></div>
                             <input type="text" placeholder="Dirección Exacta" className="w-full bg-gray-50 p-3 md:p-4 rounded-xl md:rounded-2xl font-bold text-xs md:text-sm outline-none" value={formUsuario.direccion || ''} onChange={e => setFormUsuario({...formUsuario, direccion: e.target.value})} />
