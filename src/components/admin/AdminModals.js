@@ -682,15 +682,13 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                                     <option value="ADMIN">ADMINISTRADOR</option>
                                     <option value="CAJERO">CAJERO POS</option>
                                 </select>
-                                
-                            </div>
-                            {/* 🔥 SELECTOR DE SUCURSAL (Solo visible si es Cajero) 🔥 */}
-                            {forms.formUsuario.rol === 'CAJERO' && (
+                                {/* 🔥 SELECTOR DE SUCURSAL (Solo visible si es Cajero) 🔥 */}
+                            {forms.formEditUsuario.rol === 'CAJERO' && (
                                 <div className="mt-4">
                                     <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest ml-2 block mb-1">Asignar a Sucursal</label>
                                     <select 
-                                        value={forms.formUsuario.sucursalId || ''} 
-                                        onChange={e => setters.setFormUsuario({...forms.formUsuario, sucursalId: e.target.value})} 
+                                        value={forms.formEditUsuario.sucursalId || ''} 
+                                        onChange={e => setters.setFormEditUsuario({...forms.formEditUsuario, sucursalId: e.target.value})} 
                                         className="w-full bg-blue-50 text-blue-700 p-4 rounded-xl text-xs font-bold uppercase outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                                     >
                                         <option value="">Bodega Central (Sin Sucursal)</option>
@@ -700,6 +698,9 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                                     </select>
                                 </div>
                             )}
+                                
+                            </div>
+                            
                             <div className="sm:col-span-2"><label className="text-[8px] md:text-[9px] font-black uppercase text-gray-400 mb-1 ml-1 md:ml-2">Dirección Exacta</label><textarea rows="2" className="w-full bg-gray-50 border-none rounded-xl md:rounded-2xl p-3 md:p-4 font-bold outline-none focus:ring-2 focus:ring-blue-500 resize-none text-xs md:text-sm" value={formEditUsuario.direccion || ''} onChange={e => setFormEditUsuario({...formEditUsuario, direccion: e.target.value})} /></div>
                             
                             <div className="sm:col-span-2 mt-4 bg-orange-50/50 p-4 rounded-2xl border border-orange-100 grid grid-cols-2 gap-4">
