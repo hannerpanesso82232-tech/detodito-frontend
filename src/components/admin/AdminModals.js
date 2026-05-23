@@ -298,6 +298,43 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                                 <input type="number" step="0.01" className="w-1/2 sm:w-1/3 bg-white border-none rounded-lg md:rounded-xl p-2 md:p-3 font-bold shadow-sm outline-none focus:ring-2 focus:ring-black text-xs md:text-sm" value={formulario.precio || ''} onChange={e => setFormulario({...formulario, precio: e.target.value})} placeholder="Precio exacto..." />
                             </div>
 
+                            {/* 🔥 MÓDULO DE FARMACIA (FRACCIONAMIENTO) 🔥 */}
+                            <div className="col-span-1 md:col-span-2 bg-blue-50 border border-blue-200 p-4 rounded-2xl mt-2">
+                                <label className="flex items-center gap-2 cursor-pointer mb-4">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={forms.formulario.es_fraccionable || false} 
+                                        onChange={(e) => setters.setFormulario({...forms.formulario, es_fraccionable: e.target.checked})} 
+                                        className="w-5 h-5 accent-blue-600 cursor-pointer"
+                                    />
+                                    <span className="font-black uppercase text-blue-900 text-xs tracking-widest">Habilitar Fraccionamiento (Farmacia)</span>
+                                </label>
+
+                                {forms.formulario.es_fraccionable && (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in zoom-in-95">
+                                        <div>
+                                            <label className="text-[9px] font-black text-blue-700 uppercase tracking-widest ml-1">Uds. por Caja</label>
+                                            <input type="number" placeholder="Ej: 30" value={forms.formulario.unidades_por_caja || ''} onChange={e=>setters.setFormulario({...forms.formulario, unidades_por_caja: e.target.value})} className="w-full mt-1 p-3 rounded-xl bg-white border border-blue-100 outline-none font-bold text-xs focus:ring-2 focus:ring-blue-500" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-black text-blue-700 uppercase tracking-widest ml-1">Precio x Caja</label>
+                                            <input type="number" placeholder="Ej: 30000" value={forms.formulario.precio_caja || ''} onChange={e=>setters.setFormulario({...forms.formulario, precio_caja: e.target.value})} className="w-full mt-1 p-3 rounded-xl bg-white border border-blue-100 outline-none font-bold text-xs focus:ring-2 focus:ring-blue-500" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-black text-green-700 uppercase tracking-widest ml-1">Uds. por Sello</label>
+                                            <input type="number" placeholder="Ej: 10" value={forms.formulario.unidades_por_sello || ''} onChange={e=>setters.setFormulario({...forms.formulario, unidades_por_sello: e.target.value})} className="w-full mt-1 p-3 rounded-xl bg-white border border-green-100 outline-none font-bold text-xs focus:ring-2 focus:ring-green-500" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[9px] font-black text-green-700 uppercase tracking-widest ml-1">Precio x Sello</label>
+                                            <input type="number" placeholder="Ej: 12000" value={forms.formulario.precio_sello || ''} onChange={e=>setters.setFormulario({...forms.formulario, precio_sello: e.target.value})} className="w-full mt-1 p-3 rounded-xl bg-white border border-green-100 outline-none font-bold text-xs focus:ring-2 focus:ring-green-500" />
+                                        </div>
+                                        <div className="col-span-2 md:col-span-4 mt-2">
+                                            <p className="text-[9px] text-blue-600 font-bold uppercase italic flex items-center gap-1">⚠️ Recuerda: El "Stock" y el "Precio Venta (Final)" de arriba ahora equivalen a la pastilla/unidad suelta.</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             <button disabled={enviando || (precioCalculado <= 0 && !formulario.precio)} className={`col-span-2 mt-2 md:mt-4 text-white py-4 md:py-6 rounded-xl md:rounded-3xl font-black uppercase tracking-[0.2em] text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-2 md:gap-3 shadow-xl ${(precioCalculado <= 0 && !formulario.precio) ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-black hover:scale-[1.02]'}`}>
                                 {enviando ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={16} className="md:w-5 md:h-5"/>} {productoEditando ? 'Guardar Cambios' : 'PUBLICAR PRODUCTO'}
                             </button>

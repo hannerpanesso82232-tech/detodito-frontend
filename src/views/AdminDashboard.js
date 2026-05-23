@@ -169,6 +169,8 @@ const AdminDashboard = () => {
     const [showDevolucionModal, setShowDevolucionModal] = useState(false);
     const [itemDevolucion, setItemDevolucion] = useState(null);
     const [cantidadDevolucion, setCantidadDevolucion] = useState(1);
+    const [showFraccionModal, setShowFraccionModal] = useState(false);
+    const [productoFraccionar, setProductoFraccionar] = useState(null);
   
     const [transaccionSeleccionada, setTransaccionSeleccionada] = useState(null);
     const [productoEditando, setProductoEditando] = useState(null);
@@ -188,7 +190,7 @@ const AdminDashboard = () => {
     const [nuevaRutaDia, setNuevaRutaDia] = useState('');
     const [nuevaPassword, setNuevaPassword] = useState('');
     
-    const [formulario, setFormulario] = useState({ nombre: '', precio: '', stock: '', stock_adicional: '', costo_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10 });
+    const [formulario, setFormulario] = useState({ nombre: '', precio: '', stock: '', stock_adicional: '', costo_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10, cantidad_mayor: '', precio_mayor: '', codigo_barras: '', es_fraccionable: false, unidades_por_caja: 1, unidades_por_sello: 1, precio_caja: '', precio_sello: '' });
     const [formUsuario, setFormUsuario] = useState({ nombre: '', cedula: '', email: '', password: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30, credito_activo: true, sucursalId: '' });
     const [formEditUsuario, setFormEditUsuario] = useState({ id: '', nombre: '', cedula: '', email: '', telefono: '', ciudad: '', direccion: '', rol: 'CLIENTE', limite_credito: 0, dias_credito: 30, credito_activo: true, sucursalId: '' });
     const [formGasto, setFormGasto] = useState({ monto: '', descripcion: '', categoria: 'Logística', tipo: 'EGRESO', fecha: '' });
@@ -356,32 +358,80 @@ const AdminDashboard = () => {
     };
 
     const addToPosCart = (producto, qty = 1) => {
+        // 🔥 INTERCEPTOR DE FARMACIA 🔥
+        if (producto.es_fraccionable) {
+            setProductoFraccionar(producto);
+            setShowFraccionModal(true);
+            return;
+        }
+
+        const cartItemId = producto.id.toString(); // Cacharrería Normal
+        
         setPosCart(prev => {
-            const existe = prev.find(item => item.id === producto.id);
+            const existe = prev.find(item => item.cartItemId === cartItemId);
             if (existe) {
                 const nuevaCant = existe.cantidad + qty;
                 if (nuevaCant > producto.stock) {
                     toast.error(`Stock máximo alcanzado (${producto.stock})`);
-                    return prev.map(i => i.id === producto.id ? { ...i, cantidad: producto.stock } : i);
+                    return prev.map(i => i.cartItemId === cartItemId ? { ...i, cantidad: producto.stock } : i);
                 }
-                return prev.map(i => i.id === producto.id ? { ...i, cantidad: nuevaCant } : i);
+                return prev.map(i => i.cartItemId === cartItemId ? { ...i, cantidad: nuevaCant } : i);
             }
             if (producto.stock >= qty) {
                 toast.success(`${qty}x ${producto.nombre} agregado`);
-                return [...prev, { ...producto, cantidad: qty }];
+                return [...prev, { ...producto, cartItemId, cantidad: qty }];
             } else if (producto.stock > 0) {
-                toast.success(`Se agregaron solo ${producto.stock} uds (Stock Total)`);
-                return [...prev, { ...producto, cantidad: producto.stock }];
+                toast.success(`Se agregaron solo ${producto.stock} uds`);
+                return [...prev, { ...producto, cartItemId, cantidad: producto.stock }];
             }
             toast.error("Sin existencias"); return prev;
         });
     };
 
-    const updatePosQuantity = (id, nuevaCantidad) => {
+    const procesarFraccion = (tipo) => {
+        let cantAAgregar = 1;
+        let precioEspecial = productoFraccionar.precio; 
+        let nombreModificado = productoFraccionar.nombre;
+
+        if (tipo === 'CAJA') {
+            cantAAgregar = parseInt(productoFraccionar.unidades_por_caja || 1);
+            precioEspecial = parseFloat(productoFraccionar.precio_caja || (productoFraccionar.precio * cantAAgregar));
+            nombreModificado = `${productoFraccionar.nombre} (Caja)`;
+        } else if (tipo === 'SELLO') {
+            cantAAgregar = parseInt(productoFraccionar.unidades_por_sello || 1);
+            precioEspecial = parseFloat(productoFraccionar.precio_sello || (productoFraccionar.precio * cantAAgregar));
+            nombreModificado = `${productoFraccionar.nombre} (Sello/Blister)`;
+        } else {
+            nombreModificado = `${productoFraccionar.nombre} (Unidad/Pastilla)`;
+        }
+
+        const precioUnitarioReal = precioEspecial / cantAAgregar;
+        const cartItemId = `${productoFraccionar.id}_${tipo}`;
+        
+        setPosCart(prev => {
+            const existe = prev.find(item => item.cartItemId === cartItemId);
+            if (existe) {
+                const nuevaCant = existe.cantidad + cantAAgregar;
+                if (nuevaCant > productoFraccionar.stock) { toast.error("Límite de stock físico superado"); return prev; }
+                return prev.map(i => i.cartItemId === cartItemId ? { ...i, cantidad: nuevaCant } : i);
+            }
+            if (productoFraccionar.stock >= cantAAgregar) {
+                toast.success(`Agregado: ${nombreModificado}`);
+                return [...prev, { 
+                    ...productoFraccionar, cartItemId, nombre: nombreModificado, cantidad: cantAAgregar, 
+                    precio: precioUnitarioReal, es_fraccionado: true 
+                }];
+            }
+            toast.error("Sin existencias físicas"); return prev;
+        });
+        setShowFraccionModal(false); setProductoFraccionar(null);
+    };
+
+    const updatePosQuantity = (cartItemId, nuevaCantidad) => {
         setPosCart(prev => prev.map(item => {
-            if (item.id === id) {
+            if (item.cartItemId === cartItemId) {
                 if (nuevaCantidad > item.stock) {
-                    toast.error(`Solo quedan ${item.stock} unidades`);
+                    toast.error(`Solo quedan ${item.stock} unidades físicas`);
                     return { ...item, cantidad: item.stock };
                 }
                 return { ...item, cantidad: Math.max(0, nuevaCantidad) };
@@ -390,30 +440,20 @@ const AdminDashboard = () => {
         }).filter(item => item.cantidad > 0));
     };
 
-    const removeFromPosCart = (id) => { setPosCart(prev => prev.filter(item => item.id !== id)); };
+    const removeFromPosCart = (cartItemId) => { setPosCart(prev => prev.filter(item => item.cartItemId !== cartItemId)); };
 
-    // 🔥 LOGICA CEREBRAL: PRECIO MAYORISTA AUTOMATICO 🔥
     const posCartCalculado = useMemo(() => {
-        const clienteRegistradoSeleccionado = posClienteId !== '';
-
+        const clienteVIP = posClienteId !== '';
         return (posCart || []).map(item => {
+            if (item.es_fraccionado) {
+                return { ...item, es_mayor: false, precio_aplicado: item.precio, subtotal: item.precio * item.cantidad };
+            }
             const metaMayor = parseInt(item.cantidad_mayor) || 0;
-            const tienePrecioMayor = metaMayor > 0 && item.precio_mayor !== null;
-            
-            // EL DESCUENTO APLICA SI:
-            // 1. Lleva la cantidad mayor estipulada
-            // 2. O si es un cliente registrado en la base de datos
-            const aplicaDescuento = tienePrecioMayor && (item.cantidad >= metaMayor || clienteRegistradoSeleccionado);
+            const aplicaDescuento = metaMayor > 0 && item.precio_mayor && (item.cantidad >= metaMayor || clienteVIP);
             const precioFinal = aplicaDescuento ? parseFloat(item.precio_mayor) : parseFloat(item.precio);
-
-            return {
-                ...item,
-                es_mayor: aplicaDescuento,
-                precio_aplicado: precioFinal,
-                subtotal: precioFinal * item.cantidad
-            };
+            return { ...item, es_mayor: aplicaDescuento, precio_aplicado: precioFinal, subtotal: precioFinal * item.cantidad };
         });
-    }, [posCart, posClienteId]); // <-- Sensible a cambios de cliente
+    }, [posCart, posClienteId]);
 
     const posTotal = useMemo(() => posCartCalculado.reduce((acc, item) => acc + item.subtotal, 0), [posCartCalculado]);
     
@@ -916,6 +956,11 @@ const AdminDashboard = () => {
         if (formulario.cantidad_mayor) data.append('cantidad_mayor', parseInt(formulario.cantidad_mayor));
         if (formulario.precio_mayor) data.append('precio_mayor', parseFloat(formulario.precio_mayor).toFixed(2));
         if (formulario.codigo_barras) data.append('codigo_barras', formulario.codigo_barras);
+        data.append('es_fraccionable', formulario.es_fraccionable);
+        if (formulario.unidades_por_caja) data.append('unidades_por_caja', formulario.unidades_por_caja);
+        if (formulario.unidades_por_sello) data.append('unidades_por_sello', formulario.unidades_por_sello);
+        if (formulario.precio_caja) data.append('precio_caja', formulario.precio_caja);
+        if (formulario.precio_sello) data.append('precio_sello', formulario.precio_sello);
         if (imagenArchivo) data.append('imagen', imagenArchivo);
         
         try { 
@@ -1352,20 +1397,18 @@ const AdminDashboard = () => {
                                                     {item.es_mayor && <span className="text-[8px] bg-green-100 text-green-700 px-2 py-0.5 rounded font-black uppercase mt-1 inline-block">Precio Especial</span>}
                                                     <div className="flex items-center gap-3 mt-2">
                                                         <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-gray-200">
-                                                            <button onClick={() => updatePosQuantity(item.id, item.cantidad - 1)} className="text-gray-400 hover:text-black"><Minus size={12}/></button>
+                                                            <button onClick={() => updatePosQuantity(item.cartItemId, item.cantidad - 1)} className="text-gray-400 hover:text-black"><Minus size={12}/></button>
                                                             <input type="number" value={item.cantidad || ''} 
                                                                 onChange={(e) => {
-                                                                    if (e.target.value === '') { updatePosQuantity(item.id, ''); return; }
-                                                                    let val = parseInt(e.target.value);
-                                                                    if (val < 1) val = 1; if (val > item.stock) val = item.stock;
-                                                                    updatePosQuantity(item.id, val);
+                                                                    if (e.target.value === '') { updatePosQuantity(item.cartItemId, ''); return; }
+                                                                    updatePosQuantity(item.cartItemId, parseInt(e.target.value));
                                                                 }}
-                                                                onBlur={(e) => { if (!e.target.value || parseInt(e.target.value) < 1) { updatePosQuantity(item.id, 1); } }}
-                                                                className="font-black text-xs w-8 md:w-10 text-center bg-gray-50/50 hover:bg-gray-100 outline-none focus:ring-2 focus:ring-blue-500 rounded transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                                onBlur={(e) => { if (!e.target.value || parseInt(e.target.value) < 1) updatePosQuantity(item.cartItemId, 1); }}
+                                                                className="..."
                                                             />
-                                                            <button onClick={() => addToPosCart(item, 1)} disabled={item.cantidad >= item.stock} className="text-gray-400 hover:text-black disabled:opacity-50"><Plus size={12}/></button>
+                                                            <button onClick={() => updatePosQuantity(item.cartItemId, item.cantidad + 1)} disabled={item.cantidad >= item.stock} className="text-gray-400 hover:text-black disabled:opacity-50"><Plus size={12}/></button>
                                                         </div>
-                                                        <button onClick={() => removeFromPosCart(item.id)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
+                                                        <button onClick={() => removeFromPosCart(item.cartItemId)} className="text-red-400 hover:text-red-600"><Trash2 size={14}/></button>
                                                     </div>
                                                 </div>
                                                 <div className="text-right shrink-0">
@@ -2206,6 +2249,102 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* 🔥 POP-UP DE FARMACIA (FRACCIONAMIENTO) 🔥 */}
+            {showFraccionModal && productoFraccionar && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[700] flex items-center justify-center p-4">
+                     <div className="bg-white p-8 rounded-[2rem] w-full max-w-md text-center shadow-2xl animate-in zoom-in-95">
+                         <h3 className="font-black text-xl uppercase mb-2 text-blue-600">Modificador de Empaque</h3>
+                         <p className="text-xs font-bold text-gray-500 mb-6 uppercase border-b pb-4">{productoFraccionar.nombre}</p>
+                         
+                         <div className="grid gap-3">
+                             {parseInt(productoFraccionar.unidades_por_caja) > 1 && (
+                                 <button onClick={() => procesarFraccion('CAJA')} className="bg-blue-50 border-2 border-blue-200 text-blue-700 p-4 rounded-xl font-black uppercase text-[10px] md:text-xs flex justify-between items-center hover:bg-blue-600 hover:text-white transition-colors active:scale-95">
+                                     <span className="flex items-center gap-2"><Package size={16}/> CAJA ({productoFraccionar.unidades_por_caja} uds)</span>
+                                     <span className="text-sm md:text-base">${formatCurrency(productoFraccionar.precio_caja || (productoFraccionar.precio * productoFraccionar.unidades_por_caja))}</span>
+                                 </button>
+                             )}
+                             {parseInt(productoFraccionar.unidades_por_sello) > 1 && (
+                                 <button onClick={() => procesarFraccion('SELLO')} className="bg-green-50 border-2 border-green-200 text-green-700 p-4 rounded-xl font-black uppercase text-[10px] md:text-xs flex justify-between items-center hover:bg-green-600 hover:text-white transition-colors active:scale-95">
+                                     <span className="flex items-center gap-2"><PackageMinus size={16}/> SELLO/BLISTER ({productoFraccionar.unidades_por_sello} uds)</span>
+                                     <span className="text-sm md:text-base">${formatCurrency(productoFraccionar.precio_sello || (productoFraccionar.precio * productoFraccionar.unidades_por_sello))}</span>
+                                 </button>
+                             )}
+                             <button onClick={() => procesarFraccion('UNIDAD')} className="bg-orange-50 border-2 border-orange-200 text-orange-700 p-4 rounded-xl font-black uppercase text-[10px] md:text-xs flex justify-between items-center hover:bg-orange-600 hover:text-white transition-colors active:scale-95">
+                                 <span className="flex items-center gap-2"><div className="w-2 h-2 bg-current rounded-full"></div> UNIDAD (Pastilla)</span>
+                                 <span className="text-sm md:text-base">${formatCurrency(productoFraccionar.precio)}</span>
+                             </button>
+                         </div>
+                         <button onClick={() => {setShowFraccionModal(false); setProductoFraccionar(null);}} className="mt-8 text-gray-400 font-black text-[10px] hover:text-black uppercase tracking-widest border-b border-transparent hover:border-black transition-colors">Cancelar</button>
+                     </div>
+                </div>
+            )}
+
+            {/* 🔥 MODAL: TIRILLA FISCAL TÉRMICA (80mm) 🔥 */}
+            {showPrintModal && facturaAImprimir && (
+                <div className="fixed inset-0 bg-gray-900/90 z-[999] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-w-sm w-full animate-in slide-in-from-bottom-10">
+                        <div className="bg-gray-100 p-4 border-b flex justify-between items-center shrink-0">
+                            <h3 className="font-black text-[10px] uppercase tracking-widest flex items-center gap-2"><Printer size={14}/> Imprimir Tirilla</h3>
+                            <button onClick={() => setShowPrintModal(false)} className="text-gray-500 hover:text-red-500 bg-white p-1 rounded-md"><X size={16}/></button>
+                        </div>
+                        
+                        <div className="p-6 bg-gray-200 flex justify-center overflow-y-auto max-h-[60vh] custom-scrollbar">
+                            {/* --- FORMATO TICKECT 80mm B&W --- */}
+                            <div id="tirilla-pos" className="bg-white p-4 w-[80mm] min-h-[300px] text-black shadow-md font-mono text-xs uppercase leading-tight print:shadow-none print:w-full">
+                                <div className="text-center mb-4 border-b border-dashed border-gray-400 pb-4">
+                                    <h2 className="text-xl font-black tracking-tighter italic">HQ POS</h2>
+                                    <p className="text-[9px] mt-1">NIT: 123456789-0</p>
+                                    <p className="text-[9px]">Centro Logístico Urabá</p>
+                                    <p className="text-[9px]">Tel: 300 000 0000</p>
+                                </div>
+                                <div className="mb-4 text-[9px] space-y-1">
+                                    <p><strong>NOTA DE VENTA N°:</strong> {String(facturaAImprimir.id).padStart(6, '0')}</p>
+                                    <p><strong>FECHA:</strong> {new Date(facturaAImprimir.fecha).toLocaleString('es-CO')}</p>
+                                    <p><strong>CLIENTE:</strong> {facturaAImprimir.Usuario?.nombre}</p>
+                                    <p><strong>PAGO:</strong> {facturaAImprimir.metodo_pago}</p>
+                                </div>
+                                <table className="w-full text-[9px] mb-4">
+                                    <thead className="border-y border-dashed border-gray-400">
+                                        <tr>
+                                            <th className="py-1.5 text-left w-8">CANT</th>
+                                            <th className="py-1.5 text-left">PRODUCTO</th>
+                                            <th className="py-1.5 text-right w-16">TOTAL</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="border-b border-dashed border-gray-400">
+                                        {facturaAImprimir.Detalles.map((item, idx) => (
+                                            <tr key={idx}>
+                                                <td className="py-1.5 align-top font-bold">{item.cantidad}</td>
+                                                <td className="py-1.5 align-top pr-1">{item.Producto?.nombre}</td>
+                                                <td className="py-1.5 align-top text-right font-bold">${formatCurrency(item.precioUnitario * item.cantidad)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                <div className="text-right text-lg font-black tracking-tighter mb-6">
+                                    TOTAL: ${formatCurrency(facturaAImprimir.total)}
+                                </div>
+                                <div className="text-center text-[8px] border-t border-dashed border-gray-400 pt-4 opacity-80">
+                                    <p className="font-bold">¡GRACIAS POR SU COMPRA!</p>
+                                    <p className="mt-1">Software desarrollado por HQ</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-white border-t shrink-0">
+                            <button onClick={() => {
+                                const printContent = document.getElementById('tirilla-pos').innerHTML;
+                                const originalContent = document.body.innerHTML;
+                                document.body.innerHTML = `<div style="display:flex; justify-content:center; width:100%; margin:0; padding:0;">${printContent}</div>`;
+                                window.print();
+                                document.body.innerHTML = originalContent;
+                                window.location.reload();
+                            }} className="w-full bg-black text-white font-black uppercase text-[10px] tracking-widest py-4 rounded-xl hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 active:scale-95">
+                                <Printer size={16}/> Imprimir Recibo
+                            </button>
                         </div>
                     </div>
                 </div>
