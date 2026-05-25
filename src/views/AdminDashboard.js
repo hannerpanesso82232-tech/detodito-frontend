@@ -388,38 +388,46 @@ const AdminDashboard = () => {
         });
     };
 
-    const procesarFraccion = (tipo) => {
-        let cantAAgregar = 1;
-        let precioEspecial = productoFraccionar.precio; 
+   const procesarFraccion = (tipo) => {
+        let precioEspecial = parseFloat(productoFraccionar.precio); 
         let nombreModificado = productoFraccionar.nombre;
+        let multiplicadorStock = 1; // Cuántas pastillas representa este empaque internamente
 
         if (tipo === 'CAJA') {
-            cantAAgregar = parseInt(productoFraccionar.unidades_por_caja || 1);
-            precioEspecial = parseFloat(productoFraccionar.precio_caja || (productoFraccionar.precio * cantAAgregar));
+            precioEspecial = parseFloat(productoFraccionar.precio_caja || (productoFraccionar.precio * (productoFraccionar.unidades_por_caja || 1)));
             nombreModificado = `${productoFraccionar.nombre} (Caja)`;
+            multiplicadorStock = parseInt(productoFraccionar.unidades_por_caja || 1);
         } else if (tipo === 'SELLO') {
-            cantAAgregar = parseInt(productoFraccionar.unidades_por_sello || 1);
-            precioEspecial = parseFloat(productoFraccionar.precio_sello || (productoFraccionar.precio * cantAAgregar));
+            precioEspecial = parseFloat(productoFraccionar.precio_sello || (productoFraccionar.precio * (productoFraccionar.unidades_por_sello || 1)));
             nombreModificado = `${productoFraccionar.nombre} (Sello/Blister)`;
+            multiplicadorStock = parseInt(productoFraccionar.unidades_por_sello || 1);
         } else {
-            nombreModificado = `${productoFraccionar.nombre} (Unidad/Pastilla)`;
+            nombreModificado = `${productoFraccionar.nombre} (Pastilla)`;
+            multiplicadorStock = 1;
         }
 
-        const precioUnitarioReal = precioEspecial / cantAAgregar;
         const cartItemId = `${productoFraccionar.id}_${tipo}`;
         
         setPosCart(prev => {
             const existe = prev.find(item => item.cartItemId === cartItemId);
             if (existe) {
-                const nuevaCant = existe.cantidad + cantAAgregar;
-                if (nuevaCant > productoFraccionar.stock) { toast.error("Límite de stock físico superado"); return prev; }
-                return prev.map(i => i.cartItemId === cartItemId ? { ...i, cantidad: nuevaCant } : i);
+                const nuevaCantPacks = existe.cantidad + 1; // Suma 1 caja más o 1 sello más
+                if ((nuevaCantPacks * multiplicadorStock) > productoFraccionar.stock) { 
+                    toast.error("Límite de stock físico superado"); 
+                    return prev; 
+                }
+                return prev.map(i => i.cartItemId === cartItemId ? { ...i, cantidad: nuevaCantPacks } : i);
             }
-            if (productoFraccionar.stock >= cantAAgregar) {
+            if (productoFraccionar.stock >= multiplicadorStock) {
                 toast.success(`Agregado: ${nombreModificado}`);
                 return [...prev, { 
-                    ...productoFraccionar, cartItemId, nombre: nombreModificado, cantidad: cantAAgregar, 
-                    precio: precioUnitarioReal, es_fraccionado: true 
+                    ...productoFraccionar, 
+                    cartItemId, 
+                    nombre: nombreModificado, 
+                    cantidad: 1, // Muestra 1 unidad en la tirilla física
+                    precio: precioEspecial, // Muestra el precio del paquete completo
+                    multiplicador_stock: multiplicadorStock, // Oculto: Le dice al backend el equivalente en pastillas
+                    es_fraccionado: true 
                 }];
             }
             toast.error("Sin existencias físicas"); return prev;
@@ -469,8 +477,14 @@ const AdminDashboard = () => {
         setEnviando(true); const loadId = toast.loading("Facturando...");
         try {
             const resPedido = await API.post('/pedidos', {
-                usuarioId: posClienteId || null, // Guardamos a quién se le vendió
-                productos: posCartCalculado.map(i => ({ id: i.id, cantidad: i.cantidad, precio: i.precio_aplicado })),
+                usuarioId: posClienteId || null,
+                // 🔥 ENVIAMOS EL MULTIPLICADOR PARA LA MATEMÁTICA INTERNA DEL BACKEND 🔥
+                productos: posCartCalculado.map(i => ({ 
+                    id: i.id, 
+                    cantidad: i.cantidad, // Mandará 1 o 2 (Cajas/Sellos)
+                    precio: i.precio_aplicado,
+                    multiplicador_stock: i.multiplicador_stock || 1 
+                })),
                 direccion: 'VENTA FÍSICA EN MOSTRADOR (CAJA)',
                 metodo_pago: 'POS_LOCAL',
                 total_forzado: posTotal        
@@ -878,9 +892,50 @@ const AdminDashboard = () => {
         const ws = XLSX.utils.json_to_sheet(dataParaExportar); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Inventario"); XLSX.writeFile(wb, filtroStockBajo ? `Reporte_Inventario_Stock_Bajo.xlsx` : `Reporte_Inventario.xlsx`);
     };
 
-    const cerrarModal = () => { setShowModal(false); setProductoEditando(null); setImagenArchivo(null); setPreview(null); setFormulario({ nombre: '', precio: '', stock: '', stock_adicional: '', costo_nuevo_lote: '', categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', margen_ganancia: '', tope_stock: 10, cantidad_mayor: 0, precio_mayor: '', codigo_barras: '' }); setPrecioCalculado(0); };
+   const cerrarModal = () => { 
+        setShowModal(false); 
+        setProductoEditando(null); 
+        setImagenArchivo(null); 
+        setPreview(null); 
+        setFormulario({ 
+            nombre: '', precio: '', stock: '', stock_adicional: '', costo_nuevo_lote: '', 
+            categoriaId: '', descripcion: '', proveedor: '', costo_compra: '', 
+            margen_ganancia: '', tope_stock: 10, cantidad_mayor: 0, precio_mayor: '', 
+            codigo_barras: '',
+            // 🔥 REINICIAR RANGOS DE FARMACIA
+            es_fraccionable: false, unidades_por_caja: 1, unidades_por_sello: 1, 
+            precio_caja: '', precio_sello: ''
+        }); 
+        setPrecioCalculado(0); 
+    };
     const handleImagenChange = (e) => { const file = e.target.files[0]; if (file) { setImagenArchivo(file); setPreview(URL.createObjectURL(file)); } };
-    const abrirModalEditar = (p) => { setProductoEditando(p); setFormulario({ nombre: p.nombre || '', precio: p.precio || '', stock: p.stock || 0, stock_adicional: '', costo_nuevo_lote: p.costo_compra || 0, categoriaId: p.categoriaId || p.categoria_id || '', descripcion: p.descripcion || '', proveedor: p.proveedor || '', costo_compra: p.costo_compra || 0, margen_ganancia: p.margen_ganancia || 0, tope_stock: p.tope_stock || 10, cantidad_mayor: p.cantidad_mayor || 0, precio_mayor: p.precio_mayor || '', codigo_barras: p.codigo_barras || '' }); setPreview(formatearImagen(p.imagen_url)); setShowModal(true); };
+    const abrirModalEditar = (p) => { 
+        setProductoEditando(p); 
+        setFormulario({ 
+            nombre: p.nombre || '', 
+            precio: p.precio || '', 
+            stock: p.stock || 0, 
+            stock_adicional: '', 
+            costo_nuevo_lote: p.costo_compra || 0, 
+            categoriaId: p.categoriaId || p.categoria_id || '', 
+            descripcion: p.descripcion || '', 
+            proveedor: p.proveedor || '', 
+            costo_compra: p.costo_compra || 0, 
+            margen_ganancia: p.margen_ganancia || 0, 
+            tope_stock: p.tope_stock || 10, 
+            cantidad_mayor: p.cantidad_mayor || 0, 
+            precio_mayor: p.precio_mayor || '', 
+            codigo_barras: p.codigo_barras || '',
+            // 🔥 CAMPOS DE FARMACIA PARA MODIFICAR EN VIVO 🔥
+            es_fraccionable: p.es_fraccionable || false,
+            unidades_por_caja: p.unidades_por_caja || 1,
+            unidades_por_sello: p.unidades_por_sello || 1,
+            precio_caja: p.precio_caja || '',
+            precio_sello: p.precio_sello || ''
+        }); 
+        setPreview(formatearImagen(p.imagen_url)); 
+        setShowModal(true); 
+    };
     const abrirModalBaja = (p) => { setProductoBaja(p); setFormBaja({ cantidad: 1, motivo: 'Dañado/Roto' }); setShowBajaModal(true); };
 
     const handleGuardarProducto = async (e) => {
