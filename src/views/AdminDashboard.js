@@ -389,20 +389,27 @@ const AdminDashboard = () => {
     };
 
    const procesarFraccion = (tipo) => {
+        // 🔥 MATEMÁTICA EXACTA DE FARMACIA 🔥
+        const udsCaja = parseInt(productoFraccionar.unidades_por_caja) || 1; // Ej: 4 Sellos
+        const udsSello = parseInt(productoFraccionar.unidades_por_sello) || 1; // Ej: 10 Pastillas
+        
         let precioEspecial = parseFloat(productoFraccionar.precio); 
         let nombreModificado = productoFraccionar.nombre;
-        let multiplicadorStock = 1; // Cuántas pastillas representa este empaque internamente
+        let multiplicadorStock = 1; 
 
         if (tipo === 'CAJA') {
-            precioEspecial = parseFloat(productoFraccionar.precio_caja || (productoFraccionar.precio * (productoFraccionar.unidades_por_caja || 1)));
+            // El multiplicador de 1 Caja es = 4 sellos × 10 pastillas = 40 pastillas a descontar
+            multiplicadorStock = udsCaja * udsSello; 
+            precioEspecial = parseFloat(productoFraccionar.precio_caja) || (parseFloat(productoFraccionar.precio) * multiplicadorStock);
             nombreModificado = `${productoFraccionar.nombre} (Caja)`;
-            multiplicadorStock = parseInt(productoFraccionar.unidades_por_caja || 1);
         } else if (tipo === 'SELLO') {
-            precioEspecial = parseFloat(productoFraccionar.precio_sello || (productoFraccionar.precio * (productoFraccionar.unidades_por_sello || 1)));
+            // El multiplicador de 1 Sello es = 10 pastillas a descontar
+            multiplicadorStock = udsSello; 
+            precioEspecial = parseFloat(productoFraccionar.precio_sello) || (parseFloat(productoFraccionar.precio) * multiplicadorStock);
             nombreModificado = `${productoFraccionar.nombre} (Sello/Blister)`;
-            multiplicadorStock = parseInt(productoFraccionar.unidades_por_sello || 1);
         } else {
-            nombreModificado = `${productoFraccionar.nombre} (Pastilla)`;
+            // Unidad mínima
+            nombreModificado = `${productoFraccionar.nombre} (Unidad/Pastilla)`;
             multiplicadorStock = 1;
         }
 
@@ -411,26 +418,28 @@ const AdminDashboard = () => {
         setPosCart(prev => {
             const existe = prev.find(item => item.cartItemId === cartItemId);
             if (existe) {
-                const nuevaCantPacks = existe.cantidad + 1; // Suma 1 caja más o 1 sello más
+                const nuevaCantPacks = existe.cantidad + 1;
+                // Validamos que los paquetes convertidos a pastillas no superen el stock
                 if ((nuevaCantPacks * multiplicadorStock) > productoFraccionar.stock) { 
                     toast.error("Límite de stock físico superado"); 
                     return prev; 
                 }
                 return prev.map(i => i.cartItemId === cartItemId ? { ...i, cantidad: nuevaCantPacks } : i);
             }
+            
             if (productoFraccionar.stock >= multiplicadorStock) {
                 toast.success(`Agregado: ${nombreModificado}`);
                 return [...prev, { 
                     ...productoFraccionar, 
                     cartItemId, 
                     nombre: nombreModificado, 
-                    cantidad: 1, // Muestra 1 unidad en la tirilla física
-                    precio: precioEspecial, // Muestra el precio del paquete completo
-                    multiplicador_stock: multiplicadorStock, // Oculto: Le dice al backend el equivalente en pastillas
+                    cantidad: 1, // 🔥 En la Factura aparecerá "1 Caja", súper limpio
+                    precio: precioEspecial, 
+                    multiplicador_stock: multiplicadorStock, // 🔥 Oculto: Al backend viajará "40" para descontar
                     es_fraccionado: true 
                 }];
             }
-            toast.error("Sin existencias físicas"); return prev;
+            toast.error("Sin existencias físicas suficientes"); return prev;
         });
         setShowFraccionModal(false); setProductoFraccionar(null);
     };

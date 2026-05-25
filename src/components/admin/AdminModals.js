@@ -313,23 +313,23 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                                 {forms.formulario.es_fraccionable && (
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in zoom-in-95">
                                         <div>
-                                            <label className="text-[9px] font-black text-blue-700 uppercase tracking-widest ml-1">Uds. por Caja</label>
-                                            <input type="number" placeholder="Ej: 30" value={forms.formulario.unidades_por_caja || ''} onChange={e=>setters.setFormulario({...forms.formulario, unidades_por_caja: e.target.value})} className="w-full mt-1 p-3 rounded-xl bg-white border border-blue-100 outline-none font-bold text-xs focus:ring-2 focus:ring-blue-500" />
+                                            <label className="text-[9px] font-black text-blue-700 uppercase tracking-widest ml-1">¿Sellos x Caja?</label>
+                                            <input type="number" placeholder="Ej: 4" value={forms.formulario.unidades_por_caja || ''} onChange={e=>setters.setFormulario({...forms.formulario, unidades_por_caja: e.target.value})} className="w-full mt-1 p-3 rounded-xl bg-white border border-blue-100 outline-none font-bold text-xs focus:ring-2 focus:ring-blue-500" />
                                         </div>
                                         <div>
-                                            <label className="text-[9px] font-black text-blue-700 uppercase tracking-widest ml-1">Precio x Caja</label>
+                                            <label className="text-[9px] font-black text-blue-700 uppercase tracking-widest ml-1">Precio x Caja ($)</label>
                                             <input type="number" placeholder="Ej: 30000" value={forms.formulario.precio_caja || ''} onChange={e=>setters.setFormulario({...forms.formulario, precio_caja: e.target.value})} className="w-full mt-1 p-3 rounded-xl bg-white border border-blue-100 outline-none font-bold text-xs focus:ring-2 focus:ring-blue-500" />
                                         </div>
                                         <div>
-                                            <label className="text-[9px] font-black text-green-700 uppercase tracking-widest ml-1">Uds. por Sello</label>
+                                            <label className="text-[9px] font-black text-green-700 uppercase tracking-widest ml-1">¿Pastillas x Sello?</label>
                                             <input type="number" placeholder="Ej: 10" value={forms.formulario.unidades_por_sello || ''} onChange={e=>setters.setFormulario({...forms.formulario, unidades_por_sello: e.target.value})} className="w-full mt-1 p-3 rounded-xl bg-white border border-green-100 outline-none font-bold text-xs focus:ring-2 focus:ring-green-500" />
                                         </div>
                                         <div>
-                                            <label className="text-[9px] font-black text-green-700 uppercase tracking-widest ml-1">Precio x Sello</label>
+                                            <label className="text-[9px] font-black text-green-700 uppercase tracking-widest ml-1">Precio x Sello ($)</label>
                                             <input type="number" placeholder="Ej: 12000" value={forms.formulario.precio_sello || ''} onChange={e=>setters.setFormulario({...forms.formulario, precio_sello: e.target.value})} className="w-full mt-1 p-3 rounded-xl bg-white border border-green-100 outline-none font-bold text-xs focus:ring-2 focus:ring-green-500" />
                                         </div>
                                         <div className="col-span-2 md:col-span-4 mt-2">
-                                            <p className="text-[9px] text-blue-600 font-bold uppercase italic flex items-center gap-1">⚠️ Recuerda: El "Stock" y el "Precio Venta (Final)" de arriba ahora equivalen a la pastilla/unidad suelta.</p>
+                                            <p className="text-[9px] text-blue-600 font-bold uppercase italic flex items-center gap-1">⚠️ Matemática: 1 Caja = {parseInt(forms.formulario.unidades_por_caja||1) * parseInt(forms.formulario.unidades_por_sello||1)} Pastillas en total. El "Stock" debe ser en pastillas sueltas.</p>
                                         </div>
                                     </div>
                                 )}
