@@ -144,6 +144,10 @@ const AdminDashboard = () => {
     const [filtroStockBajo, setFiltroStockBajo] = useState(false);
     const [filtroFechaPedidos, setFiltroFechaPedidos] = useState(''); 
     const [filtroTextoPedidos, setFiltroTextoPedidos] = useState(''); 
+    const [filtroFechaVentasCaja, setFiltroFechaVentasCaja] = useState('');
+    const [filtroProductoVentasCaja, setFiltroProductoVentasCaja] = useState('');
+    const [filtroFechaCompras, setFiltroFechaCompras] = useState('');
+    const [filtroProductoCompras, setFiltroProductoCompras] = useState('');
     const [searchTermCartera, setSearchTermCartera] = useState(''); 
     const [filtroEstadoCartera, setFiltroEstadoCartera] = useState('TODOS'); 
     const [fechaInicioFinanzas, setFechaInicioFinanzas] = useState('');
@@ -642,7 +646,7 @@ const AdminDashboard = () => {
     }, [productos]);
 
     const historialComprasInventario = useMemo(() => {
-        return (Array.isArray(transacciones) ? transacciones : [])
+        let compras = (Array.isArray(transacciones) ? transacciones : [])
             .filter(tx => tx.categoria === 'Compra de Inventario' && tx.descripcion?.startsWith('COMPRA_STOCK'))
             .map(tx => {
                 const partes = tx.descripcion.split('|');
@@ -655,14 +659,27 @@ const AdminDashboard = () => {
                     producto: partes[4] || 'N/A',
                     costoTotal: tx.monto
                 };
-            }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    }, [transacciones]);
+            });
+
+        // 🔥 FILTRO DINÁMICO POR FECHA 🔥
+        if (filtroFechaCompras) {
+            compras = compras.filter(c => c.fecha && c.fecha.split('T')[0] === filtroFechaCompras);
+        }
+
+        // 🔥 FILTRO DINÁMICO POR NOMBRE DE PRODUCTO 🔥
+        if (filtroProductoCompras) {
+            const termino = filtroProductoCompras.toLowerCase();
+            compras = compras.filter(c => c.producto.toLowerCase().includes(termino));
+        }
+
+        return compras.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    }, [transacciones, filtroFechaCompras, filtroProductoCompras]);
 
     const historialDeVentasCaja = useMemo(() => {
         let ventasCaja = (Array.isArray(pedidos) ? pedidos : [])
             .filter(p => p.metodo_pago && p.metodo_pago.includes('POS_LOCAL'));
 
-        // 🔥 Filtro estricto para CAJERO: Solo ve ventas de HOY y hechas por ÉL MISMO 🔥
+        // Filtro estricto para CAJERO: Solo ve ventas de HOY y hechas por ÉL MISMO
         if (esCajero) {
             const hoyStr = getLocalCurrentDate();
             ventasCaja = ventasCaja.filter(p => {
@@ -672,8 +689,25 @@ const AdminDashboard = () => {
             });
         }
 
+        // 🔥 FILTRO DINÁMICO POR FECHA (ADMIN/AUDITORÍA) 🔥
+        if (filtroFechaVentasCaja) {
+            ventasCaja = ventasCaja.filter(p => p.fecha && p.fecha.split('T')[0] === filtroFechaVentasCaja);
+        }
+
+        // 🔥 FILTRO DINÁMICO POR PRODUCTO DENTRO DE LOS DETALLES 🔥
+        if (filtroProductoVentasCaja) {
+            const termino = filtroProductoVentasCaja.toLowerCase();
+            ventasCaja = ventasCaja.filter(p => {
+                const items = p.Detalles || p.items || [];
+                return items.some(item => {
+                    const nombreProd = (item.Producto?.nombre || item.nombre || '').toLowerCase();
+                    return nombreProd.includes(termino);
+                });
+            });
+        }
+
         return ventasCaja.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-    }, [pedidos, esCajero, user]);
+    }, [pedidos, esCajero, user, filtroFechaVentasCaja, filtroProductoVentasCaja]);
 
     const dataAgendaEntregas = useMemo(() => {
         const agenda = {};
