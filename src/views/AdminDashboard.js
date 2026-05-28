@@ -393,26 +393,22 @@ const AdminDashboard = () => {
     };
 
    const procesarFraccion = (tipo) => {
-        // 🔥 MATEMÁTICA EXACTA DE FARMACIA 🔥
-        const udsCaja = parseInt(productoFraccionar.unidades_por_caja) || 1; // Ej: 4 Sellos
-        const udsSello = parseInt(productoFraccionar.unidades_por_sello) || 1; // Ej: 10 Pastillas
+        const udsCaja = parseInt(productoFraccionar.unidades_por_caja) || 1; 
+        const udsSello = parseInt(productoFraccionar.unidades_por_sello) || 1; 
         
         let precioEspecial = parseFloat(productoFraccionar.precio); 
         let nombreModificado = productoFraccionar.nombre;
         let multiplicadorStock = 1; 
 
         if (tipo === 'CAJA') {
-            // El multiplicador de 1 Caja es = 4 sellos × 10 pastillas = 40 pastillas a descontar
             multiplicadorStock = udsCaja * udsSello; 
             precioEspecial = parseFloat(productoFraccionar.precio_caja) || (parseFloat(productoFraccionar.precio) * multiplicadorStock);
             nombreModificado = `${productoFraccionar.nombre} (Caja)`;
         } else if (tipo === 'SELLO') {
-            // El multiplicador de 1 Sello es = 10 pastillas a descontar
             multiplicadorStock = udsSello; 
             precioEspecial = parseFloat(productoFraccionar.precio_sello) || (parseFloat(productoFraccionar.precio) * multiplicadorStock);
             nombreModificado = `${productoFraccionar.nombre} (Sello/Blister)`;
         } else {
-            // Unidad mínima
             nombreModificado = `${productoFraccionar.nombre} (Unidad/Pastilla)`;
             multiplicadorStock = 1;
         }
@@ -420,45 +416,64 @@ const AdminDashboard = () => {
         const cartItemId = `${productoFraccionar.id}_${tipo}`;
         
         setPosCart(prev => {
+            // 🔥 VALIDACIÓN MAESTRA DE INVENTARIO (Suma todo lo que ya hay en el carrito de este producto) 🔥
+            let pastillasEnCarrito = 0;
+            prev.forEach(i => {
+                if (String(i.id) === String(productoFraccionar.id)) {
+                    pastillasEnCarrito += i.cantidad * (i.multiplicador_stock || 1);
+                }
+            });
+
+            if ((pastillasEnCarrito + multiplicadorStock) > productoFraccionar.stock) {
+                toast.error(`¡Stock insuficiente! Tienes ${productoFraccionar.stock} físicas y ya apartaste ${pastillasEnCarrito} en el carrito.`);
+                return prev;
+            }
+
             const existe = prev.find(item => item.cartItemId === cartItemId);
             if (existe) {
                 const nuevaCantPacks = existe.cantidad + 1;
-                // Validamos que los paquetes convertidos a pastillas no superen el stock
-                if ((nuevaCantPacks * multiplicadorStock) > productoFraccionar.stock) { 
-                    toast.error("Límite de stock físico superado"); 
-                    return prev; 
-                }
                 return prev.map(i => i.cartItemId === cartItemId ? { ...i, cantidad: nuevaCantPacks } : i);
             }
             
-            if (productoFraccionar.stock >= multiplicadorStock) {
-                toast.success(`Agregado: ${nombreModificado}`);
-                return [...prev, { 
-                    ...productoFraccionar, 
-                    cartItemId, 
-                    nombre: nombreModificado, 
-                    cantidad: 1, // 🔥 En la Factura aparecerá "1 Caja", súper limpio
-                    precio: precioEspecial, 
-                    multiplicador_stock: multiplicadorStock, // 🔥 Oculto: Al backend viajará "40" para descontar
-                    es_fraccionado: true 
-                }];
-            }
-            toast.error("Sin existencias físicas suficientes"); return prev;
+            toast.success(`Agregado: ${nombreModificado}`);
+            return [...prev, { 
+                ...productoFraccionar, 
+                cartItemId, 
+                nombre: nombreModificado, 
+                cantidad: 1, 
+                precio: precioEspecial, 
+                multiplicador_stock: multiplicadorStock, 
+                es_fraccionado: true 
+            }];
         });
         setShowFraccionModal(false); setProductoFraccionar(null);
     };
 
     const updatePosQuantity = (cartItemId, nuevaCantidad) => {
-        setPosCart(prev => prev.map(item => {
-            if (item.cartItemId === cartItemId) {
-                if (nuevaCantidad > item.stock) {
-                    toast.error(`Solo quedan ${item.stock} unidades físicas`);
-                    return { ...item, cantidad: item.stock };
+        setPosCart(prev => {
+            const itemToUpdate = prev.find(i => i.cartItemId === cartItemId);
+            if (!itemToUpdate) return prev;
+
+            // Sumar pastillas apartadas en OTRAS líneas del mismo producto
+            let pastillasEnOtrasLineas = 0;
+            prev.forEach(i => {
+                if (String(i.id) === String(itemToUpdate.id) && i.cartItemId !== cartItemId) {
+                    pastillasEnOtrasLineas += i.cantidad * (i.multiplicador_stock || 1);
                 }
-                return { ...item, cantidad: Math.max(0, nuevaCantidad) };
+            });
+
+            const pastillasIntentadas = nuevaCantidad * (itemToUpdate.multiplicador_stock || 1);
+            const totalFuturo = pastillasEnOtrasLineas + pastillasIntentadas;
+
+            if (totalFuturo > itemToUpdate.stock) {
+                toast.error(`Stock superado. Solo te quedan ${itemToUpdate.stock} unidades en sucursal.`);
+                const pastillasDisponibles = itemToUpdate.stock - pastillasEnOtrasLineas;
+                const maxEmpaques = Math.floor(pastillasDisponibles / (itemToUpdate.multiplicador_stock || 1));
+                return prev.map(item => item.cartItemId === cartItemId ? { ...item, cantidad: maxEmpaques } : item).filter(item => item.cantidad > 0);
             }
-            return item;
-        }).filter(item => item.cantidad > 0));
+
+            return prev.map(item => item.cartItemId === cartItemId ? { ...item, cantidad: Math.max(0, nuevaCantidad) } : item).filter(item => item.cantidad > 0);
+        });
     };
 
     const removeFromPosCart = (cartItemId) => { setPosCart(prev => prev.filter(item => item.cartItemId !== cartItemId)); };
@@ -564,9 +579,15 @@ const AdminDashboard = () => {
 
             setProductos(prevProductos => 
                 prevProductos.map(prod => {
-                    const itemVendido = itemsComprados.find(item => String(item.id) === String(prod.id));
-                    if (itemVendido) {
-                        const nuevoStock = Math.max(0, parseInt(prod.stock) - parseInt(itemVendido.cantidad));
+                    let totalPastillasDescontar = 0;
+                    itemsComprados.forEach(item => {
+                        if (String(item.id) === String(prod.id)) {
+                            totalPastillasDescontar += item.cantidad * (item.multiplicador_stock || 1);
+                        }
+                    });
+                    
+                    if (totalPastillasDescontar > 0) {
+                        const nuevoStock = Math.max(0, parseInt(prod.stock) - totalPastillasDescontar);
                         return { ...prod, stock: nuevoStock };
                     }
                     return prod;
