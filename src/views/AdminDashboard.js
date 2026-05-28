@@ -1420,7 +1420,7 @@ const AdminDashboard = () => {
                     <div className="flex flex-col gap-6">
                         {esCajero && (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                                <div className="bg-white p-5 rounded-[2rem] border-b-4 border-green-500 shadow-sm">
+                               <div className="bg-white p-5 rounded-[2rem] border-b-4 border-green-500 shadow-sm">
                                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Efectivo Ventas (Mi Turno)</p>
                                     <h3 className="text-3xl font-black text-gray-900 truncate">
                                         ${formatCurrency(transacciones
@@ -1429,8 +1429,15 @@ const AdminDashboard = () => {
                                                 const txDate = t.fecha.split('T')[0];
                                                 if (txDate !== getLocalCurrentDate()) return false;
                                                 if (!(t.descripcion || '').toUpperCase().includes('EFECTIVO')) return false;
-                                                // 🔥 CORRECCIÓN: Buscamos por cajeroId 🔥
-                                                const pedidoAsociado = pedidos.find(p => p.id === t.pedidoId);
+                                                
+                                                // 🔥 TRUCO MAGIA: Si el backend no guardó el pedidoId, lo extraemos del texto (ej. "Caja #15")
+                                                let pedId = t.pedidoId;
+                                                if (!pedId) {
+                                                    const match = (t.descripcion || '').match(/#(\d+)/);
+                                                    if (match) pedId = match[1];
+                                                }
+                                                
+                                                const pedidoAsociado = pedidos.find(p => String(p.id) === String(pedId));
                                                 return pedidoAsociado && String(pedidoAsociado.cajeroId) === String(user?.id);
                                             })
                                             .reduce((acc, t) => acc + (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO') ? -parseFloat(t.monto || 0) : parseFloat(t.monto || 0)), 0))}
@@ -1446,8 +1453,15 @@ const AdminDashboard = () => {
                                                 const txDate = t.fecha.split('T')[0];
                                                 if (txDate !== getLocalCurrentDate()) return false;
                                                 if (!(t.descripcion || '').toUpperCase().includes('TRANSFERENCIA')) return false;
-                                                // 🔥 CORRECCIÓN: Buscamos por cajeroId 🔥
-                                                const pedidoAsociado = pedidos.find(p => p.id === t.pedidoId);
+                                                
+                                                // 🔥 TRUCO MAGIA: Extraer ID del pedido del texto
+                                                let pedId = t.pedidoId;
+                                                if (!pedId) {
+                                                    const match = (t.descripcion || '').match(/#(\d+)/);
+                                                    if (match) pedId = match[1];
+                                                }
+                                                
+                                                const pedidoAsociado = pedidos.find(p => String(p.id) === String(pedId));
                                                 return pedidoAsociado && String(pedidoAsociado.cajeroId) === String(user?.id);
                                             })
                                             .reduce((acc, t) => acc + (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO') ? -parseFloat(t.monto || 0) : parseFloat(t.monto || 0)), 0))}
