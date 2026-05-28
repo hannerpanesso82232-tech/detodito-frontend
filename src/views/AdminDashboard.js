@@ -1861,6 +1861,20 @@ const AdminDashboard = () => {
                                         <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter flex items-center gap-2"><Receipt size={24} className="text-blue-600"/> Historial de Ventas (Auditoría)</h3>
                                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Registro de comprobantes de POS</p>
                                     </div>
+                                    {/* 🔥 ENTRADAS DE FILTRADO EN VIVO 🔥 */}
+                                    <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                                        <div className="relative flex-1 sm:w-64">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                            <input type="text" placeholder="Buscar por producto..." value={filtroProductoVentasCaja} onChange={e => setFiltroProductoVentasCaja(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl font-bold text-[10px] uppercase outline-none shadow-sm" />
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-white border border-gray-200 p-1.5 rounded-xl shadow-sm">
+                                            <input type="date" value={filtroFechaVentasCaja} onChange={e => setFiltroFechaVentasCaja(e.target.value)} className="border-none bg-transparent text-[10px] font-black uppercase text-gray-700 outline-none cursor-pointer" />
+                                            {(filtroFechaVentasCaja || filtroProductoVentasCaja) && (
+                                                <button onClick={() => { setFiltroFechaVentasCaja(''); setFiltroProductoVentasCaja(''); }} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white px-2 py-1 rounded-md text-[9px] font-black transition-colors">LIMPIAR</button>
+                                            )}
+                                        </div>
+                                    </div>
+                                
                                 </div>
                                 <div className="overflow-x-auto custom-scrollbar">
                                     <table className="w-full text-left min-w-[800px]">
@@ -1947,8 +1961,23 @@ const AdminDashboard = () => {
                         {subTabReportes === 'COMPRAS' && (
                             <div className="bg-white rounded-[2rem] md:rounded-[3rem] shadow-sm border border-gray-100 p-6 md:p-10">
                                 <div className="flex justify-between items-center mb-6 md:mb-8">
-                                    <div><h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Historial de Compras</h3><p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Ingresos de inventario a bodega</p></div>
-                                    <PackagePlus className="text-green-500 hidden md:block" size={28} />
+                                    <div><h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Historial de Compras</h3>
+                                    <p className="text-[9px] md:text-[10px] font-bold text-gray-400 uppercase tracking-widest">Ingresos de inventario a bodega</p>
+                                    </div>
+                                    {/* 🔥 ENTRADAS DE FILTRADO EN COMPRAS 🔥 */}
+                                    <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                                        <div className="relative flex-1 sm:w-64">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                                            <input type="text" placeholder="Filtrar por insumo/medicamento..." value={filtroProductoCompras} onChange={e => setFiltroProductoCompras(e.target.value)} className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border-none rounded-xl font-bold text-[10px] uppercase outline-none" />
+                                        </div>
+                                        <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200">
+                                            <input type="date" value={filtroFechaCompras} onChange={e => setFiltroFechaCompras(e.target.value)} className="border-none bg-transparent text-[10px] font-black uppercase text-gray-700 outline-none cursor-pointer" />
+                                            {(filtroFechaCompras || filtroProductoCompras) && (
+                                                <button onClick={() => { setFiltroFechaCompras(''); setFiltroProductoCompras(''); }} className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white px-2 py-1 rounded-md text-[9px] font-black transition-colors">LIMPIAR</button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <PackagePlus className="text-green-500 hidden lg:block" size={28} />
                                 </div>
                                 <div className="overflow-x-auto custom-scrollbar">
                                     <table className="w-full text-left min-w-[800px]">
