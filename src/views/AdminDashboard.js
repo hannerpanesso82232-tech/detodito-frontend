@@ -1320,12 +1320,35 @@ const AdminDashboard = () => {
         } catch (error) { toast.error("Error al transferir factura", { id: loadingId }); }
     };
 
+    // 🔥 NUEVO MOTOR PARA CIERRE DE CAJA (100% BLINDADO) 🔥
+    const handleGuardarCierreCaja = async (payload) => {
+        try {
+            try { 
+                await API.put('/caja/0', payload); 
+            } catch (error) {
+                // Si la ruta /caja/0 no existe, intenta con la ruta alternativa automáticamente
+                if (error.response && error.response.status === 404) { 
+                    await API.put('/caja/cerrar/0', payload); 
+                } else { 
+                    throw error; 
+                }
+            }
+            toast.success("✅ Arqueo y Cierre guardado en Auditoría");
+            fetchDatos(); // Refresca la tabla automáticamente
+        } catch (error) {
+            console.error(error);
+            toast.error("❌ Error al guardar el arqueo. Verifica tu conexión.");
+        }
+    };
+
     const statesProps = { showBajaModal, productoBaja, showGastoModal, showEditTransaccionModal, transaccionSeleccionada, showDeleteTransaccionModal, pedidoDetalle, showModal, productoEditando, preview, precioCalculado, showEditUsuarioModal, showUsuarioModal, showPasswordModal, usuarioSeleccionado, showConfigModal, usuarioAEliminar, showDeleteModal, productoAEliminar, showCobroModal, pedidoACobrar, showCreditoModal, showAbonoModal, creditoSeleccionado, clienteEstadoCuenta, enviando, showCheatSheetModal, showPrintModal, facturaAImprimir, showArqueoModal, showDevolucionModal, itemDevolucion, cantidadDevolucion };
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir, setShowArqueoModal, setShowDevolucionModal, setCantidadDevolucion };
-    const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera, procesarDevolucionAPI };
     
-    // 🔥 MAGIA: Filtramos las transacciones antes de enviarlas al Modal de Arqueo 🔥
+    // 🔥 INYECTAMOS EL NUEVO MOTOR A LOS HANDLERS 🔥
+    const handlersProps = { handleGuardarCierreCaja, handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera, procesarDevolucionAPI };
+    
+    // 🔥 FILTRAMOS LAS TRANSACCIONES CORRECTAS PARA EL CAJERO 🔥
     const transaccionesModal = esCajero ? transacciones.filter(t => {
         if(!t.fecha || t.fecha.split('T')[0] !== getLocalCurrentDate()) return false;
         let pedId = t.pedidoId;

@@ -1069,45 +1069,19 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                            const handleProcesarArqueo = async (e) => {
                                 e.preventDefault();
                                 
-                                // 🔥 ENVIAR REPORTE OFICIAL Z-REPORT (CON BUCLE DE RUTAS INTELIGENTE) 🔥
-                                try {
-                                    const token = localStorage.getItem('token');
-                                    const urlBackend = process.env.REACT_APP_API_URL || 'https://tu-proveedor.onrender.com';
-                                    
-                                    const payload = {
-                                        ingresos_efectivo: efectivoTeorico,
-                                        ingresos_transferencia: transferenciasTeorico,
-                                        egresos_efectivo: 0,
-                                        efectivo_esperado: efectivoTeorico,
-                                        efectivo_declarado: fisico,
-                                        descuadre: diferencia,
-                                        observaciones: diferencia !== 0 ? `Cajero declara: ${diferencia > 0 ? 'Sobrante' : 'Faltante'} de $${Math.abs(diferencia)}` : 'Cuadre Perfecto'
-                                    };
+                                const payload = {
+                                    ingresos_efectivo: efectivoTeorico,
+                                    ingresos_transferencia: transferenciasTeorico,
+                                    egresos_efectivo: 0,
+                                    efectivo_esperado: efectivoTeorico,
+                                    efectivo_declarado: fisico,
+                                    descuadre: diferencia,
+                                    observaciones: diferencia !== 0 ? `Cajero declara: ${diferencia > 0 ? 'Sobrante' : 'Faltante'} de $${Math.abs(diferencia)}` : 'Cuadre Perfecto'
+                                };
 
-                                    // El sistema intentará todas las combinaciones clásicas de rutas hasta que una funcione
-                                    const rutasPosibles = [
-                                        { method: 'PUT', url: `${urlBackend}/caja/0` },
-                                        { method: 'PUT', url: `${urlBackend}/caja/cerrar/0` },
-                                        { method: 'POST', url: `${urlBackend}/caja/cerrar` },
-                                        { method: 'PUT', url: `${urlBackend}/caja` }
-                                    ];
-
-                                    let guardadoExitoso = false;
-                                    for (const ruta of rutasPosibles) {
-                                        if (guardadoExitoso) break; // Si ya guardó, se detiene
-                                        try {
-                                            const res = await fetch(ruta.url, {
-                                                method: ruta.method,
-                                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                                body: JSON.stringify(payload)
-                                            });
-                                            if (res.ok) guardadoExitoso = true; // ¡La atrapó!
-                                        } catch (err) {
-                                            // Silencio, prueba la siguiente ruta
-                                        }
-                                    }
-                                } catch (error) {
-                                    console.error("Error silencioso al auditar caja:", error);
+                                // 🔥 USAMOS EL MOTOR OFICIAL PARA QUE NO SE PIERDA LA RUTA 🔥
+                                if (handlers && handlers.handleGuardarCierreCaja) {
+                                    await handlers.handleGuardarCierreCaja(payload);
                                 }
 
                                 // 🔥 IMPRIMIR LA TIRILLA TÉRMICA 🔥
@@ -1163,6 +1137,8 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                                 
                                 setters.setShowArqueoModal(false);
                                 setEfectivoFisico('');
+                                
+                                // Opcional: Esperamos para que recargue la página general
                                 setTimeout(() => { window.location.reload(); }, 1500);
                             };
 
