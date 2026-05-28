@@ -1066,7 +1066,7 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                             const diferencia = fisico - efectivoTeorico;
                             const hayDescuadre = diferencia !== 0;
 
-                            const handleProcesarArqueo = async (e) => {
+                           const handleProcesarArqueo = async (e) => {
                                 e.preventDefault();
                                 
                                 // 🔥 ENVIAR REPORTE OFICIAL Z-REPORT A LA BASE DE DATOS 🔥
@@ -1074,27 +1074,36 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                                     const token = localStorage.getItem('token');
                                     const urlBackend = process.env.REACT_APP_API_URL || 'https://tu-proveedor.onrender.com';
                                     
-                                    await fetch(`${urlBackend}/caja/0`, {
+                                    const payload = {
+                                        ingresos_efectivo: efectivoTeorico,
+                                        ingresos_transferencia: transferenciasTeorico,
+                                        egresos_efectivo: 0,
+                                        efectivo_esperado: efectivoTeorico,
+                                        efectivo_declarado: fisico,
+                                        descuadre: diferencia,
+                                        observaciones: diferencia !== 0 ? `Cajero declara: ${diferencia > 0 ? 'Sobrante' : 'Faltante'} de $${Math.abs(diferencia)}` : 'Cuadre Perfecto'
+                                    };
+
+                                    // 1. Intentamos la ruta estándar de cierre
+                                    let res = await fetch(`${urlBackend}/caja/cerrar/0`, {
                                         method: 'PUT',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            'Authorization': `Bearer ${token}`
-                                        },
-                                        body: JSON.stringify({
-                                            ingresos_efectivo: efectivoTeorico,
-                                            ingresos_transferencia: transferenciasTeorico,
-                                            egresos_efectivo: 0,
-                                            efectivo_esperado: efectivoTeorico,
-                                            efectivo_declarado: fisico,
-                                            descuadre: diferencia,
-                                            observaciones: diferencia !== 0 ? `Cajero declara: ${diferencia > 0 ? 'Sobrante' : 'Faltante'} de $${Math.abs(diferencia)}` : 'Cuadre Perfecto'
-                                        })
+                                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                        body: JSON.stringify(payload)
                                     });
+
+                                    // 2. Si falla (Error 404), usamos la ruta alternativa
+                                    if (!res.ok && res.status === 404) {
+                                        await fetch(`${urlBackend}/caja/0`, {
+                                            method: 'PUT',
+                                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                            body: JSON.stringify(payload)
+                                        });
+                                    }
                                 } catch (error) {
                                     console.error("Error silencioso al auditar caja:", error);
                                 }
 
-                                // 🔥 IMPRIMIR LA TIRILLA TÉRMICA (Como estaba originalmente) 🔥
+                                // 🔥 IMPRIMIR LA TIRILLA TÉRMICA 🔥
                                 const printWindow = window.open('', '_blank', 'width=400,height=600');
                                 const html = `
                                     <!DOCTYPE html><html><head><meta charset="utf-8"><title>Cierre de Caja</title>
@@ -1147,7 +1156,6 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                                 
                                 setters.setShowArqueoModal(false);
                                 setEfectivoFisico('');
-                                // Refresca la ventana de fondo para vaciar los cuadros
                                 setTimeout(() => { window.location.reload(); }, 1500);
                             };
 
