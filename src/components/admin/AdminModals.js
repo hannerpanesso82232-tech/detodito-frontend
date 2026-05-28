@@ -1066,12 +1066,35 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                             const diferencia = fisico - efectivoTeorico;
                             const hayDescuadre = diferencia !== 0;
 
-                            const handleProcesarArqueo = (e) => {
+                            const handleProcesarArqueo = async (e) => {
                                 e.preventDefault();
                                 
-                                // Aquí puedes inyectar a futuro la lógica para guardar el cierre en tu base de datos (Backend)
-                                // Por ahora, generamos la tirilla térmica y cerramos.
+                                // 🔥 ENVIAR REPORTE OFICIAL Z-REPORT A LA BASE DE DATOS 🔥
+                                try {
+                                    const token = localStorage.getItem('token');
+                                    const urlBackend = process.env.REACT_APP_API_URL || 'https://tu-proveedor.onrender.com';
+                                    
+                                    await fetch(`${urlBackend}/caja/0`, {
+                                        method: 'PUT',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Authorization': `Bearer ${token}`
+                                        },
+                                        body: JSON.stringify({
+                                            ingresos_efectivo: efectivoTeorico,
+                                            ingresos_transferencia: transferenciasTeorico,
+                                            egresos_efectivo: 0,
+                                            efectivo_esperado: efectivoTeorico,
+                                            efectivo_declarado: fisico,
+                                            descuadre: diferencia,
+                                            observaciones: diferencia !== 0 ? `Cajero declara: ${diferencia > 0 ? 'Sobrante' : 'Faltante'} de $${Math.abs(diferencia)}` : 'Cuadre Perfecto'
+                                        })
+                                    });
+                                } catch (error) {
+                                    console.error("Error silencioso al auditar caja:", error);
+                                }
 
+                                // 🔥 IMPRIMIR LA TIRILLA TÉRMICA (Como estaba originalmente) 🔥
                                 const printWindow = window.open('', '_blank', 'width=400,height=600');
                                 const html = `
                                     <!DOCTYPE html><html><head><meta charset="utf-8"><title>Cierre de Caja</title>
@@ -1086,7 +1109,7 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                                     </style>
                                     </head><body>
                                     <div class="header">
-                                        <p class="title">REPORTE DE ARQUEO</p>
+                                        <p class="title">REPORTE DE ARQUEO Z</p>
                                         <p>CIERRE DE TURNO POS</p>
                                         <p>${new Date().toLocaleString('es-CO')}</p>
                                     </div>
@@ -1124,6 +1147,8 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                                 
                                 setters.setShowArqueoModal(false);
                                 setEfectivoFisico('');
+                                // Refresca la ventana de fondo para vaciar los cuadros
+                                setTimeout(() => { window.location.reload(); }, 1500);
                             };
 
                             return (
