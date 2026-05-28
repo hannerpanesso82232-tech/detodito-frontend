@@ -1069,7 +1069,7 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                            const handleProcesarArqueo = async (e) => {
                                 e.preventDefault();
                                 
-                                // 🔥 ENVIAR REPORTE OFICIAL Z-REPORT A LA BASE DE DATOS 🔥
+                                // 🔥 ENVIAR REPORTE OFICIAL Z-REPORT (CON BUCLE DE RUTAS INTELIGENTE) 🔥
                                 try {
                                     const token = localStorage.getItem('token');
                                     const urlBackend = process.env.REACT_APP_API_URL || 'https://tu-proveedor.onrender.com';
@@ -1084,20 +1084,27 @@ const [efectivoFisico, setEfectivoFisico] = useState('');
                                         observaciones: diferencia !== 0 ? `Cajero declara: ${diferencia > 0 ? 'Sobrante' : 'Faltante'} de $${Math.abs(diferencia)}` : 'Cuadre Perfecto'
                                     };
 
-                                    // 1. Intentamos la ruta estándar de cierre
-                                    let res = await fetch(`${urlBackend}/caja/cerrar/0`, {
-                                        method: 'PUT',
-                                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                        body: JSON.stringify(payload)
-                                    });
+                                    // El sistema intentará todas las combinaciones clásicas de rutas hasta que una funcione
+                                    const rutasPosibles = [
+                                        { method: 'PUT', url: `${urlBackend}/caja/0` },
+                                        { method: 'PUT', url: `${urlBackend}/caja/cerrar/0` },
+                                        { method: 'POST', url: `${urlBackend}/caja/cerrar` },
+                                        { method: 'PUT', url: `${urlBackend}/caja` }
+                                    ];
 
-                                    // 2. Si falla (Error 404), usamos la ruta alternativa
-                                    if (!res.ok && res.status === 404) {
-                                        await fetch(`${urlBackend}/caja/0`, {
-                                            method: 'PUT',
-                                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                                            body: JSON.stringify(payload)
-                                        });
+                                    let guardadoExitoso = false;
+                                    for (const ruta of rutasPosibles) {
+                                        if (guardadoExitoso) break; // Si ya guardó, se detiene
+                                        try {
+                                            const res = await fetch(ruta.url, {
+                                                method: ruta.method,
+                                                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                                                body: JSON.stringify(payload)
+                                            });
+                                            if (res.ok) guardadoExitoso = true; // ¡La atrapó!
+                                        } catch (err) {
+                                            // Silencio, prueba la siguiente ruta
+                                        }
                                     }
                                 } catch (error) {
                                     console.error("Error silencioso al auditar caja:", error);

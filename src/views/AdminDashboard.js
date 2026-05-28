@@ -1324,8 +1324,17 @@ const AdminDashboard = () => {
     const formsProps = { formBaja, formGasto, formulario, formEditUsuario, formUsuario, nuevaPassword, whatsappTienda, horaLimite, nuevaRutaCiudad, nuevaRutaDia, formCredito, formAbono };
     const settersProps = { setShowBajaModal, setFormBaja, setShowGastoModal, setShowEditTransaccionModal, setFormGasto, setShowDeleteTransaccionModal, setPedidoDetalle, cerrarModal, setFormulario, setPreview, setShowEditUsuarioModal, setFormEditUsuario, setShowUsuarioModal, setFormUsuario, setShowPasswordModal, setNuevaPassword, setShowConfigModal, setWhatsappTienda, setHoraLimite, setNuevaRutaCiudad, setNuevaRutaDia, setUsuarioAEliminar, setShowDeleteModal, setShowCobroModal, setPedidoACobrar, setShowCreditoModal, setFormCredito, setShowAbonoModal, setFormAbono, setClienteEstadoCuenta, setCreditoSeleccionado, setShowCheatSheetModal, setShowPrintModal, setFacturaAImprimir, setShowArqueoModal, setShowDevolucionModal, setCantidadDevolucion };
     const handlersProps = { handleGuardarBaja, handleGuardarTransaccion, handleEliminarTransaccion, handleDevolucionProducto, handleGuardarProducto, handleImagenChange, handleEditarUsuario, handleCrearUsuario, handleRestablecerPassword, handleGuardarConfig, handleCrearRutaConfig, handleEliminarRutaConfig, handleEliminarUsuario, handleEliminar, handleCobro, handleCrearCredito, handleRegistrarAbono, handlePasarPedidoACartera, procesarDevolucionAPI };
-    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones, productos, proveedoresDB, sucursales};
     
+    // 🔥 MAGIA: Filtramos las transacciones antes de enviarlas al Modal de Arqueo 🔥
+    const transaccionesModal = esCajero ? transacciones.filter(t => {
+        if(!t.fecha || t.fecha.split('T')[0] !== getLocalCurrentDate()) return false;
+        let pedId = t.pedidoId;
+        if (!pedId) { const match = (t.descripcion || '').match(/#(\d+)/); if(match) pedId = match[1]; }
+        const pedidoAsociado = pedidos.find(p => String(p.id) === String(pedId));
+        return pedidoAsociado && String(pedidoAsociado.cajeroId) === String(user?.id);
+    }) : transacciones;
+
+    const dataProps = { categorias, usuarios, rutasDinamicas, diasUnicosDropdown, clienteActualData, transacciones: transaccionesModal, productos, proveedoresDB, sucursales};
     if (loading) return <div className="h-screen flex flex-col items-center justify-center bg-white font-black text-gray-400"><Loader2 className="animate-spin text-black mb-4" size={48} /> SINCRONIZANDO EN TIEMPO REAL...</div>;
 
     return (
