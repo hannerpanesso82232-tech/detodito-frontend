@@ -684,7 +684,8 @@ const AdminDashboard = () => {
             const hoyStr = getLocalCurrentDate();
             ventasCaja = ventasCaja.filter(p => {
                 const fechaPedido = p.fecha ? p.fecha.split('T')[0] : '';
-                const esDelCajero = String(p.usuarioId || p.usuario_id) === String(user?.id);
+                // 🔥 CORRECCIÓN: Leemos cajeroId en lugar de usuarioId 🔥
+                const esDelCajero = String(p.cajeroId) === String(user?.id);
                 return fechaPedido === hoyStr && esDelCajero;
             });
         }
@@ -1407,9 +1408,9 @@ const AdminDashboard = () => {
                                                 const txDate = t.fecha.split('T')[0];
                                                 if (txDate !== getLocalCurrentDate()) return false;
                                                 if (!(t.descripcion || '').toUpperCase().includes('EFECTIVO')) return false;
-                                                // 🔥 MAGIA: Validamos que la venta le pertenezca a ESTE CAJERO
+                                                // 🔥 CORRECCIÓN: Buscamos por cajeroId 🔥
                                                 const pedidoAsociado = pedidos.find(p => p.id === t.pedidoId);
-                                                return pedidoAsociado && String(pedidoAsociado.usuarioId) === String(user?.id);
+                                                return pedidoAsociado && String(pedidoAsociado.cajeroId) === String(user?.id);
                                             })
                                             .reduce((acc, t) => acc + (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO') ? -parseFloat(t.monto || 0) : parseFloat(t.monto || 0)), 0))}
                                     </h3>
@@ -1424,9 +1425,9 @@ const AdminDashboard = () => {
                                                 const txDate = t.fecha.split('T')[0];
                                                 if (txDate !== getLocalCurrentDate()) return false;
                                                 if (!(t.descripcion || '').toUpperCase().includes('TRANSFERENCIA')) return false;
-                                                // 🔥 MAGIA: Validamos que la venta le pertenezca a ESTE CAJERO
+                                                // 🔥 CORRECCIÓN: Buscamos por cajeroId 🔥
                                                 const pedidoAsociado = pedidos.find(p => p.id === t.pedidoId);
-                                                return pedidoAsociado && String(pedidoAsociado.usuarioId) === String(user?.id);
+                                                return pedidoAsociado && String(pedidoAsociado.cajeroId) === String(user?.id);
                                             })
                                             .reduce((acc, t) => acc + (t.tipo === 'EGRESO' || (t.descripcion || '').toUpperCase().includes('REEMBOLSO') ? -parseFloat(t.monto || 0) : parseFloat(t.monto || 0)), 0))}
                                     </h3>
